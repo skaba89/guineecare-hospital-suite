@@ -7,10 +7,11 @@ from app.modules.admissions.models import Admission
 from app.modules.users.models import User
 from app.modules.rbac.models import Role, Permission, RolePermission
 from app.modules.rbac.seed import seed_rbac
+from app.modules.activity.models import ActivityEntry
 
 
 def init_db():
-    models = [Facility, Department, Patient, Admission, User, Role, Permission, RolePermission]
+    models = [Facility, Department, Patient, Admission, User, Role, Permission, RolePermission, ActivityEntry]
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
