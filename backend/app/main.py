@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 
+from app.db.init_db import init_db
+from app.modules.facilities.routes import router as facilities_router
+from app.modules.departments.routes import router as departments_router
 from app.modules.patients.routes import router as patients_router
 from app.modules.admissions.routes import router as admissions_router
 from app.modules.emergency.routes import router as emergency_router
@@ -15,6 +18,14 @@ app = FastAPI(
     description="API MVP pour la plateforme hospitalière GuinéeCare."
 )
 
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
+
+
+app.include_router(facilities_router, prefix=API_PREFIX)
+app.include_router(departments_router, prefix=API_PREFIX)
 app.include_router(patients_router, prefix=API_PREFIX)
 app.include_router(admissions_router, prefix=API_PREFIX)
 app.include_router(emergency_router, prefix=API_PREFIX)
@@ -34,8 +45,8 @@ def api_root():
         "name": "GuinéeCare Hospital Suite",
         "version": "0.1.0",
         "modules": [
-            "auth",
             "facilities",
+            "departments",
             "patients",
             "admissions",
             "clinical",
