@@ -1,0 +1,27 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: guineecare-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=local
+      - DATABASE_URL=postgresql://guineecare:guineecare@postgres:5432/guineecare
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16
+    container_name: guineecare-postgres
+    environment:
+      - POSTGRES_DB=guineecare
+      - POSTGRES_USER=guineecare
+      - POSTGRES_PASSWORD=guineecare
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
