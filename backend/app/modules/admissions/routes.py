@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.modules.activity.service import record_activity
 from app.modules.rbac.dependencies import require_permission
 from app.modules.users.models import User
 from app.modules.admissions.models import Admission
@@ -29,6 +30,15 @@ def create_admission(
 ):
     row = Admission(**payload.dict())
     db.add(row)
+    db.flush()
+    record_activity(
+        db=db,
+        actor_id=current_user.id,
+        action_name="admission.created",
+        entity_type="admission",
+        entity_id=row.id,
+        level="IMPORTANT",
+    )
     db.commit()
     db.refresh(row)
     return {"data": row, "message": "admission created"}
@@ -45,6 +55,14 @@ def close_admission(
         raise HTTPException(status_code=404, detail="Admission not found")
     row.status = "CLOSED"
     row.closed_at = datetime.utcnow()
+    record_activity(
+        db=db,
+        actor_id=current_user.id,
+        action_name="admission.closed",
+        entity_type="admission",
+        entity_id=row.id,
+        level="IMPORTANT",
+    )
     db.commit()
     db.refresh(row)
     return {"data": row, "message": "admission closed"}
