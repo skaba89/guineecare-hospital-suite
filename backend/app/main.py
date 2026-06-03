@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.db.init_db import init_db
 from app.modules.auth.routes import router as auth_router
 from app.modules.users.routes import router as users_router
+from app.modules.rbac.routes import router as rbac_router
 from app.modules.facilities.routes import router as facilities_router
 from app.modules.departments.routes import router as departments_router
 from app.modules.patients.routes import router as patients_router
@@ -24,6 +25,7 @@ def on_startup():
 
 app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(users_router, prefix=API_PREFIX)
+app.include_router(rbac_router, prefix=API_PREFIX)
 app.include_router(facilities_router, prefix=API_PREFIX)
 app.include_router(departments_router, prefix=API_PREFIX)
 app.include_router(patients_router, prefix=API_PREFIX)
@@ -44,5 +46,5 @@ def api_root():
     return {
         "name": "GuineeCare Hospital Suite",
         "version": "0.1.0",
-        "modules": ["auth", "users", "facilities", "departments", "patients", "admissions", "emergency", "pharmacy", "laboratory", "billing"]
+        "modules": ["auth", "users", "rbac", "facilities", "departments", "patients", "admissions", "emergency", "pharmacy", "laboratory", "billing"]
     }
