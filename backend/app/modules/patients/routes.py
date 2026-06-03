@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.modules.activity.service import record_activity
 from app.modules.rbac.dependencies import require_permission
 from app.modules.users.models import User
 from app.modules.patients.models import Patient
@@ -27,6 +28,15 @@ def create_patient(
 ):
     row = Patient(**payload.dict())
     db.add(row)
+    db.flush()
+    record_activity(
+        db=db,
+        actor_id=current_user.id,
+        action_name="patient.created",
+        entity_type="patient",
+        entity_id=row.id,
+        level="IMPORTANT",
+    )
     db.commit()
     db.refresh(row)
     return {"data": row, "message": "patient created"}
