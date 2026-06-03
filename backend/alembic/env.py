@@ -10,6 +10,7 @@ from app.modules.departments.models import Department
 from app.modules.patients.models import Patient
 from app.modules.admissions.models import Admission
 from app.modules.users.models import User
+from app.modules.rbac.models import Role, Permission, RolePermission
 
 config = context.config
 
