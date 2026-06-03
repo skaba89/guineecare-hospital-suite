@@ -2,9 +2,9 @@
 
 ## Objectif
 
-Valider automatiquement les routes critiques du backend MVP.
+Valider automatiquement le socle API, l'authentification, le RBAC et les premiers parcours MVP.
 
-## Lancer les tests
+## Commande
 
 Depuis le dossier `backend` :
 
@@ -12,30 +12,48 @@ Depuis le dossier `backend` :
 pytest
 ```
 
-## Tests actuellement couverts
+## Tests disponibles
 
-- `GET /health`
-- `GET /api/v1`
-- refus sans token sur les routes protégées :
-  - patients
-  - admissions
-  - facilities
-  - departments
-- refus login avec utilisateur inconnu
-- refus `/auth/me` sans token
+### Santé API
 
-## Stratégie de tests cible
+- `test_health_check`
+- `test_api_root`
 
-1. Tests unitaires de services.
-2. Tests d'intégration API.
-3. Tests RBAC.
-4. Tests d'audit activité.
-5. Tests E2E métier.
+### Authentification
 
-## À ajouter ensuite
+- utilisateur inconnu rejeté ;
+- accès `/auth/me` sans token rejeté ;
+- création du premier super administrateur ;
+- login JWT ;
+- appel `/auth/me` avec token ;
+- mauvais mot de passe rejeté.
 
-- Base SQLite isolée pour tests.
-- Création bootstrap super admin.
-- Login réussi.
-- Accès autorisé avec token.
-- Tests de permissions par rôle.
+### Contrôle d'accès
+
+Routes rejetées sans token :
+
+- `/api/v1/patients`
+- `/api/v1/admissions`
+- `/api/v1/facilities`
+- `/api/v1/departments`
+
+### Accès autorisé
+
+Avec un token `SUPER_ADMIN` :
+
+- création et liste des établissements ;
+- création patient ;
+- création admission ;
+- clôture admission.
+
+## Base de test
+
+Les tests utilisent une base SQLite locale `test_guineecare.db` et réinitialisent les tables à chaque test.
+
+## Prochaines améliorations
+
+- Remplacer SQLite par PostgreSQL de test via Docker.
+- Ajouter tests RBAC par rôle métier.
+- Ajouter tests du journal d'activité.
+- Ajouter tests de migrations Alembic.
+- Ajouter pipeline CI GitHub Actions quand disponible.
