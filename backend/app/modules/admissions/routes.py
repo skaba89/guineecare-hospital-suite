@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.modules.rbac.dependencies import require_permission
+from app.modules.users.models import User
 from app.modules.admissions.models import Admission
 from app.modules.admissions.schemas import AdmissionCreate
 
@@ -11,13 +13,20 @@ router = APIRouter(prefix="/admissions", tags=["admissions"])
 
 
 @router.get("")
-def list_admissions(db: Session = Depends(get_db)):
+def list_admissions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("admission.read")),
+):
     rows = db.query(Admission).order_by(Admission.admitted_at.desc()).all()
     return {"data": rows, "message": "admissions list"}
 
 
 @router.post("")
-def create_admission(payload: AdmissionCreate, db: Session = Depends(get_db)):
+def create_admission(
+    payload: AdmissionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("admission.create")),
+):
     row = Admission(**payload.dict())
     db.add(row)
     db.commit()
@@ -26,7 +35,11 @@ def create_admission(payload: AdmissionCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/{admission_id}/close")
-def close_admission(admission_id: str, db: Session = Depends(get_db)):
+def close_admission(
+    admission_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("admission.close")),
+):
     row = db.query(Admission).filter(Admission.id == admission_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Admission not found")
