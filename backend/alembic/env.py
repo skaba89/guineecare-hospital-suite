@@ -5,12 +5,19 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from app.db.base import Base
-from app.modules.facilities.models import Facility
-from app.modules.departments.models import Department
-from app.modules.patients.models import Patient
-from app.modules.admissions.models import Admission
-from app.modules.users.models import User
-from app.modules.rbac.models import Role, Permission, RolePermission
+
+# Import all SQLAlchemy models so Alembic can detect metadata.
+from app.modules.facilities.models import Facility  # noqa: F401
+from app.modules.departments.models import Department  # noqa: F401
+from app.modules.patients.models import Patient  # noqa: F401
+from app.modules.admissions.models import Admission  # noqa: F401
+from app.modules.users.models import User  # noqa: F401
+from app.modules.rbac.models import Role, Permission, RolePermission  # noqa: F401
+from app.modules.activity.models import ActivityEntry  # noqa: F401
+from app.modules.emergency.models import EmergencyVisit  # noqa: F401
+from app.modules.pharmacy.models import PharmacyProduct, PharmacyStock, StockMovement  # noqa: F401
+from app.modules.laboratory.models import LabTest, LabOrder, LabResult  # noqa: F401
+from app.modules.billing.models import TariffItem, Invoice, Payment  # noqa: F401
 
 config = context.config
 
@@ -26,7 +33,12 @@ target_metadata = Base.metadata
 
 def run_migrations_offline():
     url = config.get_main_option("sqlalchemy.url")
-    context.configure(url=url, target_metadata=target_metadata, literal_binds=True)
+    context.configure(
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        compare_type=True,
+    )
 
     with context.begin_transaction():
         context.run_migrations()
@@ -40,7 +52,11 @@ def run_migrations_online():
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
+        )
 
         with context.begin_transaction():
             context.run_migrations()
