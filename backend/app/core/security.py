@@ -20,3 +20,7 @@ def create_access_token(subject: str, expires_delta: timedelta | None = None) ->
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=settings.token_expire_minutes))
     payload = {"sub": subject, "exp": expire}
     return jwt.encode(payload, settings.auth_secret, algorithm=settings.auth_algorithm)
+
+
+def decode_access_token(token: str) -> dict:
+    return jwt.decode(token, settings.auth_secret, algorithms=[settings.auth_algorithm])
