@@ -47,12 +47,44 @@ Le seed crée :
 
 - l'établissement CHU Donka ;
 - les services Urgences, Maternité, Médecine générale, Laboratoire, Pharmacie, Caisse ;
-- un patient de démonstration.
+- un patient de démonstration ;
+- un compte super administrateur de démonstration.
+
+Compte démo :
+
+```text
+Email: admin@guineecare.local
+Password: admin123
+Role: SUPER_ADMIN
+```
+
+## Authentification
+
+Connexion :
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@guineecare.local","password":"admin123"}'
+```
+
+Utiliser ensuite le token retourné :
+
+```bash
+curl http://localhost:8000/api/v1/patients \
+  -H "Authorization: Bearer <token>"
+```
 
 ## Endpoints MVP disponibles
 
 - GET `/health`
 - GET `/api/v1`
+- POST `/api/v1/auth/login`
+- GET `/api/v1/auth/me`
+- GET `/api/v1/users`
+- POST `/api/v1/users`
+- GET `/api/v1/rbac/roles`
+- GET `/api/v1/rbac/permissions`
 - GET `/api/v1/facilities`
 - POST `/api/v1/facilities`
 - GET `/api/v1/departments`
@@ -80,14 +112,15 @@ pytest
 - PostgreSQL via Docker Compose.
 - SQLAlchemy configuré.
 - Initialisation automatique des tables MVP au démarrage.
-- Modèles MVP : Facility, Department, Patient, Admission.
-- Routes DB : facilities, departments, patients, admissions.
+- Modèles MVP : Facility, Department, Patient, Admission, User, Role, Permission, RolePermission.
+- Authentification JWT opérationnelle.
+- RBAC avec rôles et permissions.
+- Routes protégées : users, rbac, facilities, departments, patients, admissions.
 - Routes temporaires : emergency, pharmacy, laboratory, billing.
 
 ## Prochaine étape technique
 
 - Ajouter Alembic pour les migrations propres.
-- Ajouter l'authentification JWT.
-- Ajouter les modèles utilisateurs, rôles et permissions.
 - Remplacer les routes temporaires par des routes reliées à la base.
 - Ajouter le frontend React.
+- Ajouter les tests d'intégration avec base de test.
