@@ -92,6 +92,16 @@ L'interface charge automatiquement :
 - demandes laboratoire depuis `/api/v1/laboratory/orders` ;
 - factures depuis `/api/v1/billing/invoices`.
 
+## Tableaux
+
+Chaque tableau métier propose maintenant :
+
+- une recherche globale sur toutes les colonnes affichées ;
+- un filtre par statut quand la colonne `status` existe ;
+- un tri ascendant/descendant en cliquant sur les en-têtes ;
+- un compteur `résultats filtrés / total` ;
+- une remise à zéro des filtres.
+
 ## Formulaires MVP disponibles
 
 ### Patients
@@ -171,7 +181,7 @@ Cette version reste volontairement simple :
 - pas encore de router React ;
 - pas encore de composants UI professionnels ;
 - pas encore de validation avancée côté formulaire ;
-- pas encore de tri, filtre ou pagination frontend ;
+- pas encore de pagination frontend ;
 - pas encore de refresh token côté frontend ;
 - pas encore de séparation complète des composants par module.
 
@@ -179,7 +189,6 @@ Cette version reste volontairement simple :
 
 Ajouter :
 
-- le tri et la recherche dans les tableaux ;
 - un router React ;
 - des composants UI réutilisables ;
 - une séparation des pages par fichier ;
