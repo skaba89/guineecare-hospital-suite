@@ -135,12 +135,18 @@ button {
   font-weight: 600;
 }
 
-input {
+input,
+select {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px;
   font: inherit;
+  background: white;
+}
+
+select {
+  min-height: 44px;
 }
 
 .primary-button {
