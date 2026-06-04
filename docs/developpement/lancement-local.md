@@ -34,9 +34,23 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-## Initialiser les données de démonstration
+## Initialiser la base avec Alembic
 
 Après démarrage de PostgreSQL :
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+Cette commande applique :
+
+- `0001_initial_mvp_schema` : socle, patients, admissions, users, RBAC ;
+- `0002_mvp_business_modules` : activité, urgences, pharmacie, laboratoire, facturation.
+
+## Initialiser les données de démonstration
+
+Après les migrations :
 
 ```bash
 cd backend
@@ -127,7 +141,8 @@ pytest
 - FastAPI en place.
 - PostgreSQL via Docker Compose.
 - SQLAlchemy configuré.
-- Initialisation automatique des tables MVP au démarrage.
+- Alembic configuré avec migrations MVP.
+- Initialisation automatique des tables encore active pour faciliter le développement local.
 - Modèles MVP : Facility, Department, Patient, Admission, User, Role, Permission, RolePermission.
 - Modèles métier MVP : EmergencyVisit, PharmacyProduct, PharmacyStock, StockMovement, LabTest, LabOrder, LabResult, TariffItem, Invoice, Payment.
 - Authentification JWT opérationnelle.
@@ -136,7 +151,7 @@ pytest
 
 ## Prochaine étape technique
 
-- Ajouter Alembic pour les migrations propres.
 - Ajouter les tests d'intégration avec base de test.
 - Ajouter le frontend React.
 - Enrichir les modèles métier avec relations, contraintes et audit détaillé.
+- Désactiver `create_all()` avant la préproduction.
