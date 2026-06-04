@@ -11,6 +11,8 @@
 - docs/deploiement/deploiement-national.md
 - docs/formation/conduite-du-changement.md
 - docs/roadmap/roadmap-mvp.md
+- docs/securite/auth-rbac.md
+- docs/tests/recette-api-mvp.md
 
 ## Lots disponibles dans le dépôt
 
@@ -31,6 +33,21 @@
 - Lot 15 — Architecture, DevOps et exploitation
 - Lot 16 — Roadmap, MVP, équipe projet et cahier des charges final
 
+## Documents techniques MVP
+
+- docs/backlog/mvp-backlog.md
+- docs/backlog/sprints-mvp.md
+- docs/api/api-conventions.md
+- docs/data-model/mvp-data-model.md
+- docs/developpement/lancement-local.md
+- docs/tests/plan-tests-e2e-mvp.md
+- docs/tests/parcours-utilisateurs-mvp.md
+- docs/tests/recette-api-mvp.md
+
+## État actuel
+
+Le dépôt contient maintenant un socle backend FastAPI avec PostgreSQL, Auth JWT, RBAC, utilisateurs, établissements, services, patients, admissions, urgences, pharmacie, laboratoire et facturation MVP.
+
 ## Prochaine étape recommandée
 
-Transformer cette documentation en backlog produit : Epics, User Stories, critères d’acceptation, maquettes UX/UI, modèle de données complet et premières tâches de développement.
+Ajouter Alembic, renforcer les tests d'intégration et démarrer le frontend React avec login, dashboard et pages MVP.
