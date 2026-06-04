@@ -166,6 +166,25 @@ select {
   color: var(--text);
 }
 
+.table-toolbar {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(180px, 260px) auto auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+
+.toolbar-control {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -187,6 +206,16 @@ select {
   color: var(--muted);
 }
 
+.table-sort-button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 0;
+}
+
 @media (max-width: 900px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -194,5 +223,9 @@ select {
 
   .sidebar {
     position: static;
+  }
+
+  .table-toolbar {
+    grid-template-columns: 1fr;
   }
 }
