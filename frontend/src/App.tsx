@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiRequest, getToken, clearToken } from "./services/api";
 import { login } from "./services/authService";
 
@@ -14,12 +14,41 @@ const pages = [
 
 type Row = Record<string, any>;
 type FormValues = Record<string, string>;
+type Option = { value: string; label: string };
+type FieldConfig = { name: string; label: string; type?: string; options?: Option[] };
 
-const defaultFacilityId = "facility-test";
+type LookupData = {
+  facilities: Row[];
+  patients: Row[];
+  departments: Row[];
+  admissions: Row[];
+  products: Row[];
+  labTests: Row[];
+  labOrders: Row[];
+  invoices: Row[];
+};
+
+const emptyLookups: LookupData = {
+  facilities: [],
+  patients: [],
+  departments: [],
+  admissions: [],
+  products: [],
+  labTests: [],
+  labOrders: [],
+  invoices: [],
+};
 
 export default function App() {
   const [tokenReady, setTokenReady] = useState(Boolean(getToken()));
   const [page, setPage] = useState("Dashboard");
+  const [lookupVersion, setLookupVersion] = useState(0);
+  const lookups = useLookupData(tokenReady, lookupVersion);
+
+  function refreshAll() {
+    window.dispatchEvent(new Event("refresh-resource"));
+    setLookupVersion((value) => value + 1);
+  }
 
   if (!tokenReady) {
     return <LoginPage onLogin={() => setTokenReady(true)} />;
@@ -49,52 +78,97 @@ export default function App() {
         </button>
       </aside>
       <main className="main-content">
-        {page === "Dashboard" && <Dashboard />}
+        {page === "Dashboard" && <Dashboard lookups={lookups} />}
         {page === "Patients" && (
           <ResourcePage
             title="Patients"
             path="/patients"
-            form={<PatientForm onCreated={() => window.dispatchEvent(new Event("refresh-resource"))} />}
+            form={<PatientForm lookups={lookups} onCreated={refreshAll} />}
           />
         )}
         {page === "Admissions" && (
           <ResourcePage
             title="Admissions"
             path="/admissions"
-            form={<AdmissionForm onCreated={() => window.dispatchEvent(new Event("refresh-resource"))} />}
+            form={<AdmissionForm lookups={lookups} onCreated={refreshAll} />}
           />
         )}
         {page === "Urgences" && (
           <ResourcePage
             title="File urgences"
             path="/emergency/queue"
-            form={<EmergencyForm onCreated={() => window.dispatchEvent(new Event("refresh-resource"))} />}
+            form={<EmergencyForm lookups={lookups} onCreated={refreshAll} />}
           />
         )}
         {page === "Pharmacie" && (
           <ResourcePage
             title="Stock pharmacie"
             path="/pharmacy/stock"
-            form={<PharmacyForm onCreated={() => window.dispatchEvent(new Event("refresh-resource"))} />}
+            form={<PharmacyForms lookups={lookups} onCreated={refreshAll} />}
           />
         )}
         {page === "Laboratoire" && (
           <ResourcePage
             title="Examens laboratoire"
             path="/laboratory/tests"
-            form={<LaboratoryForm onCreated={() => window.dispatchEvent(new Event("refresh-resource"))} />}
+            form={<LaboratoryForms lookups={lookups} onCreated={refreshAll} />}
           />
         )}
         {page === "Facturation" && (
           <ResourcePage
             title="Factures"
             path="/billing/invoices"
-            form={<BillingForm onCreated={() => window.dispatchEvent(new Event("refresh-resource"))} />}
+            form={<BillingForms lookups={lookups} onCreated={refreshAll} />}
           />
         )}
       </main>
     </div>
   );
+}
+
+function useLookupData(enabled: boolean, version: number): LookupData {
+  const [lookups, setLookups] = useState<LookupData>(emptyLookups);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let mounted = true;
+
+    async function load() {
+      const results = await Promise.allSettled([
+        apiRequest<any>("/facilities"),
+        apiRequest<any>("/patients"),
+        apiRequest<any>("/departments"),
+        apiRequest<any>("/admissions"),
+        apiRequest<any>("/pharmacy/products"),
+        apiRequest<any>("/laboratory/tests"),
+        apiRequest<any>("/laboratory/orders"),
+        apiRequest<any>("/billing/invoices"),
+      ]);
+
+      if (!mounted) return;
+      const data = results.map((result) =>
+        result.status === "fulfilled" && Array.isArray(result.value.data) ? result.value.data : []
+      );
+
+      setLookups({
+        facilities: data[0],
+        patients: data[1],
+        departments: data[2],
+        admissions: data[3],
+        products: data[4],
+        labTests: data[5],
+        labOrders: data[6],
+        invoices: data[7],
+      });
+    }
+
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [enabled, version]);
+
+  return lookups;
 }
 
 function LoginPage({ onLogin }: { onLogin: () => void }) {
@@ -135,18 +209,18 @@ function LoginPage({ onLogin }: { onLogin: () => void }) {
   );
 }
 
-function Dashboard() {
+function Dashboard({ lookups }: { lookups: LookupData }) {
   return (
     <section>
       <h1>Dashboard hopital</h1>
       <p className="muted">Vue MVP des principaux modules hospitaliers.</p>
       <div className="grid">
-        <Kpi title="Patients" value="MVP" />
-        <Kpi title="Admissions" value="MVP" />
-        <Kpi title="Urgences" value="MVP" />
-        <Kpi title="Pharmacie" value="MVP" />
-        <Kpi title="Laboratoire" value="MVP" />
-        <Kpi title="Facturation" value="MVP" />
+        <Kpi title="Etablissements" value={String(lookups.facilities.length)} />
+        <Kpi title="Patients" value={String(lookups.patients.length)} />
+        <Kpi title="Admissions" value={String(lookups.admissions.length)} />
+        <Kpi title="Produits" value={String(lookups.products.length)} />
+        <Kpi title="Examens" value={String(lookups.labTests.length)} />
+        <Kpi title="Factures" value={String(lookups.invoices.length)} />
       </div>
     </section>
   );
@@ -219,13 +293,17 @@ function SimpleForm({
   onSubmit,
 }: {
   title: string;
-  fields: { name: string; label: string; type?: string }[];
+  fields: FieldConfig[];
   initialValues: FormValues;
   onSubmit: (values: FormValues) => Promise<void>;
 }) {
   const [values, setValues] = useState<FormValues>(initialValues);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setValues((current) => ({ ...initialValues, ...current }));
+  }, [JSON.stringify(initialValues)]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -246,11 +324,23 @@ function SimpleForm({
         {fields.map((field) => (
           <label className="form-control" key={field.name}>
             {field.label}
-            <input
-              type={field.type || "text"}
-              value={values[field.name] || ""}
-              onChange={(event) => setValues({ ...values, [field.name]: event.target.value })}
-            />
+            {field.options ? (
+              <select
+                value={values[field.name] || ""}
+                onChange={(event) => setValues({ ...values, [field.name]: event.target.value })}
+              >
+                <option value="">-- Choisir --</option>
+                {field.options.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type={field.type || "text"}
+                value={values[field.name] || ""}
+                onChange={(event) => setValues({ ...values, [field.name]: event.target.value })}
+              />
+            )}
           </label>
         ))}
         <div className="form-actions">
@@ -263,13 +353,35 @@ function SimpleForm({
   );
 }
 
-function PatientForm({ onCreated }: { onCreated: () => void }) {
+function useOptions(lookups: LookupData) {
+  return useMemo(() => ({
+    facilities: toOptions(lookups.facilities, (row) => `${row.code || "ETAB"} - ${row.name || row.id}`),
+    patients: toOptions(lookups.patients, (row) => `${row.patient_number || "PAT"} - ${row.first_name || ""} ${row.last_name || ""}`.trim()),
+    departments: toOptions(lookups.departments, (row) => `${row.code || "SRV"} - ${row.name || row.id}`),
+    admissions: toOptions(lookups.admissions, (row) => `${row.admission_type || "ADM"} - ${row.status || ""} - ${row.patient_id || row.id}`),
+    products: toOptions(lookups.products, (row) => `${row.code || "PROD"} - ${row.name || row.id}`),
+    labTests: toOptions(lookups.labTests, (row) => `${row.code || "LAB"} - ${row.name || row.id}`),
+    labOrders: toOptions(lookups.labOrders, (row) => `${row.priority || "ORDER"} - ${row.status || ""} - ${row.patient_id || row.id}`),
+    invoices: toOptions(lookups.invoices, (row) => `${row.invoice_number || "INV"} - solde ${row.balance_due ?? ""}`),
+  }), [lookups]);
+}
+
+function toOptions(rows: Row[], labelBuilder: (row: Row) => string): Option[] {
+  return rows.filter((row) => row.id).map((row) => ({ value: row.id, label: labelBuilder(row) }));
+}
+
+function firstValue(options: Option[]): string {
+  return options[0]?.value || "";
+}
+
+function PatientForm({ lookups, onCreated }: { lookups: LookupData; onCreated: () => void }) {
+  const options = useOptions(lookups);
   return (
     <SimpleForm
       title="Nouveau patient"
-      initialValues={{ facility_id: defaultFacilityId, patient_number: "PAT-001", first_name: "", last_name: "" }}
+      initialValues={{ facility_id: firstValue(options.facilities), patient_number: `PAT-${Date.now()}`, first_name: "", last_name: "" }}
       fields={[
-        { name: "facility_id", label: "Etablissement ID" },
+        { name: "facility_id", label: "Etablissement", options: options.facilities },
         { name: "patient_number", label: "Numero patient" },
         { name: "first_name", label: "Prenom" },
         { name: "last_name", label: "Nom" },
@@ -282,15 +394,16 @@ function PatientForm({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-function AdmissionForm({ onCreated }: { onCreated: () => void }) {
+function AdmissionForm({ lookups, onCreated }: { lookups: LookupData; onCreated: () => void }) {
+  const options = useOptions(lookups);
   return (
     <SimpleForm
       title="Nouvelle admission"
-      initialValues={{ facility_id: defaultFacilityId, patient_id: "", department_id: "", admission_type: "CONSULTATION" }}
+      initialValues={{ facility_id: firstValue(options.facilities), patient_id: firstValue(options.patients), department_id: firstValue(options.departments), admission_type: "CONSULTATION" }}
       fields={[
-        { name: "facility_id", label: "Etablissement ID" },
-        { name: "patient_id", label: "Patient ID" },
-        { name: "department_id", label: "Service ID" },
+        { name: "facility_id", label: "Etablissement", options: options.facilities },
+        { name: "patient_id", label: "Patient", options: options.patients },
+        { name: "department_id", label: "Service", options: options.departments },
         { name: "admission_type", label: "Type admission" },
       ]}
       onSubmit={async (values) => {
@@ -301,16 +414,22 @@ function AdmissionForm({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-function EmergencyForm({ onCreated }: { onCreated: () => void }) {
+function EmergencyForm({ lookups, onCreated }: { lookups: LookupData; onCreated: () => void }) {
+  const options = useOptions(lookups);
   return (
     <SimpleForm
       title="Nouveau passage urgence"
-      initialValues={{ facility_id: defaultFacilityId, patient_id: "", admission_id: "", priority_level: "NORMAL", chief_complaint: "" }}
+      initialValues={{ facility_id: firstValue(options.facilities), patient_id: firstValue(options.patients), admission_id: "", priority_level: "NORMAL", chief_complaint: "" }}
       fields={[
-        { name: "facility_id", label: "Etablissement ID" },
-        { name: "patient_id", label: "Patient ID" },
-        { name: "admission_id", label: "Admission ID" },
-        { name: "priority_level", label: "Priorite" },
+        { name: "facility_id", label: "Etablissement", options: options.facilities },
+        { name: "patient_id", label: "Patient", options: options.patients },
+        { name: "admission_id", label: "Admission optionnelle", options: options.admissions },
+        { name: "priority_level", label: "Priorite", options: [
+          { value: "LOW", label: "Basse" },
+          { value: "NORMAL", label: "Normale" },
+          { value: "HIGH", label: "Haute" },
+          { value: "CRITICAL", label: "Critique" },
+        ] },
         { name: "chief_complaint", label: "Motif" },
       ]}
       onSubmit={async (values) => {
@@ -322,69 +441,152 @@ function EmergencyForm({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-function PharmacyForm({ onCreated }: { onCreated: () => void }) {
+function PharmacyForms({ lookups, onCreated }: { lookups: LookupData; onCreated: () => void }) {
+  const options = useOptions(lookups);
   return (
-    <SimpleForm
-      title="Nouveau produit pharmacie"
-      initialValues={{ facility_id: defaultFacilityId, code: "PROD-001", name: "", category: "MEDICINE", form: "", dosage: "" }}
-      fields={[
-        { name: "facility_id", label: "Etablissement ID" },
-        { name: "code", label: "Code" },
-        { name: "name", label: "Nom produit" },
-        { name: "category", label: "Categorie" },
-        { name: "form", label: "Forme" },
-        { name: "dosage", label: "Dosage" },
-      ]}
-      onSubmit={async (values) => {
-        await apiRequest("/pharmacy/products", { method: "POST", body: JSON.stringify(values) });
-        onCreated();
-      }}
-    />
+    <>
+      <SimpleForm
+        title="Nouveau produit pharmacie"
+        initialValues={{ facility_id: firstValue(options.facilities), code: `PROD-${Date.now()}`, name: "", category: "MEDICINE", form: "", dosage: "" }}
+        fields={[
+          { name: "facility_id", label: "Etablissement", options: options.facilities },
+          { name: "code", label: "Code" },
+          { name: "name", label: "Nom produit" },
+          { name: "category", label: "Categorie" },
+          { name: "form", label: "Forme" },
+          { name: "dosage", label: "Dosage" },
+        ]}
+        onSubmit={async (values) => {
+          await apiRequest("/pharmacy/products", { method: "POST", body: JSON.stringify(values) });
+          onCreated();
+        }}
+      />
+      <SimpleForm
+        title="Mouvement de stock"
+        initialValues={{ facility_id: firstValue(options.facilities), product_id: firstValue(options.products), movement_type: "IN", quantity: "1", reason: "" }}
+        fields={[
+          { name: "facility_id", label: "Etablissement", options: options.facilities },
+          { name: "product_id", label: "Produit", options: options.products },
+          { name: "movement_type", label: "Type", options: [
+            { value: "IN", label: "Entree" },
+            { value: "OUT", label: "Sortie" },
+          ] },
+          { name: "quantity", label: "Quantite", type: "number" },
+          { name: "reason", label: "Motif" },
+        ]}
+        onSubmit={async (values) => {
+          await apiRequest("/pharmacy/stock/movements", {
+            method: "POST",
+            body: JSON.stringify({ ...values, quantity: Number(values.quantity || 0) }),
+          });
+          onCreated();
+        }}
+      />
+    </>
   );
 }
 
-function LaboratoryForm({ onCreated }: { onCreated: () => void }) {
+function LaboratoryForms({ lookups, onCreated }: { lookups: LookupData; onCreated: () => void }) {
+  const options = useOptions(lookups);
   return (
-    <SimpleForm
-      title="Nouvel examen laboratoire"
-      initialValues={{ facility_id: defaultFacilityId, code: "LAB-001", name: "", category: "GENERAL", sample_type: "Sample" }}
-      fields={[
-        { name: "facility_id", label: "Etablissement ID" },
-        { name: "code", label: "Code examen" },
-        { name: "name", label: "Nom examen" },
-        { name: "category", label: "Categorie" },
-        { name: "sample_type", label: "Type echantillon" },
-      ]}
-      onSubmit={async (values) => {
-        await apiRequest("/laboratory/tests", { method: "POST", body: JSON.stringify(values) });
-        onCreated();
-      }}
-    />
+    <>
+      <SimpleForm
+        title="Nouvel examen laboratoire"
+        initialValues={{ facility_id: firstValue(options.facilities), code: `LAB-${Date.now()}`, name: "", category: "GENERAL", sample_type: "Sample" }}
+        fields={[
+          { name: "facility_id", label: "Etablissement", options: options.facilities },
+          { name: "code", label: "Code examen" },
+          { name: "name", label: "Nom examen" },
+          { name: "category", label: "Categorie" },
+          { name: "sample_type", label: "Type echantillon" },
+        ]}
+        onSubmit={async (values) => {
+          await apiRequest("/laboratory/tests", { method: "POST", body: JSON.stringify(values) });
+          onCreated();
+        }}
+      />
+      <SimpleForm
+        title="Nouvelle demande laboratoire"
+        initialValues={{ facility_id: firstValue(options.facilities), patient_id: firstValue(options.patients), admission_id: "", test_id: firstValue(options.labTests), priority: "NORMAL" }}
+        fields={[
+          { name: "facility_id", label: "Etablissement", options: options.facilities },
+          { name: "patient_id", label: "Patient", options: options.patients },
+          { name: "admission_id", label: "Admission optionnelle", options: options.admissions },
+          { name: "test_id", label: "Examen", options: options.labTests },
+          { name: "priority", label: "Priorite", options: [
+            { value: "NORMAL", label: "Normale" },
+            { value: "URGENT", label: "Urgente" },
+          ] },
+        ]}
+        onSubmit={async (values) => {
+          const payload = { ...values, admission_id: values.admission_id || null };
+          await apiRequest("/laboratory/orders", { method: "POST", body: JSON.stringify(payload) });
+          onCreated();
+        }}
+      />
+      <SimpleForm
+        title="Resultat laboratoire"
+        initialValues={{ facility_id: firstValue(options.facilities), order_id: firstValue(options.labOrders), result_value: "", interpretation: "" }}
+        fields={[
+          { name: "facility_id", label: "Etablissement", options: options.facilities },
+          { name: "order_id", label: "Demande", options: options.labOrders },
+          { name: "result_value", label: "Resultat" },
+          { name: "interpretation", label: "Interpretation" },
+        ]}
+        onSubmit={async (values) => {
+          await apiRequest(`/laboratory/orders/${values.order_id}/results`, {
+            method: "POST",
+            body: JSON.stringify({ facility_id: values.facility_id, result_value: values.result_value, interpretation: values.interpretation }),
+          });
+          onCreated();
+        }}
+      />
+    </>
   );
 }
 
-function BillingForm({ onCreated }: { onCreated: () => void }) {
+function BillingForms({ lookups, onCreated }: { lookups: LookupData; onCreated: () => void }) {
+  const options = useOptions(lookups);
   return (
-    <SimpleForm
-      title="Nouvelle facture"
-      initialValues={{ facility_id: defaultFacilityId, patient_id: "", admission_id: "", invoice_number: "INV-001", description: "", net_amount: "0" }}
-      fields={[
-        { name: "facility_id", label: "Etablissement ID" },
-        { name: "patient_id", label: "Patient ID" },
-        { name: "admission_id", label: "Admission ID" },
-        { name: "invoice_number", label: "Numero facture" },
-        { name: "description", label: "Description" },
-        { name: "net_amount", label: "Montant", type: "number" },
-      ]}
-      onSubmit={async (values) => {
-        const payload = {
-          ...values,
-          admission_id: values.admission_id || null,
-          net_amount: Number(values.net_amount || 0),
-        };
-        await apiRequest("/billing/invoices", { method: "POST", body: JSON.stringify(payload) });
-        onCreated();
-      }}
-    />
+    <>
+      <SimpleForm
+        title="Nouvelle facture"
+        initialValues={{ facility_id: firstValue(options.facilities), patient_id: firstValue(options.patients), admission_id: "", invoice_number: `INV-${Date.now()}`, description: "", net_amount: "0" }}
+        fields={[
+          { name: "facility_id", label: "Etablissement", options: options.facilities },
+          { name: "patient_id", label: "Patient", options: options.patients },
+          { name: "admission_id", label: "Admission optionnelle", options: options.admissions },
+          { name: "invoice_number", label: "Numero facture" },
+          { name: "description", label: "Description" },
+          { name: "net_amount", label: "Montant", type: "number" },
+        ]}
+        onSubmit={async (values) => {
+          const payload = { ...values, admission_id: values.admission_id || null, net_amount: Number(values.net_amount || 0) };
+          await apiRequest("/billing/invoices", { method: "POST", body: JSON.stringify(payload) });
+          onCreated();
+        }}
+      />
+      <SimpleForm
+        title="Nouveau paiement"
+        initialValues={{ facility_id: firstValue(options.facilities), invoice_id: firstValue(options.invoices), amount: "0", payment_method: "CASH" }}
+        fields={[
+          { name: "facility_id", label: "Etablissement", options: options.facilities },
+          { name: "invoice_id", label: "Facture", options: options.invoices },
+          { name: "amount", label: "Montant", type: "number" },
+          { name: "payment_method", label: "Mode paiement", options: [
+            { value: "CASH", label: "Especes" },
+            { value: "MOBILE_MONEY", label: "Mobile Money" },
+            { value: "CARD", label: "Carte" },
+          ] },
+        ]}
+        onSubmit={async (values) => {
+          await apiRequest(`/billing/invoices/${values.invoice_id}/payments`, {
+            method: "POST",
+            body: JSON.stringify({ facility_id: values.facility_id, amount: Number(values.amount || 0), payment_method: values.payment_method }),
+          });
+          onCreated();
+        }}
+      />
+    </>
   );
 }
