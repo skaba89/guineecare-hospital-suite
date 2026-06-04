@@ -95,9 +95,25 @@ curl http://localhost:8000/api/v1/patients \
 - POST `/api/v1/admissions`
 - POST `/api/v1/admissions/{id}/close`
 - GET `/api/v1/emergency/queue`
+- POST `/api/v1/emergency/visits`
+- POST `/api/v1/emergency/visits/{id}/triage`
+- POST `/api/v1/emergency/visits/{id}/orientation`
+- GET `/api/v1/pharmacy/products`
+- POST `/api/v1/pharmacy/products`
 - GET `/api/v1/pharmacy/stock`
+- POST `/api/v1/pharmacy/stock/movements`
 - GET `/api/v1/laboratory/tests`
+- POST `/api/v1/laboratory/tests`
+- GET `/api/v1/laboratory/orders`
+- POST `/api/v1/laboratory/orders`
+- POST `/api/v1/laboratory/orders/{id}/results`
+- POST `/api/v1/laboratory/results/{id}/validate`
+- GET `/api/v1/billing/tariffs`
+- POST `/api/v1/billing/tariffs`
 - GET `/api/v1/billing/invoices`
+- POST `/api/v1/billing/invoices`
+- POST `/api/v1/billing/invoices/{id}/payments`
+- GET `/api/v1/billing/payments/{id}/receipt`
 
 ## Tests
 
@@ -113,14 +129,14 @@ pytest
 - SQLAlchemy configuré.
 - Initialisation automatique des tables MVP au démarrage.
 - Modèles MVP : Facility, Department, Patient, Admission, User, Role, Permission, RolePermission.
+- Modèles métier MVP : EmergencyVisit, PharmacyProduct, PharmacyStock, StockMovement, LabTest, LabOrder, LabResult, TariffItem, Invoice, Payment.
 - Authentification JWT opérationnelle.
 - RBAC avec rôles et permissions.
-- Routes protégées : users, rbac, facilities, departments, patients, admissions.
-- Routes temporaires : emergency, pharmacy, laboratory, billing.
+- Routes protégées : users, rbac, facilities, departments, patients, admissions, emergency, pharmacy, laboratory, billing.
 
 ## Prochaine étape technique
 
 - Ajouter Alembic pour les migrations propres.
-- Remplacer les routes temporaires par des routes reliées à la base.
-- Ajouter le frontend React.
 - Ajouter les tests d'intégration avec base de test.
+- Ajouter le frontend React.
+- Enrichir les modèles métier avec relations, contraintes et audit détaillé.
