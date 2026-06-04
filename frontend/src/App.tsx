@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import { apiRequest, getToken, clearToken } from "./services/api";
+import { useState } from "react";
+import { ResourcePage } from "./components/ResourcePage";
+import { SimpleForm } from "./components/SimpleForm";
+import { useLookupData } from "./hooks/useLookupData";
+import { apiRequest, clearToken, getToken } from "./services/api";
 import { login } from "./services/authService";
+import { LookupData } from "./types";
+import { buildOptions, firstValue } from "./utils/options";
 
 const pages = [
   "Dashboard",
@@ -11,33 +16,6 @@ const pages = [
   "Laboratoire",
   "Facturation",
 ];
-
-type Row = Record<string, any>;
-type FormValues = Record<string, string>;
-type Option = { value: string; label: string };
-type FieldConfig = { name: string; label: string; type?: string; options?: Option[] };
-
-type LookupData = {
-  facilities: Row[];
-  patients: Row[];
-  departments: Row[];
-  admissions: Row[];
-  products: Row[];
-  labTests: Row[];
-  labOrders: Row[];
-  invoices: Row[];
-};
-
-const emptyLookups: LookupData = {
-  facilities: [],
-  patients: [],
-  departments: [],
-  admissions: [],
-  products: [],
-  labTests: [],
-  labOrders: [],
-  invoices: [],
-};
 
 export default function App() {
   const [tokenReady, setTokenReady] = useState(Boolean(getToken()));
@@ -80,95 +58,26 @@ export default function App() {
       <main className="main-content">
         {page === "Dashboard" && <Dashboard lookups={lookups} />}
         {page === "Patients" && (
-          <ResourcePage
-            title="Patients"
-            path="/patients"
-            form={<PatientForm lookups={lookups} onCreated={refreshAll} />}
-          />
+          <ResourcePage title="Patients" path="/patients" form={<PatientForm lookups={lookups} onCreated={refreshAll} />} />
         )}
         {page === "Admissions" && (
-          <ResourcePage
-            title="Admissions"
-            path="/admissions"
-            form={<AdmissionForm lookups={lookups} onCreated={refreshAll} />}
-          />
+          <ResourcePage title="Admissions" path="/admissions" form={<AdmissionForm lookups={lookups} onCreated={refreshAll} />} />
         )}
         {page === "Urgences" && (
-          <ResourcePage
-            title="File urgences"
-            path="/emergency/queue"
-            form={<EmergencyForm lookups={lookups} onCreated={refreshAll} />}
-          />
+          <ResourcePage title="File urgences" path="/emergency/queue" form={<EmergencyForm lookups={lookups} onCreated={refreshAll} />} />
         )}
         {page === "Pharmacie" && (
-          <ResourcePage
-            title="Stock pharmacie"
-            path="/pharmacy/stock"
-            form={<PharmacyForms lookups={lookups} onCreated={refreshAll} />}
-          />
+          <ResourcePage title="Stock pharmacie" path="/pharmacy/stock" form={<PharmacyForms lookups={lookups} onCreated={refreshAll} />} />
         )}
         {page === "Laboratoire" && (
-          <ResourcePage
-            title="Examens laboratoire"
-            path="/laboratory/tests"
-            form={<LaboratoryForms lookups={lookups} onCreated={refreshAll} />}
-          />
+          <ResourcePage title="Examens laboratoire" path="/laboratory/tests" form={<LaboratoryForms lookups={lookups} onCreated={refreshAll} />} />
         )}
         {page === "Facturation" && (
-          <ResourcePage
-            title="Factures"
-            path="/billing/invoices"
-            form={<BillingForms lookups={lookups} onCreated={refreshAll} />}
-          />
+          <ResourcePage title="Factures" path="/billing/invoices" form={<BillingForms lookups={lookups} onCreated={refreshAll} />} />
         )}
       </main>
     </div>
   );
-}
-
-function useLookupData(enabled: boolean, version: number): LookupData {
-  const [lookups, setLookups] = useState<LookupData>(emptyLookups);
-
-  useEffect(() => {
-    if (!enabled) return;
-    let mounted = true;
-
-    async function load() {
-      const results = await Promise.allSettled([
-        apiRequest<any>("/facilities"),
-        apiRequest<any>("/patients"),
-        apiRequest<any>("/departments"),
-        apiRequest<any>("/admissions"),
-        apiRequest<any>("/pharmacy/products"),
-        apiRequest<any>("/laboratory/tests"),
-        apiRequest<any>("/laboratory/orders"),
-        apiRequest<any>("/billing/invoices"),
-      ]);
-
-      if (!mounted) return;
-      const data = results.map((result) =>
-        result.status === "fulfilled" && Array.isArray(result.value.data) ? result.value.data : []
-      );
-
-      setLookups({
-        facilities: data[0],
-        patients: data[1],
-        departments: data[2],
-        admissions: data[3],
-        products: data[4],
-        labTests: data[5],
-        labOrders: data[6],
-        invoices: data[7],
-      });
-    }
-
-    load();
-    return () => {
-      mounted = false;
-    };
-  }, [enabled, version]);
-
-  return lookups;
 }
 
 function LoginPage({ onLogin }: { onLogin: () => void }) {
@@ -235,242 +144,8 @@ function Kpi({ title, value }: { title: string; value: string }) {
   );
 }
 
-function ResourcePage({ title, path, form }: { title: string; path: string; form?: React.ReactNode }) {
-  const [rows, setRows] = useState<Row[]>([]);
-  const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [sortKey, setSortKey] = useState("");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-
-  async function load() {
-    setError("");
-    try {
-      const payload = await apiRequest<any>(path);
-      setRows(Array.isArray(payload.data) ? payload.data : []);
-    } catch (err) {
-      setError("Impossible de charger les donnees.");
-    }
-  }
-
-  useEffect(() => {
-    load();
-    const handler = () => load();
-    window.addEventListener("refresh-resource", handler);
-    return () => window.removeEventListener("refresh-resource", handler);
-  }, [path]);
-
-  useEffect(() => {
-    setSearch("");
-    setStatusFilter("");
-    setSortKey("");
-    setSortDirection("asc");
-  }, [path]);
-
-  const columns = rows.length ? Object.keys(rows[0]).slice(0, 7) : [];
-  const statusOptions = useMemo(() => {
-    return Array.from(new Set(rows.map((row) => row.status).filter(Boolean))).sort();
-  }, [rows]);
-
-  const visibleRows = useMemo(() => {
-    const lowerSearch = search.trim().toLowerCase();
-    let nextRows = rows.filter((row) => {
-      const matchesSearch = !lowerSearch || Object.values(row).join(" ").toLowerCase().includes(lowerSearch);
-      const matchesStatus = !statusFilter || String(row.status || "") === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-
-    if (sortKey) {
-      nextRows = [...nextRows].sort((a, b) => compareValues(a[sortKey], b[sortKey], sortDirection));
-    }
-
-    return nextRows;
-  }, [rows, search, statusFilter, sortKey, sortDirection]);
-
-  function toggleSort(column: string) {
-    if (sortKey === column) {
-      setSortDirection((direction) => (direction === "asc" ? "desc" : "asc"));
-      return;
-    }
-    setSortKey(column);
-    setSortDirection("asc");
-  }
-
-  return (
-    <section>
-      <h1>{title}</h1>
-      <p className="muted">Donnees chargees depuis l API backend.</p>
-      {form}
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
-      <div className="card">
-        <div className="table-toolbar">
-          <label className="toolbar-control">
-            Recherche
-            <input
-              placeholder="Rechercher dans le tableau"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </label>
-          {statusOptions.length > 0 && (
-            <label className="toolbar-control">
-              Statut
-              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-                <option value="">Tous</option>
-                {statusOptions.map((status) => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </select>
-            </label>
-          )}
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={() => {
-              setSearch("");
-              setStatusFilter("");
-              setSortKey("");
-              setSortDirection("asc");
-            }}
-          >
-            Reinitialiser
-          </button>
-          <span className="muted">{visibleRows.length} / {rows.length} ligne(s)</span>
-        </div>
-
-        {rows.length === 0 ? (
-          <p className="muted">Aucune donnee disponible pour le moment.</p>
-        ) : visibleRows.length === 0 ? (
-          <p className="muted">Aucun resultat ne correspond aux filtres.</p>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                {columns.map((col) => (
-                  <th key={col}>
-                    <button className="table-sort-button" type="button" onClick={() => toggleSort(col)}>
-                      {col} {sortKey === col ? (sortDirection === "asc" ? "▲" : "▼") : ""}
-                    </button>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {visibleRows.map((row, index) => (
-                <tr key={row.id || index}>
-                  {columns.map((col) => <td key={col}>{String(row[col] ?? "")}</td>)}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function compareValues(a: unknown, b: unknown, direction: "asc" | "desc") {
-  const multiplier = direction === "asc" ? 1 : -1;
-  const aNumber = Number(a);
-  const bNumber = Number(b);
-
-  if (!Number.isNaN(aNumber) && !Number.isNaN(bNumber)) {
-    return (aNumber - bNumber) * multiplier;
-  }
-
-  return String(a ?? "").localeCompare(String(b ?? "")) * multiplier;
-}
-
-function SimpleForm({
-  title,
-  fields,
-  initialValues,
-  onSubmit,
-}: {
-  title: string;
-  fields: FieldConfig[];
-  initialValues: FormValues;
-  onSubmit: (values: FormValues) => Promise<void>;
-}) {
-  const [values, setValues] = useState<FormValues>(initialValues);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    setValues((current) => ({ ...initialValues, ...current }));
-  }, [JSON.stringify(initialValues)]);
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    setMessage("");
-    setError("");
-    try {
-      await onSubmit(values);
-      setMessage("Enregistrement effectue.");
-    } catch (err) {
-      setError("Erreur lors de l enregistrement.");
-    }
-  }
-
-  return (
-    <div className="card form-card">
-      <h2>{title}</h2>
-      <form onSubmit={submit} className="form-grid">
-        {fields.map((field) => (
-          <label className="form-control" key={field.name}>
-            {field.label}
-            {field.options ? (
-              <select
-                value={values[field.name] || ""}
-                onChange={(event) => setValues({ ...values, [field.name]: event.target.value })}
-              >
-                <option value="">-- Choisir --</option>
-                {field.options.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                type={field.type || "text"}
-                value={values[field.name] || ""}
-                onChange={(event) => setValues({ ...values, [field.name]: event.target.value })}
-              />
-            )}
-          </label>
-        ))}
-        <div className="form-actions">
-          <button className="primary-button" type="submit">Enregistrer</button>
-          {message && <span className="success-text">{message}</span>}
-          {error && <span className="error-text">{error}</span>}
-        </div>
-      </form>
-    </div>
-  );
-}
-
-function useOptions(lookups: LookupData) {
-  return useMemo(() => ({
-    facilities: toOptions(lookups.facilities, (row) => `${row.code || "ETAB"} - ${row.name || row.id}`),
-    patients: toOptions(lookups.patients, (row) => `${row.patient_number || "PAT"} - ${row.first_name || ""} ${row.last_name || ""}`.trim()),
-    departments: toOptions(lookups.departments, (row) => `${row.code || "SRV"} - ${row.name || row.id}`),
-    admissions: toOptions(lookups.admissions, (row) => `${row.admission_type || "ADM"} - ${row.status || ""} - ${row.patient_id || row.id}`),
-    products: toOptions(lookups.products, (row) => `${row.code || "PROD"} - ${row.name || row.id}`),
-    labTests: toOptions(lookups.labTests, (row) => `${row.code || "LAB"} - ${row.name || row.id}`),
-    labOrders: toOptions(lookups.labOrders, (row) => `${row.priority || "ORDER"} - ${row.status || ""} - ${row.patient_id || row.id}`),
-    invoices: toOptions(lookups.invoices, (row) => `${row.invoice_number || "INV"} - solde ${row.balance_due ?? ""}`),
-  }), [lookups]);
-}
-
-function toOptions(rows: Row[], labelBuilder: (row: Row) => string): Option[] {
-  return rows.filter((row) => row.id).map((row) => ({ value: row.id, label: labelBuilder(row) }));
-}
-
-function firstValue(options: Option[]): string {
-  return options[0]?.value || "";
-}
-
 function PatientForm({ lookups, onCreated }: { lookups: LookupData; onCreated: () => void }) {
-  const options = useOptions(lookups);
+  const options = buildOptions(lookups);
   return (
     <SimpleForm
       title="Nouveau patient"
@@ -490,7 +165,7 @@ function PatientForm({ lookups, onCreated }: { lookups: LookupData; onCreated: (
 }
 
 function AdmissionForm({ lookups, onCreated }: { lookups: LookupData; onCreated: () => void }) {
-  const options = useOptions(lookups);
+  const options = buildOptions(lookups);
   return (
     <SimpleForm
       title="Nouvelle admission"
@@ -510,7 +185,7 @@ function AdmissionForm({ lookups, onCreated }: { lookups: LookupData; onCreated:
 }
 
 function EmergencyForm({ lookups, onCreated }: { lookups: LookupData; onCreated: () => void }) {
-  const options = useOptions(lookups);
+  const options = buildOptions(lookups);
   return (
     <SimpleForm
       title="Nouveau passage urgence"
@@ -537,7 +212,7 @@ function EmergencyForm({ lookups, onCreated }: { lookups: LookupData; onCreated:
 }
 
 function PharmacyForms({ lookups, onCreated }: { lookups: LookupData; onCreated: () => void }) {
-  const options = useOptions(lookups);
+  const options = buildOptions(lookups);
   return (
     <>
       <SimpleForm
@@ -582,7 +257,7 @@ function PharmacyForms({ lookups, onCreated }: { lookups: LookupData; onCreated:
 }
 
 function LaboratoryForms({ lookups, onCreated }: { lookups: LookupData; onCreated: () => void }) {
-  const options = useOptions(lookups);
+  const options = buildOptions(lookups);
   return (
     <>
       <SimpleForm
@@ -641,7 +316,7 @@ function LaboratoryForms({ lookups, onCreated }: { lookups: LookupData; onCreate
 }
 
 function BillingForms({ lookups, onCreated }: { lookups: LookupData; onCreated: () => void }) {
-  const options = useOptions(lookups);
+  const options = buildOptions(lookups);
   return (
     <>
       <SimpleForm
