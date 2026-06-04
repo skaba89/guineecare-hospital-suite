@@ -22,17 +22,57 @@ DEFAULT_PERMISSIONS = [
     ("admission.read", "Voir les admissions", "admissions"),
     ("admission.create", "Creer les admissions", "admissions"),
     ("admission.close", "Cloturer les admissions", "admissions"),
+    ("emergency.read", "Voir la file urgence", "emergency"),
+    ("emergency.create", "Creer un passage urgence", "emergency"),
+    ("emergency.triage", "Realiser le triage", "emergency"),
+    ("emergency.orient", "Orienter un passage urgence", "emergency"),
     ("pharmacy.read", "Voir la pharmacie", "pharmacy"),
+    ("pharmacy.manage", "Gerer la pharmacie", "pharmacy"),
     ("lab.read", "Voir le laboratoire", "laboratory"),
+    ("lab.manage", "Gerer le catalogue laboratoire", "laboratory"),
+    ("lab.order", "Creer une demande laboratoire", "laboratory"),
+    ("lab.result", "Saisir un resultat laboratoire", "laboratory"),
+    ("lab.validate", "Valider un resultat laboratoire", "laboratory"),
     ("billing.read", "Voir la facturation", "billing"),
+    ("billing.manage", "Gerer la facturation", "billing"),
+    ("billing.pay", "Encaisser un paiement", "billing"),
 ]
 
 ROLE_PERMISSION_MAP = {
-    "DOCTOR": ["patient.read", "admission.read", "lab.read"],
-    "NURSE": ["patient.read", "admission.read"],
-    "PHARMACIST": ["patient.read", "pharmacy.read"],
-    "LAB_TECH": ["patient.read", "lab.read"],
-    "CASHIER": ["patient.read", "billing.read"],
+    "DOCTOR": [
+        "patient.read",
+        "admission.read",
+        "admission.create",
+        "emergency.read",
+        "emergency.create",
+        "emergency.triage",
+        "emergency.orient",
+        "lab.read",
+        "lab.order",
+    ],
+    "NURSE": [
+        "patient.read",
+        "admission.read",
+        "emergency.read",
+        "emergency.triage",
+    ],
+    "PHARMACIST": [
+        "patient.read",
+        "pharmacy.read",
+        "pharmacy.manage",
+    ],
+    "LAB_TECH": [
+        "patient.read",
+        "lab.read",
+        "lab.result",
+        "lab.validate",
+    ],
+    "CASHIER": [
+        "patient.read",
+        "billing.read",
+        "billing.manage",
+        "billing.pay",
+    ],
 }
 
 
