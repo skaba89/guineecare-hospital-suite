@@ -1,54 +1,96 @@
-# Migrations Alembic
+# Migrations Alembic — GuinéeCare Hospital Suite
 
 ## Objectif
 
-Remplacer progressivement la création automatique des tables par des migrations versionnées et traçables.
+Remplacer progressivement la création automatique des tables par des migrations versionnées, professionnelles et traçables.
 
-## Fichiers ajoutés
+## Pourquoi Alembic ?
 
-- `backend/alembic.ini`
-- `backend/alembic/env.py`
-- `backend/alembic/script.py.mako`
-- `backend/alembic/versions/0001_initial_mvp_schema.py`
+Alembic permet de :
 
-## Commandes utiles
+- versionner le schéma PostgreSQL ;
+- rejouer les migrations sur plusieurs environnements ;
+- revenir en arrière si nécessaire ;
+- sécuriser les déploiements ;
+- éviter les différences entre local, test, UAT et production.
 
-Depuis le dossier `backend` :
+## Structure
+
+```text
+backend/
+  alembic.ini
+  alembic/
+    env.py
+    script.py.mako
+    versions/
+      0001_initial_mvp_schema.py
+      0002_mvp_business_modules.py
+```
+
+## Commandes principales
+
+Depuis le dossier backend :
+
+```bash
+cd backend
+```
+
+Appliquer toutes les migrations :
 
 ```bash
 alembic upgrade head
 ```
 
-Créer une nouvelle migration automatiquement :
+Voir la migration courante :
 
 ```bash
-alembic revision --autogenerate -m "message"
+alembic current
+```
+
+Voir l'historique :
+
+```bash
+alembic history
+```
+
+Créer une migration automatique après modification des modèles :
+
+```bash
+alembic revision --autogenerate -m "describe change"
 ```
 
 Créer une migration manuelle :
 
 ```bash
-alembic revision -m "message"
+alembic revision -m "describe change"
 ```
 
-Revenir en arrière :
+Revenir à la migration précédente :
 
 ```bash
 alembic downgrade -1
 ```
 
-## Stratégie recommandée
+Revenir à zéro en local uniquement :
 
-Phase actuelle : `create_all()` reste actif pour faciliter le développement local.
+```bash
+alembic downgrade base
+```
 
-Phase suivante :
+## Variables d'environnement
 
-1. Stabiliser les modèles.
-2. Lancer Alembic en local.
-3. Supprimer progressivement `create_all()` du démarrage.
-4. Utiliser uniquement les migrations en dev, test, UAT et production.
+Alembic lit `DATABASE_URL` si elle est définie :
 
-## Tables de la migration initiale
+```bash
+export DATABASE_URL=postgresql://guineecare:guineecare@localhost:5432/guineecare
+alembic upgrade head
+```
+
+## Migrations actuelles
+
+### 0001_initial_mvp_schema
+
+Crée les tables :
 
 - facilities
 - departments
@@ -58,3 +100,35 @@ Phase suivante :
 - roles
 - permissions
 - role_permissions
+
+### 0002_mvp_business_modules
+
+Crée les tables :
+
+- activity_entries
+- emergency_visits
+- pharmacy_products
+- pharmacy_stock
+- stock_movements
+- lab_tests
+- lab_orders
+- lab_results
+- tariff_items
+- invoices
+- payments
+
+## Règle projet
+
+En production, ne pas utiliser `Base.metadata.create_all()` pour faire évoluer la base.
+Utiliser Alembic pour toutes les évolutions de schéma.
+
+## Transition MVP
+
+Pendant la phase MVP, `init_db()` peut rester utile pour accélérer le développement local.
+Avant préproduction, il faudra :
+
+1. désactiver la création automatique des tables au démarrage ;
+2. lancer `alembic upgrade head` au déploiement ;
+3. documenter chaque migration ;
+4. tester les migrations en environnement de recette ;
+5. interdire les modifications directes de schéma en production.
