@@ -1,14 +1,13 @@
 import { useState } from "react";
-import { ResourcePage } from "./components/ResourcePage";
-import { AdmissionForm } from "./forms/AdmissionForm";
-import { BillingForms } from "./forms/BillingForms";
-import { EmergencyForm } from "./forms/EmergencyForm";
-import { LaboratoryForms } from "./forms/LaboratoryForms";
-import { PatientForm } from "./forms/PatientForm";
-import { PharmacyForms } from "./forms/PharmacyForms";
 import { useLookupData } from "./hooks/useLookupData";
+import { AdmissionsPage } from "./pages/AdmissionsPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { EmergencyPage } from "./pages/EmergencyPage";
+import { FinancePage } from "./pages/FinancePage";
+import { LabPage } from "./pages/LabPage";
 import { LoginPage } from "./pages/LoginPage";
+import { PatientsPage } from "./pages/PatientsPage";
+import { PharmacyPage } from "./pages/PharmacyPage";
 import { clearToken, getToken } from "./services/api";
 
 const pages = [
@@ -61,24 +60,12 @@ export default function App() {
       </aside>
       <main className="main-content">
         {page === "Dashboard" && <DashboardPage lookups={lookups} />}
-        {page === "Patients" && (
-          <ResourcePage title="Patients" path="/patients" form={<PatientForm lookups={lookups} onCreated={refreshAll} />} />
-        )}
-        {page === "Admissions" && (
-          <ResourcePage title="Admissions" path="/admissions" form={<AdmissionForm lookups={lookups} onCreated={refreshAll} />} />
-        )}
-        {page === "Urgences" && (
-          <ResourcePage title="File urgences" path="/emergency/queue" form={<EmergencyForm lookups={lookups} onCreated={refreshAll} />} />
-        )}
-        {page === "Pharmacie" && (
-          <ResourcePage title="Stock pharmacie" path="/pharmacy/stock" form={<PharmacyForms lookups={lookups} onCreated={refreshAll} />} />
-        )}
-        {page === "Laboratoire" && (
-          <ResourcePage title="Examens laboratoire" path="/laboratory/tests" form={<LaboratoryForms lookups={lookups} onCreated={refreshAll} />} />
-        )}
-        {page === "Facturation" && (
-          <ResourcePage title="Factures" path="/billing/invoices" form={<BillingForms lookups={lookups} onCreated={refreshAll} />} />
-        )}
+        {page === "Patients" && <PatientsPage lookups={lookups} onCreated={refreshAll} />}
+        {page === "Admissions" && <AdmissionsPage lookups={lookups} onCreated={refreshAll} />}
+        {page === "Urgences" && <EmergencyPage lookups={lookups} onCreated={refreshAll} />}
+        {page === "Pharmacie" && <PharmacyPage lookups={lookups} onCreated={refreshAll} />}
+        {page === "Laboratoire" && <LabPage lookups={lookups} onCreated={refreshAll} />}
+        {page === "Facturation" && <FinancePage lookups={lookups} onCreated={refreshAll} />}
       </main>
     </div>
   );
