@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
 
 export function AppLayout({
@@ -9,7 +10,7 @@ export function AppLayout({
   currentPage: string;
   onSelectPage: (page: string) => void;
   onLogout: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="app-shell">
