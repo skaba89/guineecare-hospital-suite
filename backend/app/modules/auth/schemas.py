@@ -1,9 +1,9 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class LoginRequest(BaseModel):
     email: str
-    secret: str
+    secret: str = Field(alias="password")
 
     @property
     def password(self) -> str:
