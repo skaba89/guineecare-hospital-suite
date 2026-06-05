@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLookupData } from "./hooks/useLookupData";
 import { AdmissionsPage } from "./pages/AdmissionsPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -9,6 +9,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { PatientsPage } from "./pages/PatientsPage";
 import { PharmacyPage } from "./pages/PharmacyPage";
 import { clearToken, getToken } from "./services/api";
+import { getCurrentUser } from "./services/authService";
 
 const pages = [
   "Dashboard",
@@ -21,14 +22,47 @@ const pages = [
 ];
 
 export default function App() {
-  const [tokenReady, setTokenReady] = useState(Boolean(getToken()));
+  const [bootstrapping, setBootstrapping] = useState(Boolean(getToken()));
+  const [tokenReady, setTokenReady] = useState(false);
   const [page, setPage] = useState("Dashboard");
   const [lookupVersion, setLookupVersion] = useState(0);
   const lookups = useLookupData(tokenReady, lookupVersion);
 
+  useEffect(() => {
+    async function verifyExistingSession() {
+      if (!getToken()) {
+        setBootstrapping(false);
+        return;
+      }
+
+      try {
+        await getCurrentUser();
+        setTokenReady(true);
+      } catch (err) {
+        clearToken();
+        setTokenReady(false);
+      } finally {
+        setBootstrapping(false);
+      }
+    }
+
+    verifyExistingSession();
+  }, []);
+
   function refreshAll() {
     window.dispatchEvent(new Event("refresh-resource"));
     setLookupVersion((value) => value + 1);
+  }
+
+  if (bootstrapping) {
+    return (
+      <div className="login-page">
+        <div className="card login-card">
+          <h1>GuineeCare</h1>
+          <p className="muted">Verification de la session...</p>
+        </div>
+      </div>
+    );
   }
 
   if (!tokenReady) {
