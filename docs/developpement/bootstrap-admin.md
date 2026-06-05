@@ -22,7 +22,7 @@ Dès que le premier utilisateur existe, cette route retourne une erreur `403`.
 
 ```json
 {
-  "email": "admin@guineecare.local",
+  "email": "admin@guineecare.com",
   "password": "A_REMPLACER_PAR_UN_SECRET_LOCAL",
   "first_name": "Admin",
   "last_name": "GuineeCare",
@@ -45,7 +45,7 @@ Payload :
 
 ```json
 {
-  "email": "admin@guineecare.local",
+  "email": "admin@guineecare.com",
   "password": "LE_MOT_DE_PASSE_CHOISI"
 }
 ```

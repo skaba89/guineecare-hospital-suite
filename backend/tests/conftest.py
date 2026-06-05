@@ -35,16 +35,22 @@ def client():
 
 @pytest.fixture()
 def admin_headers():
-    token = create_access_token("admin@test.local")
+    db = SessionLocal()
+    try:
+        admin = db.query(User).filter(User.email == "admin@test.com").first()
+        user_id = admin.id if admin else "unknown"
+    finally:
+        db.close()
+    token = create_access_token(subject=user_id)
     return {"Authorization": f"Bearer {token}"}
 
 
 def seed_security(db):
-    admin = db.query(User).filter(User.email == "admin@test.local").first()
+    admin = db.query(User).filter(User.email == "admin@test.com").first()
     if not admin:
         db.add(User(
             facility_id="facility-test",
-            email="admin@test.local",
+            email="admin@test.com",
             password_hash=hash_password("admin123"),
             first_name="Admin",
             last_name="Test",

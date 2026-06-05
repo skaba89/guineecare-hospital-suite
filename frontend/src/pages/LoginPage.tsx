@@ -2,7 +2,7 @@ import { useState } from "react";
 import { login } from "../services/authService";
 
 export function LoginPage({ onLogin }: { onLogin: () => void }) {
-  const [email, setEmail] = useState("admin@guineecare.local");
+  const [email, setEmail] = useState("admin@guineecare.com");
   const [password, setPassword] = useState("admin123");
   const [error, setError] = useState("");
 
@@ -35,7 +35,7 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
           {error && <p style={{ color: "crimson" }}>{error}</p>}
           <button className="primary-button" type="submit">Se connecter</button>
         </form>
-        <p className="muted">Compte local : admin@guineecare.local / admin123</p>
+        <p className="muted">Compte local : admin@guineecare.com / admin123</p>
       </div>
     </div>
   );

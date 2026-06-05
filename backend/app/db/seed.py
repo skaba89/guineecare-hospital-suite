@@ -27,11 +27,11 @@ def run_seed():
             db.commit()
             db.refresh(facility)
 
-        admin = db.query(User).filter(User.email == "admin@guineecare.local").first()
+        admin = db.query(User).filter(User.email == "admin@guineecare.com").first()
         if not admin:
             db.add(User(
                 facility_id=facility.id,
-                email="admin@guineecare.local",
+                email="admin@guineecare.com",
                 password_hash=hash_password("admin123"),
                 first_name="Admin",
                 last_name="GuineeCare",
@@ -137,7 +137,7 @@ def run_seed():
 
         db.commit()
         print("Seed completed successfully")
-        print("Demo admin: admin@guineecare.local / admin123")
+        print("Demo admin: admin@guineecare.com / admin123")
     finally:
         db.close()
 

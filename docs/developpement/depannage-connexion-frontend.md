@@ -127,7 +127,7 @@ Tu dois voir :
 
 ```text
 Seed completed successfully
-Demo admin: admin@guineecare.local / admin123
+Demo admin: admin@guineecare.com / admin123
 ```
 
 ### 3. Vérifier les logs frontend

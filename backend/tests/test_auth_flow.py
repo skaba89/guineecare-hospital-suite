@@ -21,7 +21,7 @@ def test_first_user_can_login_and_call_me(client):
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["email"] == "admin@guineecare.test"
+    assert payload["email"] == "admin@guineecare.com"
     assert payload["role"] == "SUPER_ADMIN"
 
 
@@ -30,7 +30,7 @@ def test_login_rejects_invalid_password(client):
 
     response = client.post(
         "/api/v1/auth/login",
-        json={"email": "admin@guineecare.test", "password": "bad-password"},
+        json={"email": "admin@guineecare.com", "password": "bad-password"},
     )
 
     assert response.status_code == 401

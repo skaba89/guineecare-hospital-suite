@@ -84,6 +84,7 @@ def create_payment(
     db.add(payment)
     db.commit()
     db.refresh(payment)
+    db.refresh(invoice)
     return {"data": {"payment": payment, "invoice": invoice}, "message": "payment created"}
 
 
@@ -99,6 +100,7 @@ def get_receipt(
     invoice = db.query(Invoice).filter(Invoice.id == payment.invoice_id).first()
     return {
         "data": {
+            "payment_id": payment.id,
             "receipt_number": payment.id,
             "invoice_number": invoice.invoice_number if invoice else None,
             "amount": payment.amount,

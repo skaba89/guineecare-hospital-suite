@@ -67,7 +67,7 @@ Le seed crée :
 Compte démo :
 
 ```text
-Email: admin@guineecare.local
+Email: admin@guineecare.com
 Password: admin123
 Role: SUPER_ADMIN
 ```
@@ -155,3 +155,4 @@ pytest
 - Ajouter le frontend React.
 - Enrichir les modèles métier avec relations, contraintes et audit détaillé.
 - Désactiver `create_all()` avant la préproduction.
+
