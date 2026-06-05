@@ -1,7 +1,10 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db.init_db import init_db
+from app.db.seed import run_seed
 from app.modules.auth.routes import router as auth_router
 from app.modules.users.routes import router as users_router
 from app.modules.rbac.routes import router as rbac_router
@@ -35,6 +38,8 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     init_db()
+    if os.environ.get("SEED_DEMO_DATA", "false").lower() in {"1", "true", "yes"}:
+        run_seed()
 
 
 app.include_router(auth_router, prefix=API_PREFIX)
