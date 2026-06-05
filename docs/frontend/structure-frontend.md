@@ -2,7 +2,7 @@
 
 ## Objectif
 
-Rendre le frontend plus maintenable en séparant les responsabilités : types, hooks, composants réutilisables, services API et pages métier.
+Rendre le frontend plus maintenable en séparant les responsabilités : types, hooks, composants réutilisables, services API, formulaires métier et pages.
 
 ## Structure actuelle
 
@@ -27,6 +27,24 @@ frontend/src/
     ResourcePage.tsx
     ResourceTable.tsx
     SimpleForm.tsx
+
+  forms/
+    PatientForm.tsx
+    AdmissionForm.tsx
+    EmergencyForm.tsx
+    PharmacyForms.tsx
+    LaboratoryForms.tsx
+    BillingForms.tsx
+
+  pages/
+    DashboardPage.tsx
+    LoginPage.tsx
+    PatientsPage.tsx
+    AdmissionsPage.tsx
+    EmergencyPage.tsx
+    PharmacyPage.tsx
+    LabPage.tsx
+    FinancePage.tsx
 ```
 
 ## Responsabilités
@@ -87,39 +105,48 @@ Composant page générique qui :
 - affiche un formulaire optionnel ;
 - affiche le tableau métier.
 
+### `forms/`
+
+Contient les formulaires métier branchés aux endpoints API :
+
+- création patient ;
+- création admission ;
+- passage urgence ;
+- produit et mouvement pharmacie ;
+- examen, demande et résultat laboratoire ;
+- facture et paiement.
+
+### `pages/`
+
+Contient les pages métier qui composent `ResourcePage` et les formulaires associés.
+
 ### `App.tsx`
 
-Orchestre :
+Orchestre seulement :
 
-- login ;
-- menu ;
-- dashboard ;
-- pages métier ;
-- rafraîchissement global.
+- l'état d'authentification ;
+- le menu ;
+- le choix de page ;
+- le rafraîchissement global ;
+- le rendu des pages.
 
 ## Prochaine étape de refactoring
 
-Créer des pages séparées :
+Ajouter un vrai router React et un layout dédié :
 
 ```text
-frontend/src/pages/
-  DashboardPage.tsx
-  PatientsPage.tsx
-  AdmissionsPage.tsx
-  EmergencyPage.tsx
-  PharmacyPage.tsx
-  LaboratoryPage.tsx
-  BillingPage.tsx
+frontend/src/layout/
+  AppLayout.tsx
+  Sidebar.tsx
+
+frontend/src/router/
+  routes.tsx
 ```
 
-Puis créer des formulaires métier séparés :
+Puis améliorer l'expérience utilisateur :
 
-```text
-frontend/src/forms/
-  PatientForm.tsx
-  AdmissionForm.tsx
-  EmergencyForm.tsx
-  PharmacyForms.tsx
-  LaboratoryForms.tsx
-  BillingForms.tsx
-```
+- validation de formulaire ;
+- confirmations avant actions sensibles ;
+- pagination ;
+- états de chargement ;
+- messages d'erreur plus explicites.
