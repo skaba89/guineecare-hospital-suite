@@ -2,7 +2,7 @@
 
 ## Objectif
 
-Rendre le frontend plus maintenable en séparant les responsabilités : types, hooks, composants réutilisables, services API, formulaires métier et pages.
+Rendre le frontend plus maintenable en séparant les responsabilités : layout, types, hooks, composants réutilisables, services API, formulaires métier et pages.
 
 ## Structure actuelle
 
@@ -22,6 +22,10 @@ frontend/src/
 
   utils/
     options.ts
+
+  layout/
+    AppLayout.tsx
+    Sidebar.tsx
 
   components/
     ResourcePage.tsx
@@ -48,6 +52,22 @@ frontend/src/
 ```
 
 ## Responsabilités
+
+### `layout/AppLayout.tsx`
+
+Structure générale après connexion :
+
+- sidebar ;
+- zone principale ;
+- rendu des pages enfants.
+
+### `layout/Sidebar.tsx`
+
+Menu latéral :
+
+- navigation entre pages ;
+- état actif ;
+- déconnexion.
 
 ### `types.ts`
 
@@ -125,20 +145,16 @@ Contient les pages métier qui composent `ResourcePage` et les formulaires assoc
 Orchestre seulement :
 
 - l'état d'authentification ;
-- le menu ;
+- la vérification de session existante ;
 - le choix de page ;
 - le rafraîchissement global ;
-- le rendu des pages.
+- le rendu du layout et des pages.
 
 ## Prochaine étape de refactoring
 
-Ajouter un vrai router React et un layout dédié :
+Ajouter un vrai router React :
 
 ```text
-frontend/src/layout/
-  AppLayout.tsx
-  Sidebar.tsx
-
 frontend/src/router/
   routes.tsx
 ```
