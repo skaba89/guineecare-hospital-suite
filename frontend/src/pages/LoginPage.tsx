@@ -3,7 +3,7 @@ import { login } from "../services/authService";
 
 export function LoginPage({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState("admin@guineecare.local");
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState("admin123");
   const [error, setError] = useState("");
 
   async function submit(event: React.FormEvent) {
@@ -13,7 +13,8 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
       await login({ email, password });
       onLogin();
     } catch (err) {
-      setError("Connexion impossible. Verifiez les identifiants ou le backend.");
+      const message = err instanceof Error ? err.message : "Erreur inconnue";
+      setError(`Connexion impossible. ${message}`);
     }
   }
 
@@ -34,6 +35,7 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
           {error && <p style={{ color: "crimson" }}>{error}</p>}
           <button className="primary-button" type="submit">Se connecter</button>
         </form>
+        <p className="muted">Compte local : admin@guineecare.local / admin123</p>
       </div>
     </div>
   );
