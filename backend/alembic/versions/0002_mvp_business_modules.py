@@ -19,16 +19,18 @@ def upgrade():
     op.create_table(
         "activity_entries",
         sa.Column("id", sa.String(length=36), primary_key=True),
-        sa.Column("facility_id", sa.String(length=36), nullable=True),
-        sa.Column("user_id", sa.String(length=36), nullable=True),
-        sa.Column("action", sa.String(length=150), nullable=False),
-        sa.Column("resource_type", sa.String(length=150), nullable=True),
-        sa.Column("resource_id", sa.String(length=36), nullable=True),
-        sa.Column("message", sa.String(length=255), nullable=True),
+        sa.Column("actor_id", sa.String(length=36), nullable=True),
+        sa.Column("action_name", sa.String(length=150), nullable=False),
+        sa.Column("entity_type", sa.String(length=150), nullable=True),
+        sa.Column("entity_id", sa.String(length=36), nullable=True),
+        sa.Column("level", sa.String(length=50), nullable=False),
+        sa.Column("notes", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
     )
-    op.create_index("ix_activity_entries_facility_id", "activity_entries", ["facility_id"])
-    op.create_index("ix_activity_entries_user_id", "activity_entries", ["user_id"])
+    op.create_index("ix_activity_entries_actor_id", "activity_entries", ["actor_id"])
+    op.create_index("ix_activity_entries_action_name", "activity_entries", ["action_name"])
+    op.create_index("ix_activity_entries_entity_type", "activity_entries", ["entity_type"])
+    op.create_index("ix_activity_entries_entity_id", "activity_entries", ["entity_id"])
 
     op.create_table(
         "emergency_visits",
