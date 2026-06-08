@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { useLookupData } from "./hooks/useLookupData";
 import { AppLayout } from "./layout/AppLayout";
+import { ActivityPage } from "./pages/ActivityPage";
 import { AdmissionsPage } from "./pages/AdmissionsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { EmergencyPage } from "./pages/EmergencyPage";
@@ -15,7 +17,6 @@ import { getCurrentUser } from "./services/authService";
 export default function App() {
   const [bootstrapping, setBootstrapping] = useState(Boolean(getToken()));
   const [tokenReady, setTokenReady] = useState(false);
-  const [page, setPage] = useState("Dashboard");
   const [lookupVersion, setLookupVersion] = useState(0);
   const lookups = useLookupData(tokenReady, lookupVersion);
 
@@ -66,14 +67,20 @@ export default function App() {
   }
 
   return (
-    <AppLayout currentPage={page} onSelectPage={setPage} onLogout={logout}>
-      {page === "Dashboard" && <DashboardPage lookups={lookups} />}
-      {page === "Patients" && <PatientsPage lookups={lookups} onCreated={refreshAll} />}
-      {page === "Admissions" && <AdmissionsPage lookups={lookups} onCreated={refreshAll} />}
-      {page === "Urgences" && <EmergencyPage lookups={lookups} onCreated={refreshAll} />}
-      {page === "Pharmacie" && <PharmacyPage lookups={lookups} onCreated={refreshAll} />}
-      {page === "Laboratoire" && <LabPage lookups={lookups} onCreated={refreshAll} />}
-      {page === "Facturation" && <FinancePage lookups={lookups} onCreated={refreshAll} />}
-    </AppLayout>
+    <BrowserRouter>
+      <AppLayout onLogout={logout}>
+        <Routes>
+          <Route path="/" element={<DashboardPage lookups={lookups} />} />
+          <Route path="/patients" element={<PatientsPage lookups={lookups} onCreated={refreshAll} />} />
+          <Route path="/admissions" element={<AdmissionsPage lookups={lookups} onCreated={refreshAll} />} />
+          <Route path="/emergency" element={<EmergencyPage lookups={lookups} onCreated={refreshAll} />} />
+          <Route path="/pharmacy" element={<PharmacyPage lookups={lookups} onCreated={refreshAll} />} />
+          <Route path="/lab" element={<LabPage lookups={lookups} onCreated={refreshAll} />} />
+          <Route path="/billing" element={<FinancePage lookups={lookups} onCreated={refreshAll} />} />
+          <Route path="/activity" element={<ActivityPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AppLayout>
+    </BrowserRouter>
   );
 }
