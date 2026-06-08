@@ -16,6 +16,7 @@ from app.modules.emergency.routes import router as emergency_router
 from app.modules.pharmacy.routes import router as pharmacy_router
 from app.modules.laboratory.routes import router as laboratory_router
 from app.modules.billing.routes import router as billing_router
+from app.modules.activity.routes import router as activity_router
 
 API_PREFIX = "/api/v1"
 
@@ -53,6 +54,7 @@ app.include_router(emergency_router, prefix=API_PREFIX)
 app.include_router(pharmacy_router, prefix=API_PREFIX)
 app.include_router(laboratory_router, prefix=API_PREFIX)
 app.include_router(billing_router, prefix=API_PREFIX)
+app.include_router(activity_router, prefix=API_PREFIX)
 
 
 @app.get("/health")
@@ -65,5 +67,5 @@ def api_root():
     return {
         "name": "GuineeCare Hospital Suite",
         "version": "0.1.0",
-        "modules": ["auth", "users", "rbac", "facilities", "departments", "patients", "admissions", "emergency", "pharmacy", "laboratory", "billing"]
+        "modules": ["auth", "users", "rbac", "facilities", "departments", "patients", "admissions", "emergency", "pharmacy", "laboratory", "billing", "activity"],
     }
