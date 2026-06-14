@@ -1,8 +1,10 @@
 from datetime import datetime
+from app.core.datetime import utcnow
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.pagination import PaginationParams, paginate
 from app.db.session import get_db
 from app.modules.pharmacy.models import PharmacyProduct, PharmacyStock, StockMovement
 from app.modules.pharmacy.schemas import PharmacyProductCreate, StockMovementCreate
@@ -14,11 +16,17 @@ router = APIRouter(prefix="/pharmacy", tags=["pharmacy"])
 
 @router.get("/products")
 def list_products(
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("pharmacy.read")),
 ):
-    rows = db.query(PharmacyProduct).order_by(PharmacyProduct.name).all()
-    return {"data": rows, "message": "products list"}
+    query = db.query(PharmacyProduct).order_by(PharmacyProduct.name)
+    if pagination.search:
+        query = query.filter(
+            (PharmacyProduct.name.ilike(f"%{pagination.search}%"))
+            | (PharmacyProduct.code.ilike(f"%{pagination.search}%"))
+        )
+    return paginate(query, pagination)
 
 
 @router.post("/products")
@@ -27,7 +35,7 @@ def create_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("pharmacy.manage")),
 ):
-    row = PharmacyProduct(**payload.dict())
+    row = PharmacyProduct(**payload.model_dump())
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -36,11 +44,14 @@ def create_product(
 
 @router.get("/stock")
 def get_stock(
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("pharmacy.read")),
 ):
-    rows = db.query(PharmacyStock).order_by(PharmacyStock.updated_at.desc()).all()
-    return {"data": rows, "message": "stock list"}
+    query = db.query(PharmacyStock).order_by(PharmacyStock.updated_at.desc())
+    if pagination.search:
+        query = query.filter(PharmacyStock.product_id.ilike(f"%{pagination.search}%"))
+    return paginate(query, pagination)
 
 
 @router.post("/stock/movements")
@@ -76,7 +87,7 @@ def create_stock_movement(
     else:
         raise HTTPException(status_code=400, detail="movement_type must be IN or OUT")
 
-    stock.updated_at = datetime.utcnow()
+    stock.updated_at = utcnow()
     movement = StockMovement(
         facility_id=payload.facility_id,
         product_id=payload.product_id,
@@ -88,4 +99,5 @@ def create_stock_movement(
     db.add(movement)
     db.commit()
     db.refresh(movement)
+    db.refresh(stock)
     return {"data": {"movement": movement, "stock": stock}, "message": "stock movement created"}

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.pagination import PaginationParams, paginate
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
 from app.modules.billing.models import Invoice, Payment, TariffItem
@@ -13,11 +14,17 @@ router = APIRouter(prefix="/billing", tags=["billing"])
 
 @router.get("/tariffs")
 def list_tariffs(
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("billing.read")),
 ):
-    rows = db.query(TariffItem).order_by(TariffItem.name).all()
-    return {"data": rows, "message": "tariffs list"}
+    query = db.query(TariffItem).order_by(TariffItem.name)
+    if pagination.search:
+        query = query.filter(
+            (TariffItem.name.ilike(f"%{pagination.search}%"))
+            | (TariffItem.code.ilike(f"%{pagination.search}%"))
+        )
+    return paginate(query, pagination)
 
 
 @router.post("/tariffs")
@@ -26,7 +33,7 @@ def create_tariff(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("billing.manage")),
 ):
-    row = TariffItem(**payload.dict())
+    row = TariffItem(**payload.model_dump())
     db.add(row)
     db.flush()
     record_activity(
@@ -51,7 +58,7 @@ def create_invoice(
     existing = db.query(Invoice).filter(Invoice.invoice_number == payload.invoice_number).first()
     if existing:
         raise HTTPException(status_code=400, detail="Invoice number already exists")
-    row = Invoice(**payload.dict())
+    row = Invoice(**payload.model_dump())
     row.balance_due = row.net_amount
     row.status = "ISSUED"
     db.add(row)
@@ -72,11 +79,17 @@ def create_invoice(
 
 @router.get("/invoices")
 def list_invoices(
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("billing.read")),
 ):
-    rows = db.query(Invoice).order_by(Invoice.created_at.desc()).all()
-    return {"data": rows, "message": "invoices list"}
+    query = db.query(Invoice).order_by(Invoice.created_at.desc())
+    if pagination.search:
+        query = query.filter(
+            (Invoice.invoice_number.ilike(f"%{pagination.search}%"))
+            | (Invoice.description.ilike(f"%{pagination.search}%"))
+        )
+    return paginate(query, pagination)
 
 
 @router.post("/invoices/{invoice_id}/payments")

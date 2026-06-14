@@ -23,6 +23,8 @@ export type LookupData = {
   labTests: Row[];
   labOrders: Row[];
   invoices: Row[];
+  maternityRecords: Row[];
+  staff: Row[];
 };
 
 export const emptyLookups: LookupData = {
@@ -34,4 +36,6 @@ export const emptyLookups: LookupData = {
   labTests: [],
   labOrders: [],
   invoices: [],
+  maternityRecords: [],
+  staff: [],
 };

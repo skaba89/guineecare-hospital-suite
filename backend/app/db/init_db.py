@@ -12,6 +12,14 @@ from app.modules.emergency.models import EmergencyVisit
 from app.modules.pharmacy.models import PharmacyProduct, PharmacyStock, StockMovement
 from app.modules.laboratory.models import LabTest, LabOrder, LabResult
 from app.modules.billing.models import TariffItem, Invoice, Payment
+from app.modules.clinical.models import ClinicalNote, PatientMeasurement, Diagnosis
+from app.modules.hospitalization.models import Room, Bed, HospitalStay
+from app.modules.maternity.models import MaternityRecord, MaternityConsultation, DeliveryRecord
+from app.modules.personnel.models import StaffMember, OnCallSchedule
+from app.modules.imaging.models import ImagingOrder, ImagingResult
+from app.modules.surgery.models import OperatingRoom, SurgerySchedule, SurgeryTeamMember, SurgeryReport
+from app.modules.quality.models import QualityIndicator, QualityMeasurement, IncidentReport
+from app.modules.reporting.models import NationalReport, EpidemicAlert, HealthStatistic
 
 
 def init_db():
@@ -35,6 +43,29 @@ def init_db():
         TariffItem,
         Invoice,
         Payment,
+        ClinicalNote,
+        PatientMeasurement,
+        Diagnosis,
+        Room,
+        Bed,
+        HospitalStay,
+        MaternityRecord,
+        MaternityConsultation,
+        DeliveryRecord,
+        StaffMember,
+        OnCallSchedule,
+        ImagingOrder,
+        ImagingResult,
+        OperatingRoom,
+        SurgerySchedule,
+        SurgeryTeamMember,
+        SurgeryReport,
+        QualityIndicator,
+        QualityMeasurement,
+        IncidentReport,
+        NationalReport,
+        EpidemicAlert,
+        HealthStatistic,
     ]
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()

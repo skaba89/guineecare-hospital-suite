@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { ToastContainer } from "../components/Toast";
 import { Sidebar } from "./Sidebar";
 
 export function AppLayout({
@@ -12,6 +13,7 @@ export function AppLayout({
     <div className="app-shell">
       <Sidebar onLogout={onLogout} />
       <main className="main-content">{children}</main>
+      <ToastContainer />
     </div>
   );
 }

@@ -2,8 +2,8 @@ import { useState } from "react";
 import { login } from "../services/authService";
 
 export function LoginPage({ onLogin }: { onLogin: () => void }) {
-  const [email, setEmail] = useState("admin@guineecare.com");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   async function submit(event: React.FormEvent) {
@@ -21,7 +21,7 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
   return (
     <div className="login-page">
       <div className="card login-card">
-        <h1>GuineeCare Hospital Suite</h1>
+        <h1>GuinéeCare Hospital Suite</h1>
         <p className="muted">Connexion au MVP hospitalier</p>
         <form onSubmit={submit}>
           <label className="form-control">
@@ -35,7 +35,6 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
           {error && <p style={{ color: "crimson" }}>{error}</p>}
           <button className="primary-button" type="submit">Se connecter</button>
         </form>
-        <p className="muted">Compte local : admin@guineecare.com / admin123</p>
       </div>
     </div>
   );

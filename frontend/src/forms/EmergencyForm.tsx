@@ -10,10 +10,10 @@ export function EmergencyForm({ lookups, onCreated }: { lookups: LookupData; onC
       title="Nouveau passage urgence"
       initialValues={{ facility_id: firstValue(options.facilities), patient_id: firstValue(options.patients), admission_id: "", priority_level: "NORMAL", chief_complaint: "" }}
       fields={[
-        { name: "facility_id", label: "Etablissement", options: options.facilities },
+        { name: "facility_id", label: "Établissement", options: options.facilities },
         { name: "patient_id", label: "Patient", options: options.patients },
         { name: "admission_id", label: "Admission optionnelle", options: options.admissions },
-        { name: "priority_level", label: "Priorite", options: [
+        { name: "priority_level", label: "Priorité", options: [
           { value: "LOW", label: "Basse" },
           { value: "NORMAL", label: "Normale" },
           { value: "HIGH", label: "Haute" },

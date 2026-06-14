@@ -1,8 +1,10 @@
 from datetime import datetime
+from app.core.datetime import utcnow
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.pagination import PaginationParams, paginate
 from app.db.session import get_db
 from app.modules.laboratory.models import LabOrder, LabResult, LabTest
 from app.modules.laboratory.schemas import LabOrderCreate, LabResultCreate, LabTestCreate
@@ -14,11 +16,17 @@ router = APIRouter(prefix="/laboratory", tags=["laboratory"])
 
 @router.get("/tests")
 def list_tests(
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("lab.read")),
 ):
-    rows = db.query(LabTest).order_by(LabTest.name).all()
-    return {"data": rows, "message": "lab tests list"}
+    query = db.query(LabTest).order_by(LabTest.name)
+    if pagination.search:
+        query = query.filter(
+            (LabTest.name.ilike(f"%{pagination.search}%"))
+            | (LabTest.code.ilike(f"%{pagination.search}%"))
+        )
+    return paginate(query, pagination)
 
 
 @router.post("/tests")
@@ -27,7 +35,7 @@ def create_test(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("lab.manage")),
 ):
-    row = LabTest(**payload.dict())
+    row = LabTest(**payload.model_dump())
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -43,7 +51,7 @@ def create_order(
     test = db.query(LabTest).filter(LabTest.id == payload.test_id).first()
     if not test:
         raise HTTPException(status_code=404, detail="Lab test not found")
-    row = LabOrder(**payload.dict(), ordered_by=current_user.id)
+    row = LabOrder(**payload.model_dump(), ordered_by=current_user.id)
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -52,11 +60,17 @@ def create_order(
 
 @router.get("/orders")
 def list_orders(
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("lab.read")),
 ):
-    rows = db.query(LabOrder).order_by(LabOrder.ordered_at.desc()).all()
-    return {"data": rows, "message": "lab orders list"}
+    query = db.query(LabOrder).order_by(LabOrder.ordered_at.desc())
+    if pagination.search:
+        query = query.filter(
+            (LabOrder.status.ilike(f"%{pagination.search}%"))
+            | (LabOrder.priority.ilike(f"%{pagination.search}%"))
+        )
+    return paginate(query, pagination)
 
 
 @router.post("/orders/{order_id}/results")
@@ -69,7 +83,7 @@ def create_result(
     order = db.query(LabOrder).filter(LabOrder.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Lab order not found")
-    row = LabResult(**payload.dict(), order_id=order_id, entered_by=current_user.id)
+    row = LabResult(**payload.model_dump(), order_id=order_id, entered_by=current_user.id)
     order.status = "RESULT_ENTERED"
     db.add(row)
     db.commit()
@@ -88,7 +102,7 @@ def validate_result(
         raise HTTPException(status_code=404, detail="Lab result not found")
     row.status = "VALIDATED"
     row.validated_by = current_user.id
-    row.validated_at = datetime.utcnow()
+    row.validated_at = utcnow()
     order = db.query(LabOrder).filter(LabOrder.id == row.order_id).first()
     if order:
         order.status = "VALIDATED"

@@ -18,6 +18,7 @@ from app.modules.emergency.models import EmergencyVisit  # noqa: F401
 from app.modules.pharmacy.models import PharmacyProduct, PharmacyStock, StockMovement  # noqa: F401
 from app.modules.laboratory.models import LabTest, LabOrder, LabResult  # noqa: F401
 from app.modules.billing.models import TariffItem, Invoice, Payment  # noqa: F401
+from app.modules.maternity.models import MaternityRecord, MaternityConsultation, DeliveryRecord  # noqa: F401
 
 config = context.config
 

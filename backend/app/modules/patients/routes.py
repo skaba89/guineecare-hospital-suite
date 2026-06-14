@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.pagination import PaginationParams, paginate
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
 from app.modules.rbac.dependencies import require_permission
@@ -13,11 +14,18 @@ router = APIRouter(prefix="/patients", tags=["patients"])
 
 @router.get("")
 def list_patients(
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("patient.read")),
 ):
-    rows = db.query(Patient).order_by(Patient.created_at.desc()).all()
-    return {"data": rows, "message": "patients list"}
+    query = db.query(Patient).order_by(Patient.created_at.desc())
+    if pagination.search:
+        query = query.filter(
+            (Patient.first_name.ilike(f"%{pagination.search}%"))
+            | (Patient.last_name.ilike(f"%{pagination.search}%"))
+            | (Patient.patient_number.ilike(f"%{pagination.search}%"))
+        )
+    return paginate(query, pagination)
 
 
 @router.post("")
@@ -26,7 +34,7 @@ def create_patient(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("patient.create")),
 ):
-    row = Patient(**payload.dict())
+    row = Patient(**payload.model_dump())
     db.add(row)
     db.flush()
     record_activity(

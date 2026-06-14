@@ -18,5 +18,7 @@ export function buildOptions(lookups: LookupData) {
     labTests: toOptions(lookups.labTests, (row) => `${row.code || "LAB"} - ${row.name || row.id}`),
     labOrders: toOptions(lookups.labOrders, (row) => `${row.priority || "ORDER"} - ${row.status || ""} - ${row.patient_id || row.id}`),
     invoices: toOptions(lookups.invoices, (row) => `${row.invoice_number || "INV"} - solde ${row.balance_due ?? ""}`),
+    maternityRecords: toOptions(lookups.maternityRecords, (row) => `${row.patient_id || "MAT"} - ${row.status || ""}`),
+    staff: toOptions(lookups.staff, (row) => `${row.last_name || ""} ${row.first_name || ""} — ${row.role || ""}`.trim()),
   };
 }

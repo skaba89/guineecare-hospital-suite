@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.pagination import PaginationParams, paginate
 from app.db.session import get_db
 from app.modules.rbac.dependencies import require_role
 from app.modules.rbac.models import Permission, Role, RolePermission
@@ -12,11 +13,17 @@ router = APIRouter(prefix="/rbac", tags=["rbac"])
 
 @router.get("/roles")
 def list_roles(
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("SUPER_ADMIN", "ADMIN")),
 ):
-    rows = db.query(Role).order_by(Role.code).all()
-    return {"data": rows, "message": "roles list"}
+    query = db.query(Role).order_by(Role.code)
+    if pagination.search:
+        query = query.filter(
+            (Role.name.ilike(f"%{pagination.search}%"))
+            | (Role.code.ilike(f"%{pagination.search}%"))
+        )
+    return paginate(query, pagination)
 
 
 @router.post("/roles")
@@ -28,7 +35,7 @@ def create_role(
     existing = db.query(Role).filter(Role.code == payload.code).first()
     if existing:
         raise HTTPException(status_code=400, detail="Role already exists")
-    row = Role(**payload.dict())
+    row = Role(**payload.model_dump())
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -37,11 +44,18 @@ def create_role(
 
 @router.get("/permissions")
 def list_permissions(
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("SUPER_ADMIN", "ADMIN")),
 ):
-    rows = db.query(Permission).order_by(Permission.module, Permission.code).all()
-    return {"data": rows, "message": "permissions list"}
+    query = db.query(Permission).order_by(Permission.module, Permission.code)
+    if pagination.search:
+        query = query.filter(
+            (Permission.name.ilike(f"%{pagination.search}%"))
+            | (Permission.code.ilike(f"%{pagination.search}%"))
+            | (Permission.module.ilike(f"%{pagination.search}%"))
+        )
+    return paginate(query, pagination)
 
 
 @router.post("/permissions")
@@ -53,7 +67,7 @@ def create_permission(
     existing = db.query(Permission).filter(Permission.code == payload.code).first()
     if existing:
         raise HTTPException(status_code=400, detail="Permission already exists")
-    row = Permission(**payload.dict())
+    row = Permission(**payload.model_dump())
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -74,7 +88,7 @@ def assign_permission_to_role(
     )
     if existing:
         return {"data": existing, "message": "permission already assigned"}
-    row = RolePermission(**payload.dict())
+    row = RolePermission(**payload.model_dump())
     db.add(row)
     db.commit()
     db.refresh(row)

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.pagination import PaginationParams, paginate
 from app.core.security import hash_password
 from app.db.session import get_db
 from app.modules.rbac.dependencies import require_role
@@ -12,11 +13,18 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 @router.get("")
 def list_users(
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("SUPER_ADMIN", "ADMIN")),
 ):
-    rows = db.query(User).order_by(User.created_at.desc()).all()
-    return {"data": rows, "message": "users list"}
+    query = db.query(User).order_by(User.created_at.desc())
+    if pagination.search:
+        query = query.filter(
+            (User.first_name.ilike(f"%{pagination.search}%"))
+            | (User.last_name.ilike(f"%{pagination.search}%"))
+            | (User.email.ilike(f"%{pagination.search}%"))
+        )
+    return paginate(query, pagination)
 
 
 @router.post("/bootstrap")

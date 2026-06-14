@@ -1,5 +1,5 @@
 import { ResourcePage } from "../components/ResourcePage";
 
 export function ActivityPage() {
-  return <ResourcePage title="Activite et audit" path="/activity" />;
+  return <ResourcePage title="Activité et audit" path="/activity" />;
 }

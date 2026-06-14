@@ -11,11 +11,11 @@ export function LaboratoryForms({ lookups, onCreated }: { lookups: LookupData; o
         title="Nouvel examen laboratoire"
         initialValues={{ facility_id: firstValue(options.facilities), code: `LAB-${Date.now()}`, name: "", category: "GENERAL", sample_type: "Sample" }}
         fields={[
-          { name: "facility_id", label: "Etablissement", options: options.facilities },
+          { name: "facility_id", label: "Établissement", options: options.facilities },
           { name: "code", label: "Code examen" },
           { name: "name", label: "Nom examen" },
-          { name: "category", label: "Categorie" },
-          { name: "sample_type", label: "Type echantillon" },
+          { name: "category", label: "Catégorie" },
+          { name: "sample_type", label: "Type échantillon" },
         ]}
         onSubmit={async (values) => {
           await apiRequest("/laboratory/tests", { method: "POST", body: JSON.stringify(values) });
@@ -26,11 +26,11 @@ export function LaboratoryForms({ lookups, onCreated }: { lookups: LookupData; o
         title="Nouvelle demande laboratoire"
         initialValues={{ facility_id: firstValue(options.facilities), patient_id: firstValue(options.patients), admission_id: "", test_id: firstValue(options.labTests), priority: "NORMAL" }}
         fields={[
-          { name: "facility_id", label: "Etablissement", options: options.facilities },
+          { name: "facility_id", label: "Établissement", options: options.facilities },
           { name: "patient_id", label: "Patient", options: options.patients },
           { name: "admission_id", label: "Admission optionnelle", options: options.admissions },
           { name: "test_id", label: "Examen", options: options.labTests },
-          { name: "priority", label: "Priorite", options: [
+          { name: "priority", label: "Priorité", options: [
             { value: "NORMAL", label: "Normale" },
             { value: "URGENT", label: "Urgente" },
           ] },
@@ -42,13 +42,13 @@ export function LaboratoryForms({ lookups, onCreated }: { lookups: LookupData; o
         }}
       />
       <SimpleForm
-        title="Resultat laboratoire"
+        title="Résultat laboratoire"
         initialValues={{ facility_id: firstValue(options.facilities), order_id: firstValue(options.labOrders), result_value: "", interpretation: "" }}
         fields={[
-          { name: "facility_id", label: "Etablissement", options: options.facilities },
+          { name: "facility_id", label: "Établissement", options: options.facilities },
           { name: "order_id", label: "Demande", options: options.labOrders },
-          { name: "result_value", label: "Resultat" },
-          { name: "interpretation", label: "Interpretation" },
+          { name: "result_value", label: "Résultat" },
+          { name: "interpretation", label: "Interprétation" },
         ]}
         onSubmit={async (values) => {
           await apiRequest(`/laboratory/orders/${values.order_id}/results`, {

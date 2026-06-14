@@ -11,10 +11,10 @@ export function InventoryForms({ lookups, onCreated }: { lookups: LookupData; on
         title="Nouveau produit"
         initialValues={{ facility_id: firstValue(options.facilities), code: `PROD-${Date.now()}`, name: "", category: "GENERAL", form: "", dosage: "" }}
         fields={[
-          { name: "facility_id", label: "Etablissement", options: options.facilities },
+          { name: "facility_id", label: "Établissement", options: options.facilities },
           { name: "code", label: "Code" },
           { name: "name", label: "Nom produit" },
-          { name: "category", label: "Categorie" },
+          { name: "category", label: "Catégorie" },
           { name: "form", label: "Forme" },
           { name: "dosage", label: "Dosage" },
         ]}
@@ -27,13 +27,13 @@ export function InventoryForms({ lookups, onCreated }: { lookups: LookupData; on
         title="Mouvement de stock"
         initialValues={{ facility_id: firstValue(options.facilities), product_id: firstValue(options.products), movement_type: "IN", quantity: "1", reason: "" }}
         fields={[
-          { name: "facility_id", label: "Etablissement", options: options.facilities },
+          { name: "facility_id", label: "Établissement", options: options.facilities },
           { name: "product_id", label: "Produit", options: options.products },
           { name: "movement_type", label: "Type", options: [
-            { value: "IN", label: "Entree" },
+            { value: "IN", label: "Entrée" },
             { value: "OUT", label: "Sortie" },
           ] },
-          { name: "quantity", label: "Quantite", type: "number" },
+          { name: "quantity", label: "Quantité", type: "number" },
           { name: "reason", label: "Motif" },
         ]}
         onSubmit={async (values) => {

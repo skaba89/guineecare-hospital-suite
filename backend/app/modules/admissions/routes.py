@@ -1,8 +1,10 @@
 from datetime import datetime
+from app.core.datetime import utcnow
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.pagination import PaginationParams, paginate
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
 from app.modules.rbac.dependencies import require_permission
@@ -15,11 +17,14 @@ router = APIRouter(prefix="/admissions", tags=["admissions"])
 
 @router.get("")
 def list_admissions(
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("admission.read")),
 ):
-    rows = db.query(Admission).order_by(Admission.admitted_at.desc()).all()
-    return {"data": rows, "message": "admissions list"}
+    query = db.query(Admission).order_by(Admission.admitted_at.desc())
+    if pagination.search:
+        query = query.filter(Admission.admission_type.ilike(f"%{pagination.search}%"))
+    return paginate(query, pagination)
 
 
 @router.post("")
@@ -28,7 +33,7 @@ def create_admission(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("admission.create")),
 ):
-    row = Admission(**payload.dict())
+    row = Admission(**payload.model_dump())
     db.add(row)
     db.flush()
     record_activity(
@@ -54,7 +59,7 @@ def close_admission(
     if not row:
         raise HTTPException(status_code=404, detail="Admission not found")
     row.status = "CLOSED"
-    row.closed_at = datetime.utcnow()
+    row.closed_at = utcnow()
     record_activity(
         db=db,
         actor_id=current_user.id,

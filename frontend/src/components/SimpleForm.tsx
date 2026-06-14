@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { FieldConfig, FormValues } from "../types";
+import { showToast } from "./Toast";
 
 export function SimpleForm({
   title,
@@ -26,9 +27,11 @@ export function SimpleForm({
     setError("");
     try {
       await onSubmit(values);
-      setMessage("Enregistrement effectue.");
+      setMessage("Enregistrement effectué.");
+      showToast("Enregistrement effectué.", "success");
     } catch (err) {
-      setError("Erreur lors de l enregistrement.");
+      setError("Erreur lors de l'enregistrement.");
+      showToast("Erreur lors de l'enregistrement.", "error");
     }
   }
 

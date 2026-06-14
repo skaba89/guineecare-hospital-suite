@@ -1,3 +1,4 @@
+from app.core.datetime import utcnow
 from datetime import datetime
 from uuid import uuid4
 
@@ -16,4 +17,4 @@ class Facility(Base):
     region = Column(String(150), nullable=True)
     prefecture = Column(String(150), nullable=True)
     status = Column(String(50), default="ACTIVE", nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)

@@ -10,6 +10,7 @@ DEFAULT_ROLES = [
     ("PHARMACIST", "Pharmacien"),
     ("LAB_TECH", "Laboratoire"),
     ("CASHIER", "Caissier"),
+    ("MIDWIFE", "Sage-femme"),
 ]
 
 DEFAULT_PERMISSIONS = [
@@ -36,6 +37,14 @@ DEFAULT_PERMISSIONS = [
     ("billing.read", "Voir la facturation", "billing"),
     ("billing.manage", "Gerer la facturation", "billing"),
     ("billing.pay", "Encaisser un paiement", "billing"),
+    ("clinical.read", "Voir les donnees cliniques", "clinical"),
+    ("clinical.write", "Saisir des donnees cliniques", "clinical"),
+    ("hospitalization.read", "Voir l'hospitalisation", "hospitalization"),
+    ("hospitalization.manage", "Gerer l'hospitalisation", "hospitalization"),
+    ("personnel.read", "Voir le personnel", "personnel"),
+    ("personnel.manage", "Gerer le personnel", "personnel"),
+    ("maternity.read", "Voir la maternite", "maternity"),
+    ("maternity.write", "Saisir des donnees maternite", "maternity"),
 ]
 
 ROLE_PERMISSION_MAP = {
@@ -49,12 +58,23 @@ ROLE_PERMISSION_MAP = {
         "emergency.orient",
         "lab.read",
         "lab.order",
+        "clinical.read",
+        "clinical.write",
+        "hospitalization.read",
+        "hospitalization.manage",
+        "personnel.read",
+        "maternity.read",
+        "maternity.write",
     ],
     "NURSE": [
         "patient.read",
         "admission.read",
         "emergency.read",
         "emergency.triage",
+        "clinical.read",
+        "hospitalization.read",
+        "personnel.read",
+        "maternity.read",
     ],
     "PHARMACIST": [
         "patient.read",
@@ -72,6 +92,11 @@ ROLE_PERMISSION_MAP = {
         "billing.read",
         "billing.manage",
         "billing.pay",
+    ],
+    "MIDWIFE": [
+        "patient.read",
+        "maternity.read",
+        "maternity.write",
     ],
 }
 

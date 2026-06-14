@@ -137,7 +137,6 @@ def run_seed():
 
         db.commit()
         print("Seed completed successfully")
-        print("Demo admin: admin@guineecare.com / admin123")
     finally:
         db.close()
 
