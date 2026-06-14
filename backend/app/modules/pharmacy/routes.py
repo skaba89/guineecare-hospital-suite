@@ -101,3 +101,18 @@ def create_stock_movement(
     db.refresh(movement)
     db.refresh(stock)
     return {"data": {"movement": movement, "stock": stock}, "message": "stock movement created"}
+
+
+@router.get("/stock/movements")
+def list_stock_movements(
+    pagination: PaginationParams = Depends(),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("pharmacy.read")),
+):
+    query = db.query(StockMovement).order_by(StockMovement.performed_at.desc())
+    if pagination.search:
+        query = query.filter(
+            (StockMovement.reason.ilike(f"%{pagination.search}%"))
+            | (StockMovement.movement_type.ilike(f"%{pagination.search}%"))
+        )
+    return paginate(query, pagination)

@@ -109,3 +109,18 @@ def validate_result(
     db.commit()
     db.refresh(row)
     return {"data": row, "message": "result validated"}
+
+
+@router.get("/results")
+def list_results(
+    pagination: PaginationParams = Depends(),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("lab.read")),
+):
+    query = db.query(LabResult).order_by(LabResult.entered_at.desc())
+    if pagination.search:
+        query = query.filter(
+            (LabResult.result_value.ilike(f"%{pagination.search}%"))
+            | (LabResult.status.ilike(f"%{pagination.search}%"))
+        )
+    return paginate(query, pagination)

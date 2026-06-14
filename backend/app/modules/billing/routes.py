@@ -131,6 +131,21 @@ def create_payment(
     return {"data": {"payment": payment, "invoice": invoice}, "message": "payment created"}
 
 
+@router.get("/payments")
+def list_payments(
+    pagination: PaginationParams = Depends(),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("billing.read")),
+):
+    query = db.query(Payment).order_by(Payment.received_at.desc())
+    if pagination.search:
+        query = query.filter(
+            (Payment.payment_method.ilike(f"%{pagination.search}%"))
+            | (Payment.status.ilike(f"%{pagination.search}%"))
+        )
+    return paginate(query, pagination)
+
+
 @router.get("/payments/{payment_id}/receipt")
 def get_receipt(
     payment_id: str,

@@ -62,6 +62,12 @@ export default function App() {
     setTokenReady(false);
   }
 
+  function getPatientName(patientId: string): string {
+    const patient = lookups.patients.find((p) => p.id === patientId);
+    if (!patient) return "Inconnu";
+    return `${patient.first_name || ""} ${patient.last_name || ""}`.trim() || patient.patient_number || "N/A";
+  }
+
   if (bootstrapping) {
     return (
       <div className="login-page">
@@ -89,7 +95,7 @@ export default function App() {
           <Route path="/pharmacy" element={<PharmacyPage lookups={lookups} onCreated={refreshAll} />} />
           <Route path="/lab" element={<LabPage lookups={lookups} onCreated={refreshAll} />} />
           <Route path="/billing" element={<FinancePage lookups={lookups} onCreated={refreshAll} />} />
-          <Route path="/activity" element={<ActivityPage />} />
+          <Route path="/activity" element={<ActivityPage lookups={lookups} />} />
           <Route path="/hospitalization" element={<HospitalizationPage lookups={lookups} />} />
           <Route path="/maternity" element={<MaternityPage lookups={lookups} />} />
           <Route path="/personnel" element={<PersonnelPage lookups={lookups} />} />
@@ -97,8 +103,8 @@ export default function App() {
           <Route path="/surgery" element={<SurgeryPage lookups={lookups} />} />
           <Route path="/quality" element={<QualityPage lookups={lookups} />} />
           <Route path="/reporting" element={<ReportingPage lookups={lookups} />} />
-          <Route path="/emergency/triage" element={<EmergencyTriagePage onCreated={refreshAll} />} />
-          <Route path="/emergency/orientation" element={<EmergencyOrientationPage onCreated={refreshAll} />} />
+          <Route path="/emergency/triage" element={<EmergencyTriagePage lookups={lookups} onCreated={refreshAll} getPatientName={getPatientName} />} />
+          <Route path="/emergency/orientation" element={<EmergencyOrientationPage lookups={lookups} onCreated={refreshAll} getPatientName={getPatientName} />} />
           <Route path="/national" element={<NationalPilotagePage lookups={lookups} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
