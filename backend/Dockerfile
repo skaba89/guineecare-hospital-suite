@@ -8,9 +8,6 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 FROM python:3.11-slim
 WORKDIR /app
 
-# Create non-root user
-RUN groupadd -r guineecare && useradd -r -g guineecare -d /app -s /sbin/nologin guineecare
-
 # Copy installed packages from builder
 COPY --from=builder /root/.local /root/.local
 ENV PATH=/root/.local/bin:$PATH
@@ -20,10 +17,7 @@ COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini .
 
-# Set ownership
-RUN chown -R guineecare:guineecare /app
-
 EXPOSE 8000
 
-# Startup: run Alembic migrations then start server
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"]
+# Start server - init_db() in lifespan creates tables automatically
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
