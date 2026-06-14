@@ -28,7 +28,7 @@ services:
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost,http://localhost:80}
       - TOKEN_EXPIRE_MINUTES=${TOKEN_EXPIRE_MINUTES:-60}
-      - SEED_DEMO_DATA=${SEED_DEMO_DATA:-false}
+      - SEED_DEMO_DATA=${SEED_DEMO_DATA:-true}
     depends_on:
       postgres:
         condition: service_healthy

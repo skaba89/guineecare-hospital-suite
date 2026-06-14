@@ -23,10 +23,7 @@ COPY alembic.ini .
 # Set ownership
 RUN chown -R guineecare:guineecare /app
 
-# Switch to non-root user
-USER guineecare
-
 EXPOSE 8000
 
-# Use gunicorn with uvicorn workers for production
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+# Startup: run Alembic migrations then start server
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"]
