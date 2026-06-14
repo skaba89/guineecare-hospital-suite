@@ -1,7 +1,7 @@
 """enrich emergency visit with care and discharge fields
 
-Revision ID: 0009_emergency_care_discharge
-Revises: 0008_imaging_surgery_quality_reporting
+Revision ID: 0009_emerg_discharge
+Revises: 0008_img_surg_qual_rpt
 Create Date: 2026-06-14
 """
 
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "0009_emergency_care_discharge"
-down_revision = "0008_imaging_surgery_quality_reporting"
+revision = "0009_emerg_discharge"
+down_revision = "0008_img_surg_qual_rpt"
 branch_labels = None
 depends_on = None
 

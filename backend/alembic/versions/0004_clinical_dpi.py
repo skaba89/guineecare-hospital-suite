@@ -1,7 +1,7 @@
 """add clinical DPI module
 
 Revision ID: 0004_clinical_dpi
-Revises: 0002_mvp_business_modules
+Revises: 0002_biz_modules
 Create Date: 2026-06-05
 """
 

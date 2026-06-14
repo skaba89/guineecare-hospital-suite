@@ -1,7 +1,7 @@
 """add personnel module (staff_members, on_call_schedules)
 
 Revision ID: 0007_personnel
-Revises: 0005_hospitalization
+Revises: 0005_hospital
 Create Date: 2026-06-05
 """
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision = "0007_personnel"
-down_revision = "0005_hospitalization"
+down_revision = "0005_hospital"
 branch_labels = None
 depends_on = None
 

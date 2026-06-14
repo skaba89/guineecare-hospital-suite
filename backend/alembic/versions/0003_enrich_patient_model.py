@@ -1,7 +1,7 @@
 """enrich patient model with demographics and emergency contacts
 
 Revision ID: 0003_enrich_patient
-Revises: 0002_mvp_business_modules
+Revises: 0002_biz_modules
 Create Date: 2026-06-04
 """
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision = "0003_enrich_patient"
-down_revision = "0002_mvp_business_modules"
+down_revision = "0002_biz_modules"
 branch_labels = None
 depends_on = None
 

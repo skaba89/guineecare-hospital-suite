@@ -1,7 +1,7 @@
 """add MVP business modules
 
-Revision ID: 0002_mvp_business_modules
-Revises: 0001_initial_mvp_schema
+Revision ID: 0002_biz_modules
+Revises: 0001_init_schema
 Create Date: 2026-06-04
 """
 
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "0002_mvp_business_modules"
-down_revision = "0001_initial_mvp_schema"
+revision = "0002_biz_modules"
+down_revision = "0001_init_schema"
 branch_labels = None
 depends_on = None
 

@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "0005_hospitalization"
+revision = "0005_hospital"
 down_revision = ("0003_enrich_patient", "0004_clinical_dpi")
 branch_labels = None
 depends_on = None

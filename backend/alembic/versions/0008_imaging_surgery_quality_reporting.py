@@ -1,6 +1,6 @@
 """add imaging, surgery, quality, and reporting modules
 
-Revision ID: 0008_imaging_surgery_quality_reporting
+Revision ID: 0008_img_surg_qual_rpt
 Revises: 0006_maternity
 Create Date: 2026-06-14
 """
@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "0008_imaging_surgery_quality_reporting"
+revision = "0008_img_surg_qual_rpt"
 down_revision = "0006_maternity"
 branch_labels = None
 depends_on = None
