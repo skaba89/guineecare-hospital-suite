@@ -44,7 +44,12 @@ def create_imaging_order(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("imaging.manage")),
 ):
-    row = ImagingOrder(**payload.model_dump())
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    if not data.get("requesting_doctor_id"):
+        data["requesting_doctor_id"] = current_user.id
+    row = ImagingOrder(**data)
     db.add(row)
     db.flush()
     record_activity(
@@ -153,7 +158,14 @@ def create_imaging_result(
     if not order:
         raise HTTPException(status_code=404, detail="Imaging order not found")
 
-    row = ImagingResult(**payload.model_dump())
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = order.facility_id
+    if not data.get("patient_id"):
+        data["patient_id"] = order.patient_id
+    if not data.get("radiologist_id"):
+        data["radiologist_id"] = current_user.id
+    row = ImagingResult(**data)
     db.add(row)
     db.flush()
     record_activity(

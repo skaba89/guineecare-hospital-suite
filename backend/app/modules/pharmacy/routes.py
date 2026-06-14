@@ -50,7 +50,10 @@ def get_stock(
 ):
     query = db.query(PharmacyStock).order_by(PharmacyStock.updated_at.desc())
     if pagination.search:
-        query = query.filter(PharmacyStock.product_id.ilike(f"%{pagination.search}%"))
+        query = query.join(PharmacyProduct, PharmacyStock.product_id == PharmacyProduct.id).filter(
+            (PharmacyProduct.name.ilike(f"%{pagination.search}%"))
+            | (PharmacyProduct.code.ilike(f"%{pagination.search}%"))
+        )
     return paginate(query, pagination)
 
 

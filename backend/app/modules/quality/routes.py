@@ -41,7 +41,9 @@ def create_indicator(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("quality.manage")),
 ):
-    row = QualityIndicator(**payload.model_dump())
+    row = QualityIndicator(**payload.model_dump(exclude_none=True))
+    if not row.facility_id:
+        row.facility_id = current_user.facility_id
     db.add(row)
     db.flush()
     record_activity(
@@ -84,7 +86,11 @@ def create_measurement(
     indicator = db.query(QualityIndicator).filter(QualityIndicator.id == payload.indicator_id).first()
     if not indicator:
         raise HTTPException(status_code=404, detail="Indicator not found")
-    row = QualityMeasurement(**payload.model_dump())
+    row = QualityMeasurement(**payload.model_dump(exclude_none=True))
+    if not row.facility_id:
+        row.facility_id = current_user.facility_id
+    if not row.recorded_by:
+        row.recorded_by = current_user.id
     db.add(row)
     db.flush()
     record_activity(
@@ -127,7 +133,11 @@ def create_incident(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("quality.manage")),
 ):
-    row = IncidentReport(**payload.model_dump())
+    row = IncidentReport(**payload.model_dump(exclude_none=True))
+    if not row.facility_id:
+        row.facility_id = current_user.facility_id
+    if not row.reported_by:
+        row.reported_by = current_user.id
     db.add(row)
     db.flush()
     record_activity(

@@ -111,6 +111,12 @@ function OrdersTab({ lookups }: { lookups: LookupData }) {
 
   const options = buildOptions(lookups);
 
+  function getPatientName(patientId: string): string {
+    const patient = lookups.patients.find((p) => p.id === patientId);
+    if (!patient) return "Inconnu";
+    return `${patient.first_name || ""} ${patient.last_name || ""}`.trim() || patient.patient_number || "N/A";
+  }
+
   const loadOrders = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -309,7 +315,7 @@ function OrdersTab({ lookups }: { lookups: LookupData }) {
                     <td style={{ whiteSpace: "nowrap" }}>
                       {order.created_at ? new Date(order.created_at).toLocaleDateString("fr-FR") : "—"}
                     </td>
-                    <td style={{ fontWeight: 600 }}>{order.patient_id || "—"}</td>
+                    <td style={{ fontWeight: 600 }}>{getPatientName(order.patient_id)}</td>
                     <td>{EXAM_TYPE_LABEL[order.exam_type] || order.exam_type || "—"}</td>
                     <td>{order.body_region || "—"}</td>
                     <td>
@@ -368,6 +374,12 @@ function ResultsTab({ lookups }: { lookups: LookupData }) {
   const [findings, setFindings] = useState("");
   const [conclusion, setConclusion] = useState("");
   const [recommendation, setRecommendation] = useState("");
+
+  function getPatientName(patientId: string): string {
+    const patient = lookups.patients.find((p) => p.id === patientId);
+    if (!patient) return "Inconnu";
+    return `${patient.first_name || ""} ${patient.last_name || ""}`.trim() || patient.patient_number || "N/A";
+  }
 
   const loadResults = useCallback(async () => {
     setLoading(true);
@@ -536,7 +548,7 @@ function ResultsTab({ lookups }: { lookups: LookupData }) {
                     <td style={{ whiteSpace: "nowrap" }}>
                       {result.created_at ? new Date(result.created_at).toLocaleDateString("fr-FR") : "—"}
                     </td>
-                    <td style={{ fontWeight: 600 }}>{result.patient_id || "—"}</td>
+                    <td style={{ fontWeight: 600 }}>{getPatientName(result.patient_id)}</td>
                     <td>{result.exam_type || "—"}</td>
                     <td>{result.findings || "—"}</td>
                     <td>{result.conclusion || "—"}</td>

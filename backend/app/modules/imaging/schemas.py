@@ -7,11 +7,11 @@ from pydantic import BaseModel
 # ── Imaging Order ─────────────────────────────────────────────────────
 
 class ImagingOrderCreate(BaseModel):
-    facility_id: str
+    facility_id: str | None = None
     patient_id: str
     requesting_doctor_id: str | None = None
     exam_type: str
-    body_region: str
+    body_region: str = ""
     clinical_info: str | None = None
     urgency: str = "ROUTINE"
 
@@ -38,9 +38,9 @@ class ImagingOrderRead(BaseModel):
 # ── Imaging Result ────────────────────────────────────────────────────
 
 class ImagingResultCreate(BaseModel):
-    facility_id: str
+    facility_id: str | None = None
     order_id: str
-    patient_id: str
+    patient_id: str | None = None
     radiologist_id: str | None = None
     findings: str | None = None
     conclusion: str | None = None

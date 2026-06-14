@@ -7,7 +7,7 @@ from pydantic import BaseModel
 # ── Operating Room ────────────────────────────────────────────────────
 
 class OperatingRoomCreate(BaseModel):
-    facility_id: str
+    facility_id: str | None = None
     code: str
     name: str
     room_type: str | None = None
@@ -30,7 +30,7 @@ class OperatingRoomRead(BaseModel):
 # ── Surgery Schedule ──────────────────────────────────────────────────
 
 class SurgeryScheduleCreate(BaseModel):
-    facility_id: str
+    facility_id: str | None = None
     patient_id: str
     operating_room_id: str | None = None
     surgeon_id: str | None = None
@@ -87,9 +87,9 @@ class SurgeryTeamMemberRead(BaseModel):
 # ── Surgery Report ────────────────────────────────────────────────────
 
 class SurgeryReportCreate(BaseModel):
-    facility_id: str
+    facility_id: str | None = None
     schedule_id: str
-    patient_id: str
+    patient_id: str | None = None
     surgeon_id: str | None = None
     operative_findings: str | None = None
     procedure_performed: str | None = None

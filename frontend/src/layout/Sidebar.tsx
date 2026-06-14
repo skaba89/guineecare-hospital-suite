@@ -23,6 +23,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
+import { CurrentUser, getRoleLabel, getUserInitials, getUserDisplayName } from "../services/authService";
 
 type NavItem = {
   label: string;
@@ -83,7 +84,7 @@ const navigationSections: NavSection[] = [
   },
 ];
 
-export function Sidebar({ onLogout }: { onLogout: () => void }) {
+export function Sidebar({ onLogout, currentUser }: { onLogout: () => void; currentUser: CurrentUser | null }) {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
@@ -101,6 +102,21 @@ export function Sidebar({ onLogout }: { onLogout: () => void }) {
   );
 
   const currentExpanded = expandedSection ?? activeSection?.title ?? null;
+
+  const initials = currentUser ? getUserInitials(currentUser) : "GC";
+  const displayName = currentUser ? getUserDisplayName(currentUser) : "Utilisateur";
+  const roleLabel = currentUser ? getRoleLabel(currentUser.role) : "";
+  const roleBadgeClass: Record<string, string> = {
+    SUPER_ADMIN: "badge-red",
+    ADMIN: "badge-yellow",
+    DOCTOR: "badge-blue",
+    NURSE: "badge-green",
+    PHARMACIST: "badge-green",
+    LAB_TECH: "badge-gray",
+    CASHIER: "badge-gray",
+    MIDWIFE: "badge-yellow",
+  };
+  const badgeClass = currentUser ? roleBadgeClass[currentUser.role] || "badge-gray" : "badge-gray";
 
   return (
     <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""}`}>
@@ -175,12 +191,12 @@ export function Sidebar({ onLogout }: { onLogout: () => void }) {
       <div className="sidebar-footer">
         {!collapsed && (
           <div className="sidebar-user">
-            <div className="sidebar-user-avatar">DR</div>
+            <div className="sidebar-user-avatar">{initials}</div>
             <div className="sidebar-user-info">
-              <span className="sidebar-user-name">Dr. Utilisateur</span>
+              <span className="sidebar-user-name">{displayName}</span>
               <span className="sidebar-user-role">
-                <span className="badge badge-green" style={{ fontSize: "10px", padding: "1px 6px" }}>
-                  Médecin
+                <span className={`badge ${badgeClass}`} style={{ fontSize: "10px", padding: "1px 6px" }}>
+                  {roleLabel}
                 </span>
               </span>
             </div>

@@ -277,6 +277,12 @@ function StaysTab({ lookups }: { lookups: LookupData }) {
     label: `Lit ${b.bed_number}`,
   }));
 
+  function getPatientName(patientId: string): string {
+    const patient = lookups.patients.find((p) => p.id === patientId);
+    if (!patient) return "Inconnu";
+    return `${patient.first_name || ""} ${patient.last_name || ""}`.trim() || patient.patient_number || "N/A";
+  }
+
   return (
     <>
       <div className="section-header">
@@ -368,7 +374,7 @@ function StaysTab({ lookups }: { lookups: LookupData }) {
                     <td style={{ whiteSpace: "nowrap" }}>
                       {stay.admitted_at ? new Date(stay.admitted_at).toLocaleString("fr-FR") : "—"}
                     </td>
-                    <td style={{ fontWeight: 600 }}>{stay.patient_id || "—"}</td>
+                    <td style={{ fontWeight: 600 }}>{getPatientName(stay.patient_id)}</td>
                     <td>{stay.reason || "—"}</td>
                     <td>
                       <span className={`badge ${stayStatusBadge[stay.status] || "badge-gray"}`}>

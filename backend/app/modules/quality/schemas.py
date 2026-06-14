@@ -7,7 +7,7 @@ from pydantic import BaseModel
 # ── Quality Indicator ─────────────────────────────────────────────────
 
 class QualityIndicatorCreate(BaseModel):
-    facility_id: str
+    facility_id: str | None = None
     code: str
     name: str
     category: str | None = None
@@ -36,7 +36,7 @@ class QualityIndicatorRead(BaseModel):
 # ── Quality Measurement ───────────────────────────────────────────────
 
 class QualityMeasurementCreate(BaseModel):
-    facility_id: str
+    facility_id: str | None = None
     indicator_id: str
     period_start: datetime
     period_end: datetime
@@ -67,7 +67,7 @@ class QualityMeasurementRead(BaseModel):
 # ── Incident Report ───────────────────────────────────────────────────
 
 class IncidentReportCreate(BaseModel):
-    facility_id: str
+    facility_id: str | None = None
     reported_by: str | None = None
     patient_id: str | None = None
     incident_date: datetime

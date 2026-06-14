@@ -46,7 +46,9 @@ def create_national_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("reporting.manage")),
 ):
-    row = NationalReport(**payload.model_dump())
+    row = NationalReport(**payload.model_dump(exclude_none=True))
+    if not row.facility_id:
+        row.facility_id = current_user.facility_id
     db.add(row)
     db.flush()
     record_activity(
@@ -174,7 +176,11 @@ def create_epidemic_alert(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("reporting.manage")),
 ):
-    row = EpidemicAlert(**payload.model_dump())
+    row = EpidemicAlert(**payload.model_dump(exclude_none=True))
+    if not row.facility_id:
+        row.facility_id = current_user.facility_id
+    if not row.reported_by:
+        row.reported_by = current_user.id
     db.add(row)
     db.flush()
     record_activity(
@@ -248,7 +254,9 @@ def create_health_statistic(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("reporting.manage")),
 ):
-    row = HealthStatistic(**payload.model_dump())
+    row = HealthStatistic(**payload.model_dump(exclude_none=True))
+    if not row.facility_id:
+        row.facility_id = current_user.facility_id
     db.add(row)
     db.commit()
     db.refresh(row)

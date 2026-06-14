@@ -7,12 +7,13 @@ from pydantic import BaseModel
 # ── StaffMember ────────────────────────────────────────────────────────
 
 class StaffMemberCreate(BaseModel):
-    facility_id: str
+    facility_id: str | None = None
     user_id: str | None = None
-    employee_number: str
+    employee_number: str | None = None
     first_name: str
     last_name: str
     profession: str | None = None
+    role: str | None = None  # alias for profession from frontend
     specialty: str | None = None
     department_id: str | None = None
     phone: str | None = None
@@ -56,11 +57,13 @@ class StaffMemberRead(BaseModel):
 # ── OnCallSchedule ─────────────────────────────────────────────────────
 
 class OnCallScheduleCreate(BaseModel):
-    facility_id: str
+    facility_id: str | None = None
     department_id: str | None = None
     staff_id: str
-    on_call_date: datetime
-    shift_type: str  # DAY, NIGHT, FULL_DAY
+    on_call_date: datetime | None = None
+    on_call_date_str: str | None = None  # accept date as string from frontend
+    shift_type: str = "DAY"  # DAY, NIGHT, FULL_DAY
+    shift: str | None = None  # alias from frontend
     notes: str | None = None
 
 

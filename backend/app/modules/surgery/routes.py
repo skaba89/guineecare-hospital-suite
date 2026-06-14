@@ -42,7 +42,10 @@ def create_room(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("surgery.manage")),
 ):
-    row = OperatingRoom(**payload.model_dump())
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    row = OperatingRoom(**data)
     db.add(row)
     db.flush()
     record_activity(
@@ -89,7 +92,12 @@ def create_schedule(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("surgery.manage")),
 ):
-    row = SurgerySchedule(**payload.model_dump())
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    if not data.get("surgeon_id"):
+        data["surgeon_id"] = current_user.id
+    row = SurgerySchedule(**data)
     db.add(row)
     db.flush()
     record_activity(
@@ -230,7 +238,16 @@ def create_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("surgery.manage")),
 ):
-    row = SurgeryReport(**payload.model_dump())
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    if not data.get("surgeon_id"):
+        data["surgeon_id"] = current_user.id
+    if not data.get("patient_id"):
+        schedule = db.query(SurgerySchedule).filter(SurgerySchedule.id == payload.schedule_id).first()
+        if schedule:
+            data["patient_id"] = schedule.patient_id
+    row = SurgeryReport(**data)
     db.add(row)
     db.flush()
     record_activity(

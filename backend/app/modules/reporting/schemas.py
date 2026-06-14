@@ -7,7 +7,7 @@ from pydantic import BaseModel
 # ── National Report ───────────────────────────────────────────────────
 
 class NationalReportCreate(BaseModel):
-    facility_id: str
+    facility_id: str | None = None
     report_type: str
     period_start: datetime
     period_end: datetime
@@ -53,7 +53,7 @@ class NationalReportRead(BaseModel):
 # ── Epidemic Alert ────────────────────────────────────────────────────
 
 class EpidemicAlertCreate(BaseModel):
-    facility_id: str
+    facility_id: str | None = None
     disease_name: str
     case_count: str
     threshold_exceeded: str = "YES"
@@ -86,7 +86,7 @@ class EpidemicAlertRead(BaseModel):
 # ── Health Statistic ──────────────────────────────────────────────────
 
 class HealthStatisticCreate(BaseModel):
-    facility_id: str
+    facility_id: str | None = None
     category: str
     metric_name: str
     metric_value: str

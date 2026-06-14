@@ -54,14 +54,31 @@ def create_staff_member(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("personnel.manage")),
 ):
+    data = payload.model_dump(exclude_none=True)
+
+    # Map frontend 'role' to backend 'profession' if provided
+    if "role" in data and "profession" not in data:
+        data["profession"] = data.pop("role")
+    elif "role" in data:
+        data.pop("role")
+
+    # Auto-generate employee_number if not provided
+    if not data.get("employee_number"):
+        count = db.query(StaffMember).count()
+        data["employee_number"] = f"EMP-{count + 1:04d}"
+
+    # Auto-fill facility_id from current user if not provided
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+
     # Check employee_number uniqueness
     existing = db.query(StaffMember).filter(
-        StaffMember.employee_number == payload.employee_number
+        StaffMember.employee_number == data.get("employee_number")
     ).first()
     if existing:
         raise HTTPException(status_code=409, detail="Employee number already exists")
 
-    row = StaffMember(**payload.model_dump())
+    row = StaffMember(**data)
     db.add(row)
     db.flush()
     record_activity(
@@ -145,12 +162,33 @@ def create_on_call_entry(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("personnel.manage")),
 ):
+    data = payload.model_dump(exclude_none=True)
+
+    # Map frontend 'shift' to backend 'shift_type' if provided
+    if "shift" in data:
+        shift_val = data.pop("shift")
+        if "shift_type" not in data or data["shift_type"] == "DAY":
+            data["shift_type"] = shift_val
+
+    # Map frontend 'on_call_date_str' to 'on_call_date' if provided
+    if "on_call_date_str" in data:
+        date_str = data.pop("on_call_date_str")
+        if not data.get("on_call_date"):
+            data["on_call_date"] = datetime.strptime(date_str, "%Y-%m-%d")
+    elif not data.get("on_call_date"):
+        raise HTTPException(status_code=400, detail="on_call_date is required")
+
+    # Auto-fill facility_id from current user
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+
     # Verify staff member exists
-    staff = db.query(StaffMember).filter(StaffMember.id == payload.staff_id).first()
+    staff_id = data.get("staff_id")
+    staff = db.query(StaffMember).filter(StaffMember.id == staff_id).first()
     if not staff:
         raise HTTPException(status_code=404, detail="Staff member not found")
 
-    row = OnCallSchedule(**payload.model_dump(), created_by=current_user.id)
+    row = OnCallSchedule(**data, created_by=current_user.id)
     db.add(row)
     db.flush()
     record_activity(

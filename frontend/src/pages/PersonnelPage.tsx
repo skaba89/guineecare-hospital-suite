@@ -245,8 +245,8 @@ function StaffTab({ lookups }: { lookups: LookupData }) {
                     <td style={{ fontWeight: 600 }}>{s.last_name || "—"}</td>
                     <td>{s.first_name || "—"}</td>
                     <td>
-                      <span className={`badge ${roleBadge[s.role] || "badge-gray"}`}>
-                        {roleLabel[s.role] || s.role}
+                      <span className={`badge ${roleBadge[s.profession || s.role] || "badge-gray"}`}>
+                        {roleLabel[s.profession || s.role] || s.profession || s.role}
                       </span>
                     </td>
                     <td>{s.specialty || "—"}</td>
@@ -361,9 +361,15 @@ function OnCallTab({ lookups }: { lookups: LookupData }) {
     NIGHT: "badge-blue",
   };
 
+  function getStaffName(staffId: string): string {
+    const staffMember = lookups.staff.find((s) => s.id === staffId);
+    if (!staffMember) return "Inconnu";
+    return `${staffMember.first_name || ""} ${staffMember.last_name || ""}`.trim() || staffMember.employee_number || "N/A";
+  }
+
   // Group by date
   const byDate = onCallList.reduce<Record<string, Row[]>>((acc, item) => {
-    const dateKey = item.on_call_date || "—";
+    const dateKey = item.on_call_date ? item.on_call_date.toString().split("T")[0] : "—";
     if (!acc[dateKey]) acc[dateKey] = [];
     acc[dateKey].push(item);
     return acc;
@@ -446,11 +452,11 @@ function OnCallTab({ lookups }: { lookups: LookupData }) {
                   {byDate[date].map((item) => (
                     <tr key={item.id}>
                       <td style={{ fontWeight: 600 }}>
-                        {item.staff_id || "—"}
+                        {getStaffName(item.staff_id)}
                       </td>
                       <td>
-                        <span className={`badge ${shiftBadge[item.shift] || "badge-gray"}`}>
-                          {shiftLabel[item.shift] || item.shift}
+                        <span className={`badge ${shiftBadge[item.shift_type || item.shift] || "badge-gray"}`}>
+                          {shiftLabel[item.shift_type || item.shift] || item.shift_type || item.shift}
                         </span>
                       </td>
                     </tr>

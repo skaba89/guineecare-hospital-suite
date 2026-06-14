@@ -14,7 +14,7 @@ router = APIRouter(prefix="/activity", tags=["activity"])
 def list_activity(
     pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(["SUPER_ADMIN", "ADMIN"])),
+    current_user: User = Depends(require_role("SUPER_ADMIN", "ADMIN")),
 ):
     query = db.query(ActivityEntry).order_by(ActivityEntry.created_at.desc())
     if pagination.search:

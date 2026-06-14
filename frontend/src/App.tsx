@@ -22,14 +22,23 @@ import { ImagingPage } from "./pages/ImagingPage";
 import { SurgeryPage } from "./pages/SurgeryPage";
 import { QualityPage } from "./pages/QualityPage";
 import { ReportingPage } from "./pages/ReportingPage";
-import { clearToken, getToken } from "./services/api";
-import { getCurrentUser } from "./services/authService";
+import { clearToken, getToken, getStoredUser, setOnUnauthorized } from "./services/api";
+import { getCurrentUser, CurrentUser } from "./services/authService";
 
 export default function App() {
   const [bootstrapping, setBootstrapping] = useState(Boolean(getToken()));
   const [tokenReady, setTokenReady] = useState(false);
   const [lookupVersion, setLookupVersion] = useState(0);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(getStoredUser() as CurrentUser | null);
   const lookups = useLookupData(tokenReady, lookupVersion);
+
+  // Register 401 handler
+  useEffect(() => {
+    setOnUnauthorized(() => {
+      setTokenReady(false);
+      setCurrentUser(null);
+    });
+  }, []);
 
   useEffect(() => {
     async function verifyExistingSession() {
@@ -39,11 +48,13 @@ export default function App() {
       }
 
       try {
-        await getCurrentUser();
+        const user = await getCurrentUser();
+        setCurrentUser(user);
         setTokenReady(true);
       } catch (err) {
         clearToken();
         setTokenReady(false);
+        setCurrentUser(null);
       } finally {
         setBootstrapping(false);
       }
@@ -60,12 +71,29 @@ export default function App() {
   function logout() {
     clearToken();
     setTokenReady(false);
+    setCurrentUser(null);
+  }
+
+  function handleLogin() {
+    // After login, fetch full user data
+    getCurrentUser().then((user) => {
+      setCurrentUser(user);
+      setTokenReady(true);
+    }).catch(() => {
+      setTokenReady(true);
+    });
   }
 
   function getPatientName(patientId: string): string {
     const patient = lookups.patients.find((p) => p.id === patientId);
     if (!patient) return "Inconnu";
     return `${patient.first_name || ""} ${patient.last_name || ""}`.trim() || patient.patient_number || "N/A";
+  }
+
+  function getStaffName(staffId: string): string {
+    const staff = lookups.staff.find((s) => s.id === staffId);
+    if (!staff) return "Inconnu";
+    return `${staff.first_name || ""} ${staff.last_name || ""}`.trim() || staff.employee_number || "N/A";
   }
 
   if (bootstrapping) {
@@ -80,12 +108,12 @@ export default function App() {
   }
 
   if (!tokenReady) {
-    return <LoginPage onLogin={() => setTokenReady(true)} />;
+    return <LoginPage onLogin={handleLogin} />;
   }
 
   return (
     <BrowserRouter>
-      <AppLayout onLogout={logout}>
+      <AppLayout onLogout={logout} currentUser={currentUser} getPatientName={getPatientName} getStaffName={getStaffName}>
         <Routes>
           <Route path="/" element={<DashboardPage lookups={lookups} />} />
           <Route path="/patients" element={<PatientsPage lookups={lookups} onCreated={refreshAll} />} />

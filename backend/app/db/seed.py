@@ -38,6 +38,17 @@ def run_seed():
                 role="SUPER_ADMIN",
             ))
 
+        doctor = db.query(User).filter(User.email == "doctor@guineecare.com").first()
+        if not doctor:
+            db.add(User(
+                facility_id=facility.id,
+                email="doctor@guineecare.com",
+                password_hash=hash_password("doctor123"),
+                first_name="Amadou",
+                last_name="Diallo",
+                role="DOCTOR",
+            ))
+
         for code, name, category in [
             ("URG", "Urgences", "CLINICAL"),
             ("MAT", "Maternité", "CLINICAL"),

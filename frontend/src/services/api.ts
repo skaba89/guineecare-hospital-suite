@@ -8,6 +8,12 @@ export type ApiResponse<T> = {
   user?: unknown;
 };
 
+let onUnauthorized: (() => void) | null = null;
+
+export function setOnUnauthorized(handler: () => void) {
+  onUnauthorized = handler;
+}
+
 export function getToken(): string | null {
   return localStorage.getItem("guineecare_token");
 }
@@ -18,6 +24,21 @@ export function setToken(token: string): void {
 
 export function clearToken(): void {
   localStorage.removeItem("guineecare_token");
+  localStorage.removeItem("guineecare_user");
+}
+
+export function getStoredUser(): Record<string, any> | null {
+  const raw = localStorage.getItem("guineecare_user");
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredUser(user: Record<string, any>): void {
+  localStorage.setItem("guineecare_user", JSON.stringify(user));
 }
 
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -35,6 +56,14 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
     ...options,
     headers,
   });
+
+  if (response.status === 401) {
+    clearToken();
+    if (onUnauthorized) {
+      onUnauthorized();
+    }
+    throw new Error("Session expirée. Veuillez vous reconnecter.");
+  }
 
   if (!response.ok) {
     const errorText = await response.text();

@@ -26,8 +26,11 @@ def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)
         "user": {
             "id": user.id,
             "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
             "role": user.role,
             "facility_id": user.facility_id,
+            "is_active": user.is_active,
         },
     }
 
@@ -41,4 +44,5 @@ def me(current_user: User = Depends(get_current_user)):
         "last_name": current_user.last_name,
         "role": current_user.role,
         "facility_id": current_user.facility_id,
+        "is_active": current_user.is_active,
     }

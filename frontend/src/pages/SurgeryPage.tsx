@@ -285,6 +285,12 @@ function SchedulesTab({ lookups }: { lookups: LookupData }) {
 
   const options = buildOptions(lookups);
 
+  function getPatientName(patientId: string): string {
+    const patient = lookups.patients.find((p) => p.id === patientId);
+    if (!patient) return "Inconnu";
+    return `${patient.first_name || ""} ${patient.last_name || ""}`.trim() || patient.patient_number || "N/A";
+  }
+
   const loadSchedules = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -512,7 +518,7 @@ function SchedulesTab({ lookups }: { lookups: LookupData }) {
                     <td style={{ whiteSpace: "nowrap" }}>
                       {schedule.scheduled_date ? new Date(schedule.scheduled_date).toLocaleDateString("fr-FR") : "—"}
                     </td>
-                    <td style={{ fontWeight: 600 }}>{schedule.patient_id || "—"}</td>
+                    <td style={{ fontWeight: 600 }}>{getPatientName(schedule.patient_id)}</td>
                     <td>{schedule.procedure_name || "—"}</td>
                     <td>{schedule.surgeon_id || "—"}</td>
                     <td>{schedule.operating_room_id || "—"}</td>
@@ -584,6 +590,12 @@ function ReportsTab({ lookups }: { lookups: LookupData }) {
   const [specimens, setSpecimens] = useState("");
   const [bloodLoss, setBloodLoss] = useState("");
   const [anesthesiaType, setAnesthesiaType] = useState("GENERAL");
+
+  function getPatientName(patientId: string): string {
+    const patient = lookups.patients.find((p) => p.id === patientId);
+    if (!patient) return "Inconnu";
+    return `${patient.first_name || ""} ${patient.last_name || ""}`.trim() || patient.patient_number || "N/A";
+  }
 
   const loadReports = useCallback(async () => {
     setLoading(true);
@@ -666,7 +678,7 @@ function ReportsTab({ lookups }: { lookups: LookupData }) {
 
   const scheduleOptions = completedSchedules.map((s) => ({
     value: s.id,
-    label: `${s.procedure_name || "Intervention"} — ${s.patient_id || s.id}`,
+    label: `${s.procedure_name || "Intervention"} — ${getPatientName(s.patient_id)}`,
   }));
 
   const ANESTHESIA_LABEL: Record<string, string> = {
@@ -790,7 +802,7 @@ function ReportsTab({ lookups }: { lookups: LookupData }) {
                     <td style={{ whiteSpace: "nowrap" }}>
                       {report.created_at ? new Date(report.created_at).toLocaleDateString("fr-FR") : "—"}
                     </td>
-                    <td style={{ fontWeight: 600 }}>{report.patient_id || "—"}</td>
+                    <td style={{ fontWeight: 600 }}>{getPatientName(report.patient_id)}</td>
                     <td>{report.procedure_performed || report.procedure_name || "—"}</td>
                     <td>{report.operative_findings || "—"}</td>
                     <td>{report.complications || "—"}</td>
