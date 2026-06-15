@@ -4,6 +4,7 @@ from app.core.datetime import utcnow
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
 from app.modules.hospitalization.models import Bed, HospitalStay, Room
@@ -29,7 +30,7 @@ def list_rooms(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("hospitalization.read")),
 ):
-    query = db.query(Room)
+    query = tenant_query(db, Room, current_user)
     if facility_id:
         query = query.filter(Room.facility_id == facility_id)
     if department_id:
@@ -44,7 +45,11 @@ def create_room(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("hospitalization.manage")),
 ):
-    row = Room(**payload.model_dump())
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
+    row = Room(**data)
     db.add(row)
     db.flush()
     record_activity(
@@ -69,7 +74,7 @@ def list_beds(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("hospitalization.read")),
 ):
-    query = db.query(Bed)
+    query = tenant_query(db, Bed, current_user)
     if room_id:
         query = query.filter(Bed.room_id == room_id)
     if bed_status:
@@ -87,7 +92,12 @@ def create_bed(
     room = db.query(Room).filter(Room.id == payload.room_id).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
-    row = Bed(**payload.model_dump())
+    enforce_facility_access(current_user, room.facility_id)
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
+    row = Bed(**data)
     db.add(row)
     db.flush()
     record_activity(
@@ -111,8 +121,9 @@ def get_bed_board(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("hospitalization.read")),
 ):
+    enforce_facility_access(current_user, facility_id)
     beds = (
-        db.query(Bed)
+        tenant_query(db, Bed, current_user)
         .filter(Bed.facility_id == facility_id)
         .order_by(Bed.bed_number)
         .all()
@@ -160,15 +171,21 @@ def admit_patient(
     current_user: User = Depends(require_permission("hospitalization.manage")),
 ):
     # If a bed is assigned, mark it as OCCUPIED
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
+
     if payload.bed_id:
         bed = db.query(Bed).filter(Bed.id == payload.bed_id).first()
         if not bed:
             raise HTTPException(status_code=404, detail="Bed not found")
+        enforce_facility_access(current_user, bed.facility_id)
         if bed.bed_status == "OCCUPIED":
             raise HTTPException(status_code=409, detail="Bed is already occupied")
         bed.bed_status = "OCCUPIED"
 
-    row = HospitalStay(**payload.model_dump())
+    row = HospitalStay(**data)
     db.add(row)
     db.flush()
     record_activity(
@@ -191,7 +208,7 @@ def list_stays(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("hospitalization.read")),
 ):
-    query = db.query(HospitalStay)
+    query = tenant_query(db, HospitalStay, current_user)
     if patient_id:
         query = query.filter(HospitalStay.patient_id == patient_id)
     if status:
@@ -209,6 +226,7 @@ def discharge_patient(
     stay = db.query(HospitalStay).filter(HospitalStay.id == stay_id).first()
     if not stay:
         raise HTTPException(status_code=404, detail="Hospital stay not found")
+    enforce_facility_access(current_user, stay.facility_id)
     if stay.status == "DISCHARGED":
         raise HTTPException(status_code=409, detail="Patient already discharged")
 

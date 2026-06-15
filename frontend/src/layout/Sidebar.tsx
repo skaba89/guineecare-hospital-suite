@@ -24,6 +24,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { CurrentUser, getRoleLabel, getUserInitials, getUserDisplayName } from "../services/authService";
+import { useNavVisibility } from "../components/ProtectedRoute";
 
 type NavItem = {
   label: string;
@@ -31,6 +32,7 @@ type NavItem = {
   icon: React.ComponentType<{ size?: number }>;
   children?: NavItem[];
   accent?: boolean;
+  visible?: boolean;
 };
 
 type NavSection = {
@@ -38,63 +40,72 @@ type NavSection = {
   items: NavItem[];
 };
 
-const navigationSections: NavSection[] = [
-  {
-    title: "SOINS",
-    items: [
-      { label: "Dashboard", path: "/", icon: LayoutDashboard },
-      { label: "Patients", path: "/patients", icon: Users },
-      { label: "Admissions", path: "/admissions", icon: ClipboardList },
-    ],
-  },
-  {
-    title: "URGENCES",
-    items: [
-      { label: "File d'attente", path: "/emergency", icon: Siren },
-      { label: "Triage", path: "/emergency/triage", icon: ListOrdered },
-      { label: "Orientation", path: "/emergency/orientation", icon: Route },
-    ],
-  },
-  {
-    title: "SERVICES",
-    items: [
-      { label: "Hospitalisation", path: "/hospitalization", icon: BedDouble },
-      { label: "Maternité", path: "/maternity", icon: Baby },
-      { label: "Pharmacie", path: "/pharmacy", icon: Pill },
-      { label: "Laboratoire", path: "/lab", icon: FlaskConical },
-      { label: "Imagerie", path: "/imaging", icon: Scan },
-      { label: "Bloc Opératoire", path: "/surgery", icon: Scissors },
-    ],
-  },
-  {
-    title: "ADMIN",
-    items: [
-      { label: "Facturation", path: "/billing", icon: Receipt },
-      { label: "Personnel", path: "/personnel", icon: UserCog },
-      { label: "Qualité", path: "/quality", icon: Shield },
-      { label: "Activité", path: "/activity", icon: Activity },
-    ],
-  },
-  {
-    title: "NATIONAL",
-    items: [
-      { label: "Pilotage", path: "/national", icon: Building2, accent: true },
-      { label: "Reporting", path: "/reporting", icon: BarChart3, accent: true },
-    ],
-  },
-];
-
 export function Sidebar({ onLogout, currentUser }: { onLogout: () => void; currentUser: CurrentUser | null }) {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const navVisibility = useNavVisibility();
+
+  const navigationSections: NavSection[] = [
+    {
+      title: "SOINS",
+      items: [
+        { label: "Dashboard", path: "/", icon: LayoutDashboard, visible: navVisibility.canSeeDashboard },
+        { label: "Patients", path: "/patients", icon: Users, visible: navVisibility.canSeePatients },
+        { label: "Admissions", path: "/admissions", icon: ClipboardList, visible: navVisibility.canSeeAdmissions },
+      ],
+    },
+    {
+      title: "URGENCES",
+      items: [
+        { label: "File d'attente", path: "/emergency", icon: Siren, visible: navVisibility.canSeeEmergency },
+        { label: "Triage", path: "/emergency/triage", icon: ListOrdered, visible: navVisibility.canSeeEmergency },
+        { label: "Orientation", path: "/emergency/orientation", icon: Route, visible: navVisibility.canSeeEmergency },
+      ],
+    },
+    {
+      title: "SERVICES",
+      items: [
+        { label: "Hospitalisation", path: "/hospitalization", icon: BedDouble, visible: navVisibility.canSeeHospitalization },
+        { label: "Maternité", path: "/maternity", icon: Baby, visible: navVisibility.canSeeMaternity },
+        { label: "Pharmacie", path: "/pharmacy", icon: Pill, visible: navVisibility.canSeePharmacy },
+        { label: "Laboratoire", path: "/lab", icon: FlaskConical, visible: navVisibility.canSeeLab },
+        { label: "Imagerie", path: "/imaging", icon: Scan, visible: navVisibility.canSeeImaging },
+        { label: "Bloc Opératoire", path: "/surgery", icon: Scissors, visible: navVisibility.canSeeSurgery },
+      ],
+    },
+    {
+      title: "ADMIN",
+      items: [
+        { label: "Facturation", path: "/billing", icon: Receipt, visible: navVisibility.canSeeBilling },
+        { label: "Personnel", path: "/personnel", icon: UserCog, visible: navVisibility.canSeePersonnel },
+        { label: "Qualité", path: "/quality", icon: Shield, visible: navVisibility.canSeeQuality },
+        { label: "Activité", path: "/activity", icon: Activity, visible: navVisibility.canSeeActivity },
+      ],
+    },
+    {
+      title: "NATIONAL",
+      items: [
+        { label: "Pilotage", path: "/national", icon: Building2, accent: true, visible: navVisibility.canSeeNational },
+        { label: "Reporting", path: "/reporting", icon: BarChart3, accent: true, visible: navVisibility.canSeeReporting },
+      ],
+    },
+  ];
+
+  // Filter out sections with no visible items
+  const visibleSections = navigationSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => item.visible !== false),
+    }))
+    .filter((section) => section.items.length > 0);
 
   const toggleSection = (title: string) => {
     setExpandedSection((prev) => (prev === title ? null : title));
   };
 
   // Find which section contains the current path to auto-expand it
-  const activeSection = navigationSections.find((section) =>
+  const activeSection = visibleSections.find((section) =>
     section.items.some((item) => {
       if (item.path === "/") return location.pathname === "/";
       return location.pathname.startsWith(item.path);
@@ -118,6 +129,9 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void; curre
   };
   const badgeClass = currentUser ? roleBadgeClass[currentUser.role] || "badge-gray" : "badge-gray";
 
+  // Facility name display
+  const facilityLabel = currentUser?.facility_id ? "Établissement connecté" : "Vue nationale";
+
   return (
     <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""}`}>
       {/* Logo */}
@@ -133,7 +147,7 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void; curre
 
       {/* Navigation */}
       <nav className="sidebar-nav">
-        {navigationSections.map((section) => (
+        {visibleSections.map((section) => (
           <div key={section.title} className="sidebar-section">
             {!collapsed && (
               <button
@@ -198,6 +212,9 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void; curre
                 <span className={`badge ${badgeClass}`} style={{ fontSize: "10px", padding: "1px 6px" }}>
                   {roleLabel}
                 </span>
+              </span>
+              <span className="sidebar-user-facility" style={{ fontSize: "10px", color: "#94a3b8" }}>
+                {facilityLabel}
               </span>
             </div>
           </div>

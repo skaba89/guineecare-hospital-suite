@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.pagination import PaginationParams, paginate
+from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
 from app.modules.rbac.dependencies import require_permission
@@ -21,7 +22,7 @@ def list_admissions(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("admission.read")),
 ):
-    query = db.query(Admission).order_by(Admission.admitted_at.desc())
+    query = tenant_query(db, Admission, current_user).order_by(Admission.admitted_at.desc())
     if pagination.search:
         query = query.filter(Admission.admission_type.ilike(f"%{pagination.search}%"))
     return paginate(query, pagination)
@@ -33,7 +34,11 @@ def create_admission(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("admission.create")),
 ):
-    row = Admission(**payload.model_dump())
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
+    row = Admission(**data)
     db.add(row)
     db.flush()
     record_activity(
@@ -58,6 +63,7 @@ def close_admission(
     row = db.query(Admission).filter(Admission.id == admission_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Admission not found")
+    enforce_facility_access(current_user, row.facility_id)
     row.status = "CLOSED"
     row.closed_at = utcnow()
     record_activity(

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.pagination import PaginationParams, paginate
+from app.core.tenant import enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.models import ActivityEntry
 from app.modules.rbac.dependencies import require_role

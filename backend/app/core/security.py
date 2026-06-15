@@ -17,9 +17,18 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return password_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(subject: str, expires_delta: timedelta | None = None) -> str:
+def create_access_token(
+    subject: str,
+    facility_id: str | None = None,
+    role: str | None = None,
+    expires_delta: timedelta | None = None,
+) -> str:
     expire = utcnow() + (expires_delta or timedelta(minutes=settings.token_expire_minutes))
     payload = {"sub": subject, "exp": expire}
+    if facility_id is not None:
+        payload["facility_id"] = facility_id
+    if role is not None:
+        payload["role"] = role
     return jwt.encode(payload, settings.auth_secret, algorithm=settings.auth_algorithm)
 
 

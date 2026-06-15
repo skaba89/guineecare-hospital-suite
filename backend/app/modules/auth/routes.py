@@ -16,10 +16,16 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
     if not user or not verify_password(payload.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail="Identifiants invalides")
     if not user.is_active:
-        raise HTTPException(status_code=403, detail="Inactive user")
-    token = create_access_token(subject=user.id)
+        raise HTTPException(status_code=403, detail="Utilisateur inactif")
+
+    token = create_access_token(
+        subject=user.id,
+        facility_id=user.facility_id,
+        role=user.role,
+    )
+
     return {
         "access_token": token,
         "token_type": "bearer",

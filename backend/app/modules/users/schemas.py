@@ -10,6 +10,16 @@ class UserCreate(BaseModel):
     role: str = "USER"
 
 
+class UserUpdate(BaseModel):
+    email: str | None = None
+    password: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    facility_id: str | None = None
+    role: str | None = None
+    is_active: bool | None = None
+
+
 class UserRead(BaseModel):
     id: str
     email: str

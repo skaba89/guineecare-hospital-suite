@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.pagination import PaginationParams, paginate
+from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.emergency.models import EmergencyVisit
 from app.modules.emergency.schemas import (
@@ -26,7 +27,7 @@ def get_emergency_queue(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("emergency.read")),
 ):
-    query = db.query(EmergencyVisit).filter(EmergencyVisit.status.notin_(["ORIENTED", "DISCHARGED"])).order_by(EmergencyVisit.arrived_at.asc())
+    query = tenant_query(db, EmergencyVisit, current_user).filter(EmergencyVisit.status.notin_(["ORIENTED", "DISCHARGED"])).order_by(EmergencyVisit.arrived_at.asc())
     if pagination.search:
         query = query.filter(
             (EmergencyVisit.chief_complaint.ilike(f"%{pagination.search}%"))
@@ -41,7 +42,11 @@ def create_emergency_visit(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("emergency.create")),
 ):
-    row = EmergencyVisit(**payload.model_dump())
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
+    row = EmergencyVisit(**data)
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -58,6 +63,7 @@ def triage_visit(
     row = db.query(EmergencyVisit).filter(EmergencyVisit.id == visit_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Emergency visit not found")
+    enforce_facility_access(current_user, row.facility_id)
     row.priority_level = payload.priority_level
     row.status = "TRIAGED"
     row.updated_at = utcnow()
@@ -76,6 +82,7 @@ def orient_visit(
     row = db.query(EmergencyVisit).filter(EmergencyVisit.id == visit_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Emergency visit not found")
+    enforce_facility_access(current_user, row.facility_id)
     row.orientation = payload.orientation
     row.status = "ORIENTED"
     row.updated_at = utcnow()
@@ -95,6 +102,7 @@ def care_visit(
     row = db.query(EmergencyVisit).filter(EmergencyVisit.id == visit_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Emergency visit not found")
+    enforce_facility_access(current_user, row.facility_id)
     if row.status not in ("TRIAGED", "WAITING"):
         raise HTTPException(status_code=409, detail="Visit cannot be taken in care from current status")
     row.status = "IN_CARE"
@@ -121,6 +129,7 @@ def discharge_visit(
     row = db.query(EmergencyVisit).filter(EmergencyVisit.id == visit_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Emergency visit not found")
+    enforce_facility_access(current_user, row.facility_id)
     if row.status != "IN_CARE":
         raise HTTPException(status_code=409, detail="Only patients in care can be discharged")
     row.status = "DISCHARGED"

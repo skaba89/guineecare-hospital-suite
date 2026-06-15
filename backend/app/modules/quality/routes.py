@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
 from app.modules.quality.models import IncidentReport, QualityIndicator, QualityMeasurement
@@ -26,7 +27,7 @@ def list_indicators(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("quality.read")),
 ):
-    query = db.query(QualityIndicator)
+    query = tenant_query(db, QualityIndicator, current_user)
     if facility_id:
         query = query.filter(QualityIndicator.facility_id == facility_id)
     if category:
@@ -44,6 +45,7 @@ def create_indicator(
     row = QualityIndicator(**payload.model_dump(exclude_none=True))
     if not row.facility_id:
         row.facility_id = current_user.facility_id
+    enforce_facility_access(current_user, row.facility_id)
     db.add(row)
     db.flush()
     record_activity(
@@ -68,7 +70,7 @@ def list_measurements(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("quality.read")),
 ):
-    query = db.query(QualityMeasurement)
+    query = tenant_query(db, QualityMeasurement, current_user)
     if indicator_id:
         query = query.filter(QualityMeasurement.indicator_id == indicator_id)
     if facility_id:
@@ -89,6 +91,7 @@ def create_measurement(
     row = QualityMeasurement(**payload.model_dump(exclude_none=True))
     if not row.facility_id:
         row.facility_id = current_user.facility_id
+    enforce_facility_access(current_user, row.facility_id)
     if not row.recorded_by:
         row.recorded_by = current_user.id
     db.add(row)
@@ -116,7 +119,7 @@ def list_incidents(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("quality.read")),
 ):
-    query = db.query(IncidentReport)
+    query = tenant_query(db, IncidentReport, current_user)
     if facility_id:
         query = query.filter(IncidentReport.facility_id == facility_id)
     if status:
@@ -136,6 +139,7 @@ def create_incident(
     row = IncidentReport(**payload.model_dump(exclude_none=True))
     if not row.facility_id:
         row.facility_id = current_user.facility_id
+    enforce_facility_access(current_user, row.facility_id)
     if not row.reported_by:
         row.reported_by = current_user.id
     db.add(row)
@@ -162,6 +166,7 @@ def investigate_incident(
     incident = db.query(IncidentReport).filter(IncidentReport.id == incident_id).first()
     if not incident:
         raise HTTPException(status_code=404, detail="Incident report not found")
+    enforce_facility_access(current_user, incident.facility_id)
 
     incident.status = "UNDER_INVESTIGATION"
     record_activity(
@@ -186,6 +191,7 @@ def resolve_incident(
     incident = db.query(IncidentReport).filter(IncidentReport.id == incident_id).first()
     if not incident:
         raise HTTPException(status_code=404, detail="Incident report not found")
+    enforce_facility_access(current_user, incident.facility_id)
 
     incident.status = "RESOLVED"
     record_activity(

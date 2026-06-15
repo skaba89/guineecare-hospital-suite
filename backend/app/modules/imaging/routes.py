@@ -4,6 +4,7 @@ from app.core.datetime import utcnow
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
 from app.modules.imaging.models import ImagingOrder, ImagingResult
@@ -27,7 +28,7 @@ def list_imaging_orders(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("imaging.read")),
 ):
-    query = db.query(ImagingOrder)
+    query = tenant_query(db, ImagingOrder, current_user)
     if patient_id:
         query = query.filter(ImagingOrder.patient_id == patient_id)
     if status:
@@ -47,6 +48,7 @@ def create_imaging_order(
     data = payload.model_dump(exclude_none=True)
     if not data.get("facility_id"):
         data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
     if not data.get("requesting_doctor_id"):
         data["requesting_doctor_id"] = current_user.id
     row = ImagingOrder(**data)
@@ -74,6 +76,7 @@ def get_imaging_order(
     row = db.query(ImagingOrder).filter(ImagingOrder.id == order_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Imaging order not found")
+    enforce_facility_access(current_user, row.facility_id)
     return {"data": row, "message": "imaging order detail"}
 
 
@@ -86,6 +89,7 @@ def start_imaging_order(
     row = db.query(ImagingOrder).filter(ImagingOrder.id == order_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Imaging order not found")
+    enforce_facility_access(current_user, row.facility_id)
     if row.status != "PENDING":
         raise HTTPException(status_code=409, detail="Order is not in PENDING status")
 
@@ -112,6 +116,7 @@ def complete_imaging_order(
     row = db.query(ImagingOrder).filter(ImagingOrder.id == order_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Imaging order not found")
+    enforce_facility_access(current_user, row.facility_id)
     if row.status != "IN_PROGRESS":
         raise HTTPException(status_code=409, detail="Order is not in IN_PROGRESS status")
 
@@ -139,7 +144,7 @@ def list_imaging_results(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("imaging.read")),
 ):
-    query = db.query(ImagingResult)
+    query = tenant_query(db, ImagingResult, current_user)
     if patient_id:
         query = query.filter(ImagingResult.patient_id == patient_id)
     if order_id:
@@ -157,6 +162,7 @@ def create_imaging_result(
     order = db.query(ImagingOrder).filter(ImagingOrder.id == payload.order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Imaging order not found")
+    enforce_facility_access(current_user, order.facility_id)
 
     data = payload.model_dump(exclude_none=True)
     if not data.get("facility_id"):
@@ -190,6 +196,7 @@ def validate_imaging_result(
     row = db.query(ImagingResult).filter(ImagingResult.id == result_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Imaging result not found")
+    enforce_facility_access(current_user, row.facility_id)
     if row.status == "VALIDATED":
         raise HTTPException(status_code=409, detail="Result already validated")
 

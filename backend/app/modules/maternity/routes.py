@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
 from app.modules.rbac.dependencies import require_permission
@@ -18,17 +19,21 @@ router = APIRouter(prefix="/maternity", tags=["maternity"])
 
 # ── Helpers ───────────────────────────────────────────────────
 
-def _get_patient_or_404(db: Session, patient_id: str) -> Patient:
+def _get_patient_or_404(db: Session, patient_id: str, current_user: User | None = None) -> Patient:
     row = db.query(Patient).filter(Patient.id == patient_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Patient not found")
+    if current_user:
+        enforce_facility_access(current_user, row.facility_id)
     return row
 
 
-def _get_record_or_404(db: Session, record_id: str) -> MaternityRecord:
+def _get_record_or_404(db: Session, record_id: str, current_user: User | None = None) -> MaternityRecord:
     row = db.query(MaternityRecord).filter(MaternityRecord.id == record_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Maternity record not found")
+    if current_user:
+        enforce_facility_access(current_user, row.facility_id)
     return row
 
 
@@ -41,7 +46,7 @@ def list_maternity_records(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("maternity.read")),
 ):
-    query = db.query(MaternityRecord)
+    query = tenant_query(db, MaternityRecord, current_user)
     if facility_id:
         query = query.filter(MaternityRecord.facility_id == facility_id)
     if status:
@@ -56,9 +61,13 @@ def create_maternity_record(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("maternity.write")),
 ):
-    _get_patient_or_404(db, payload.patient_id)
+    _get_patient_or_404(db, payload.patient_id, current_user)
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
     row = MaternityRecord(
-        **payload.model_dump(),
+        **data,
         created_by=current_user.id,
     )
     db.add(row)
@@ -82,15 +91,15 @@ def get_maternity_record(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("maternity.read")),
 ):
-    record = _get_record_or_404(db, record_id)
+    record = _get_record_or_404(db, record_id, current_user)
     consultations = (
-        db.query(MaternityConsultation)
+        tenant_query(db, MaternityConsultation, current_user)
         .filter(MaternityConsultation.record_id == record_id)
         .order_by(MaternityConsultation.consulted_at.desc())
         .all()
     )
     deliveries = (
-        db.query(DeliveryRecord)
+        tenant_query(db, DeliveryRecord, current_user)
         .filter(DeliveryRecord.record_id == record_id)
         .order_by(DeliveryRecord.delivery_date.desc())
         .all()
@@ -114,9 +123,13 @@ def create_consultation(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("maternity.write")),
 ):
-    _get_record_or_404(db, record_id)
+    _get_record_or_404(db, record_id, current_user)
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
     row = MaternityConsultation(
-        **payload.model_dump(),
+        **data,
         record_id=record_id,
         consulted_by=current_user.id,
     )
@@ -141,9 +154,9 @@ def list_consultations(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("maternity.read")),
 ):
-    _get_record_or_404(db, record_id)
+    _get_record_or_404(db, record_id, current_user)
     rows = (
-        db.query(MaternityConsultation)
+        tenant_query(db, MaternityConsultation, current_user)
         .filter(MaternityConsultation.record_id == record_id)
         .order_by(MaternityConsultation.consulted_at.desc())
         .all()
@@ -160,9 +173,13 @@ def create_delivery(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("maternity.write")),
 ):
-    maternity_record = _get_record_or_404(db, record_id)
+    maternity_record = _get_record_or_404(db, record_id, current_user)
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
     row = DeliveryRecord(
-        **payload.model_dump(),
+        **data,
         record_id=record_id,
         performed_by=current_user.id,
     )
@@ -191,9 +208,9 @@ def list_deliveries(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("maternity.read")),
 ):
-    _get_record_or_404(db, record_id)
+    _get_record_or_404(db, record_id, current_user)
     rows = (
-        db.query(DeliveryRecord)
+        tenant_query(db, DeliveryRecord, current_user)
         .filter(DeliveryRecord.record_id == record_id)
         .order_by(DeliveryRecord.delivery_date.desc())
         .all()

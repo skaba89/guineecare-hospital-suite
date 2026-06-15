@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "/api/v1";
 
 export type ApiResponse<T> = {
   data?: T;
@@ -43,13 +43,19 @@ export function setStoredUser(user: Record<string, any>): void {
 
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
-  const headers: HeadersInit = {
+  const storedUser = getStoredUser();
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(options.headers || {}),
+    ...((options.headers as Record<string, string>) || {}),
   };
 
   if (token) {
-    headers.Authorization = `Bearer ${token}`;
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  // Add tenant header for facility scoping (non-SUPER_ADMIN)
+  if (storedUser?.facility_id && storedUser?.role !== "SUPER_ADMIN") {
+    headers["X-Facility-ID"] = storedUser.facility_id;
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {

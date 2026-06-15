@@ -15,7 +15,7 @@ from app.modules.billing.models import TariffItem, Invoice, Payment
 from app.modules.clinical.models import ClinicalNote, PatientMeasurement, Diagnosis
 from app.modules.hospitalization.models import Room, Bed, HospitalStay
 from app.modules.maternity.models import MaternityRecord, MaternityConsultation, DeliveryRecord
-from app.modules.personnel.models import StaffMember, OnCallSchedule
+from app.modules.personnel.models import StaffMember, OnCallSchedule, LeaveRequest, Contract
 from app.modules.imaging.models import ImagingOrder, ImagingResult
 from app.modules.surgery.models import OperatingRoom, SurgerySchedule, SurgeryTeamMember, SurgeryReport
 from app.modules.quality.models import QualityIndicator, QualityMeasurement, IncidentReport
@@ -54,6 +54,8 @@ def init_db():
         DeliveryRecord,
         StaffMember,
         OnCallSchedule,
+        LeaveRequest,
+        Contract,
         ImagingOrder,
         ImagingResult,
         OperatingRoom,

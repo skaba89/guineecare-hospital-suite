@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.pagination import PaginationParams, paginate
+from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.rbac.dependencies import require_permission
 from app.modules.users.models import User
@@ -17,7 +18,7 @@ def list_departments(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("department.read")),
 ):
-    query = db.query(Department).order_by(Department.name)
+    query = tenant_query(db, Department, current_user).order_by(Department.name)
     if pagination.search:
         query = query.filter(
             (Department.name.ilike(f"%{pagination.search}%"))
@@ -32,7 +33,11 @@ def create_department(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("department.manage")),
 ):
-    row = Department(**payload.model_dump())
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
+    row = Department(**data)
     db.add(row)
     db.commit()
     db.refresh(row)

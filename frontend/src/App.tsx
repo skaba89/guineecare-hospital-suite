@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { useLookupData } from "./hooks/useLookupData";
 import { AppLayout } from "./layout/AppLayout";
@@ -22,66 +22,17 @@ import { ImagingPage } from "./pages/ImagingPage";
 import { SurgeryPage } from "./pages/SurgeryPage";
 import { QualityPage } from "./pages/QualityPage";
 import { ReportingPage } from "./pages/ReportingPage";
-import { clearToken, getToken, getStoredUser, setOnUnauthorized } from "./services/api";
-import { getCurrentUser, CurrentUser } from "./services/authService";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
-export default function App() {
-  const [bootstrapping, setBootstrapping] = useState(Boolean(getToken()));
-  const [tokenReady, setTokenReady] = useState(false);
+function AppInner() {
+  const { currentUser, isAuthenticated, loading, login, logout } = useAuth();
   const [lookupVersion, setLookupVersion] = useState(0);
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(getStoredUser() as CurrentUser | null);
-  const lookups = useLookupData(tokenReady, lookupVersion);
-
-  // Register 401 handler
-  useEffect(() => {
-    setOnUnauthorized(() => {
-      setTokenReady(false);
-      setCurrentUser(null);
-    });
-  }, []);
-
-  useEffect(() => {
-    async function verifyExistingSession() {
-      if (!getToken()) {
-        setBootstrapping(false);
-        return;
-      }
-
-      try {
-        const user = await getCurrentUser();
-        setCurrentUser(user);
-        setTokenReady(true);
-      } catch (err) {
-        clearToken();
-        setTokenReady(false);
-        setCurrentUser(null);
-      } finally {
-        setBootstrapping(false);
-      }
-    }
-
-    verifyExistingSession();
-  }, []);
+  const lookups = useLookupData(isAuthenticated, lookupVersion);
 
   function refreshAll() {
     window.dispatchEvent(new Event("refresh-resource"));
     setLookupVersion((value) => value + 1);
-  }
-
-  function logout() {
-    clearToken();
-    setTokenReady(false);
-    setCurrentUser(null);
-  }
-
-  function handleLogin() {
-    // After login, fetch full user data
-    getCurrentUser().then((user) => {
-      setCurrentUser(user);
-      setTokenReady(true);
-    }).catch(() => {
-      setTokenReady(true);
-    });
   }
 
   function getPatientName(patientId: string): string {
@@ -96,7 +47,7 @@ export default function App() {
     return `${staff.first_name || ""} ${staff.last_name || ""}`.trim() || staff.employee_number || "N/A";
   }
 
-  if (bootstrapping) {
+  if (loading) {
     return (
       <div className="login-page">
         <div className="card login-card">
@@ -107,8 +58,8 @@ export default function App() {
     );
   }
 
-  if (!tokenReady) {
-    return <LoginPage onLogin={handleLogin} />;
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={login} />;
   }
 
   return (
@@ -116,27 +67,35 @@ export default function App() {
       <AppLayout onLogout={logout} currentUser={currentUser} getPatientName={getPatientName} getStaffName={getStaffName}>
         <Routes>
           <Route path="/" element={<DashboardPage lookups={lookups} />} />
-          <Route path="/patients" element={<PatientsPage lookups={lookups} onCreated={refreshAll} />} />
-          <Route path="/patients/:id" element={<PatientDetailPage lookups={lookups} />} />
-          <Route path="/admissions" element={<AdmissionsPage lookups={lookups} onCreated={refreshAll} />} />
-          <Route path="/emergency" element={<EmergencyPage lookups={lookups} onCreated={refreshAll} />} />
-          <Route path="/pharmacy" element={<PharmacyPage lookups={lookups} onCreated={refreshAll} />} />
-          <Route path="/lab" element={<LabPage lookups={lookups} onCreated={refreshAll} />} />
-          <Route path="/billing" element={<FinancePage lookups={lookups} onCreated={refreshAll} />} />
-          <Route path="/activity" element={<ActivityPage lookups={lookups} />} />
-          <Route path="/hospitalization" element={<HospitalizationPage lookups={lookups} />} />
-          <Route path="/maternity" element={<MaternityPage lookups={lookups} />} />
-          <Route path="/personnel" element={<PersonnelPage lookups={lookups} />} />
-          <Route path="/imaging" element={<ImagingPage lookups={lookups} />} />
-          <Route path="/surgery" element={<SurgeryPage lookups={lookups} />} />
-          <Route path="/quality" element={<QualityPage lookups={lookups} />} />
-          <Route path="/reporting" element={<ReportingPage lookups={lookups} />} />
-          <Route path="/emergency/triage" element={<EmergencyTriagePage lookups={lookups} onCreated={refreshAll} getPatientName={getPatientName} />} />
-          <Route path="/emergency/orientation" element={<EmergencyOrientationPage lookups={lookups} onCreated={refreshAll} getPatientName={getPatientName} />} />
-          <Route path="/national" element={<NationalPilotagePage lookups={lookups} />} />
+          <Route path="/patients" element={<ProtectedRoute permission="patient.read"><PatientsPage lookups={lookups} onCreated={refreshAll} /></ProtectedRoute>} />
+          <Route path="/patients/:id" element={<ProtectedRoute permission="patient.read"><PatientDetailPage lookups={lookups} /></ProtectedRoute>} />
+          <Route path="/admissions" element={<ProtectedRoute permission="admission.read"><AdmissionsPage lookups={lookups} onCreated={refreshAll} /></ProtectedRoute>} />
+          <Route path="/emergency" element={<ProtectedRoute permission="emergency.read"><EmergencyPage lookups={lookups} onCreated={refreshAll} /></ProtectedRoute>} />
+          <Route path="/pharmacy" element={<ProtectedRoute permission="pharmacy.read"><PharmacyPage lookups={lookups} onCreated={refreshAll} /></ProtectedRoute>} />
+          <Route path="/lab" element={<ProtectedRoute permission="lab.read"><LabPage lookups={lookups} onCreated={refreshAll} /></ProtectedRoute>} />
+          <Route path="/billing" element={<ProtectedRoute permission="billing.read"><FinancePage lookups={lookups} onCreated={refreshAll} /></ProtectedRoute>} />
+          <Route path="/activity" element={<ProtectedRoute roles={["SUPER_ADMIN", "ADMIN"]}><ActivityPage lookups={lookups} /></ProtectedRoute>} />
+          <Route path="/hospitalization" element={<ProtectedRoute permission="hospitalization.read"><HospitalizationPage lookups={lookups} /></ProtectedRoute>} />
+          <Route path="/maternity" element={<ProtectedRoute permission="maternity.read"><MaternityPage lookups={lookups} /></ProtectedRoute>} />
+          <Route path="/personnel" element={<ProtectedRoute permission="personnel.read"><PersonnelPage lookups={lookups} onCreated={refreshAll} /></ProtectedRoute>} />
+          <Route path="/imaging" element={<ProtectedRoute permission="imaging.read"><ImagingPage lookups={lookups} /></ProtectedRoute>} />
+          <Route path="/surgery" element={<ProtectedRoute permission="surgery.read"><SurgeryPage lookups={lookups} /></ProtectedRoute>} />
+          <Route path="/quality" element={<ProtectedRoute permission="quality.read"><QualityPage lookups={lookups} /></ProtectedRoute>} />
+          <Route path="/reporting" element={<ProtectedRoute permission="reporting.read"><ReportingPage lookups={lookups} /></ProtectedRoute>} />
+          <Route path="/emergency/triage" element={<ProtectedRoute permission="emergency.triage"><EmergencyTriagePage lookups={lookups} onCreated={refreshAll} getPatientName={getPatientName} /></ProtectedRoute>} />
+          <Route path="/emergency/orientation" element={<ProtectedRoute permission="emergency.orient"><EmergencyOrientationPage lookups={lookups} onCreated={refreshAll} getPatientName={getPatientName} /></ProtectedRoute>} />
+          <Route path="/national" element={<ProtectedRoute roles={["SUPER_ADMIN", "ADMIN"]}><NationalPilotagePage lookups={lookups} /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AppLayout>
     </BrowserRouter>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
   );
 }

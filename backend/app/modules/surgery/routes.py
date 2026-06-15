@@ -4,6 +4,7 @@ from app.core.datetime import utcnow
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
 from app.modules.surgery.models import OperatingRoom, SurgeryReport, SurgerySchedule
@@ -27,7 +28,7 @@ def list_rooms(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("surgery.read")),
 ):
-    query = db.query(OperatingRoom)
+    query = tenant_query(db, OperatingRoom, current_user)
     if facility_id:
         query = query.filter(OperatingRoom.facility_id == facility_id)
     if status:
@@ -45,6 +46,7 @@ def create_room(
     data = payload.model_dump(exclude_none=True)
     if not data.get("facility_id"):
         data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
     row = OperatingRoom(**data)
     db.add(row)
     db.flush()
@@ -72,7 +74,7 @@ def list_schedules(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("surgery.read")),
 ):
-    query = db.query(SurgerySchedule)
+    query = tenant_query(db, SurgerySchedule, current_user)
     if patient_id:
         query = query.filter(SurgerySchedule.patient_id == patient_id)
     if status:
@@ -95,6 +97,7 @@ def create_schedule(
     data = payload.model_dump(exclude_none=True)
     if not data.get("facility_id"):
         data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
     if not data.get("surgeon_id"):
         data["surgeon_id"] = current_user.id
     row = SurgerySchedule(**data)
@@ -122,6 +125,7 @@ def start_surgery(
     schedule = db.query(SurgerySchedule).filter(SurgerySchedule.id == schedule_id).first()
     if not schedule:
         raise HTTPException(status_code=404, detail="Schedule not found")
+    enforce_facility_access(current_user, schedule.facility_id)
     if schedule.status != "SCHEDULED":
         raise HTTPException(status_code=409, detail="Schedule is not in SCHEDULED status")
 
@@ -156,6 +160,7 @@ def complete_surgery(
     schedule = db.query(SurgerySchedule).filter(SurgerySchedule.id == schedule_id).first()
     if not schedule:
         raise HTTPException(status_code=404, detail="Schedule not found")
+    enforce_facility_access(current_user, schedule.facility_id)
     if schedule.status != "IN_PROGRESS":
         raise HTTPException(status_code=409, detail="Schedule is not in IN_PROGRESS status")
 
@@ -190,6 +195,7 @@ def cancel_surgery(
     schedule = db.query(SurgerySchedule).filter(SurgerySchedule.id == schedule_id).first()
     if not schedule:
         raise HTTPException(status_code=404, detail="Schedule not found")
+    enforce_facility_access(current_user, schedule.facility_id)
     if schedule.status == "COMPLETED":
         raise HTTPException(status_code=409, detail="Cannot cancel a completed surgery")
 
@@ -223,7 +229,7 @@ def list_reports(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("surgery.read")),
 ):
-    query = db.query(SurgeryReport)
+    query = tenant_query(db, SurgeryReport, current_user)
     if patient_id:
         query = query.filter(SurgeryReport.patient_id == patient_id)
     if schedule_id:
@@ -241,6 +247,7 @@ def create_report(
     data = payload.model_dump(exclude_none=True)
     if not data.get("facility_id"):
         data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
     if not data.get("surgeon_id"):
         data["surgeon_id"] = current_user.id
     if not data.get("patient_id"):
@@ -272,6 +279,7 @@ def validate_report(
     report = db.query(SurgeryReport).filter(SurgeryReport.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
+    enforce_facility_access(current_user, report.facility_id)
     if report.status == "VALIDATED":
         raise HTTPException(status_code=409, detail="Report already validated")
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { login } from "../services/authService";
+import { LoginPayload } from "../services/authService";
 
-export function LoginPage({ onLogin }: { onLogin: () => void }) {
+export function LoginPage({ onLogin }: { onLogin: (payload: LoginPayload) => Promise<void> }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -12,8 +12,7 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
     setError("");
     setLoading(true);
     try {
-      await login({ email, password });
-      onLogin();
+      await onLogin({ email, password });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Erreur inconnue";
       setError(`Connexion impossible. ${message}`);
@@ -26,7 +25,7 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
     <div className="login-page">
       <div className="card login-card">
         <h1>GuinéeCare Hospital Suite</h1>
-        <p className="muted">Système d'Information Hospitalier</p>
+        <p className="muted">Système d'Information Hospitalier — Guinée</p>
         <form onSubmit={submit}>
           <label className="form-control">
             Email
@@ -54,6 +53,11 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
             {loading ? "Connexion..." : "Se connecter"}
           </button>
         </form>
+        <div style={{ marginTop: "16px", fontSize: "12px", color: "#94a3b8" }}>
+          <p>Comptes de démonstration :</p>
+          <p>admin@guineecare.com / admin123</p>
+          <p>dr.diallo@chu-donka.gn / doctor123</p>
+        </div>
       </div>
     </div>
   );

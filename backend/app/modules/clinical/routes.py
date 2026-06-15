@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
 from app.modules.rbac.dependencies import require_permission
@@ -18,10 +19,12 @@ router = APIRouter(prefix="/clinical", tags=["clinical"])
 
 # ── Helpers ───────────────────────────────────────────────────
 
-def _get_patient_or_404(db: Session, patient_id: str) -> Patient:
+def _get_patient_or_404(db: Session, patient_id: str, current_user: User | None = None) -> Patient:
     row = db.query(Patient).filter(Patient.id == patient_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Patient not found")
+    if current_user:
+        enforce_facility_access(current_user, row.facility_id)
     return row
 
 
@@ -33,9 +36,9 @@ def list_clinical_notes(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("clinical.read")),
 ):
-    _get_patient_or_404(db, patient_id)
+    _get_patient_or_404(db, patient_id, current_user)
     rows = (
-        db.query(ClinicalNote)
+        tenant_query(db, ClinicalNote, current_user)
         .filter(ClinicalNote.patient_id == patient_id)
         .order_by(ClinicalNote.created_at.desc())
         .all()
@@ -50,9 +53,13 @@ def create_clinical_note(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("clinical.write")),
 ):
-    _get_patient_or_404(db, patient_id)
+    _get_patient_or_404(db, patient_id, current_user)
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
     row = ClinicalNote(
-        **payload.model_dump(),
+        **data,
         patient_id=patient_id,
         created_by=current_user.id,
     )
@@ -79,9 +86,9 @@ def list_patient_measurements(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("clinical.read")),
 ):
-    _get_patient_or_404(db, patient_id)
+    _get_patient_or_404(db, patient_id, current_user)
     rows = (
-        db.query(PatientMeasurement)
+        tenant_query(db, PatientMeasurement, current_user)
         .filter(PatientMeasurement.patient_id == patient_id)
         .order_by(PatientMeasurement.recorded_at.desc())
         .all()
@@ -96,9 +103,13 @@ def create_patient_measurement(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("clinical.write")),
 ):
-    _get_patient_or_404(db, patient_id)
+    _get_patient_or_404(db, patient_id, current_user)
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
     row = PatientMeasurement(
-        **payload.model_dump(),
+        **data,
         patient_id=patient_id,
         recorded_by=current_user.id,
     )
@@ -125,9 +136,9 @@ def list_diagnoses(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("clinical.read")),
 ):
-    _get_patient_or_404(db, patient_id)
+    _get_patient_or_404(db, patient_id, current_user)
     rows = (
-        db.query(Diagnosis)
+        tenant_query(db, Diagnosis, current_user)
         .filter(Diagnosis.patient_id == patient_id)
         .order_by(Diagnosis.created_at.desc())
         .all()
@@ -142,9 +153,13 @@ def create_diagnosis(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("clinical.write")),
 ):
-    _get_patient_or_404(db, patient_id)
+    _get_patient_or_404(db, patient_id, current_user)
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
     row = Diagnosis(
-        **payload.model_dump(),
+        **data,
         patient_id=patient_id,
         created_by=current_user.id,
     )

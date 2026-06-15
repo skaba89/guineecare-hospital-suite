@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.pagination import PaginationParams, paginate
+from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
 from app.modules.billing.models import Invoice, Payment, TariffItem
@@ -18,7 +19,7 @@ def list_tariffs(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("billing.read")),
 ):
-    query = db.query(TariffItem).order_by(TariffItem.name)
+    query = tenant_query(db, TariffItem, current_user).order_by(TariffItem.name)
     if pagination.search:
         query = query.filter(
             (TariffItem.name.ilike(f"%{pagination.search}%"))
@@ -33,7 +34,11 @@ def create_tariff(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("billing.manage")),
 ):
-    row = TariffItem(**payload.model_dump())
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
+    row = TariffItem(**data)
     db.add(row)
     db.flush()
     record_activity(
@@ -55,10 +60,14 @@ def create_invoice(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("billing.manage")),
 ):
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
     existing = db.query(Invoice).filter(Invoice.invoice_number == payload.invoice_number).first()
     if existing:
         raise HTTPException(status_code=400, detail="Invoice number already exists")
-    row = Invoice(**payload.model_dump())
+    row = Invoice(**data)
     row.balance_due = row.net_amount
     row.status = "ISSUED"
     db.add(row)
@@ -83,7 +92,7 @@ def list_invoices(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("billing.read")),
 ):
-    query = db.query(Invoice).order_by(Invoice.created_at.desc())
+    query = tenant_query(db, Invoice, current_user).order_by(Invoice.created_at.desc())
     if pagination.search:
         query = query.filter(
             (Invoice.invoice_number.ilike(f"%{pagination.search}%"))
@@ -102,8 +111,10 @@ def create_payment(
     invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    enforce_facility_access(current_user, invoice.facility_id)
     if payload.amount <= 0:
         raise HTTPException(status_code=400, detail="Payment amount must be positive")
+    enforce_facility_access(current_user, payload.facility_id)
     payment = Payment(
         facility_id=payload.facility_id,
         invoice_id=invoice_id,
@@ -137,7 +148,7 @@ def list_payments(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("billing.read")),
 ):
-    query = db.query(Payment).order_by(Payment.received_at.desc())
+    query = tenant_query(db, Payment, current_user).order_by(Payment.received_at.desc())
     if pagination.search:
         query = query.filter(
             (Payment.payment_method.ilike(f"%{pagination.search}%"))
@@ -155,6 +166,7 @@ def get_receipt(
     payment = db.query(Payment).filter(Payment.id == payment_id).first()
     if not payment:
         raise HTTPException(status_code=404, detail="Payment not found")
+    enforce_facility_access(current_user, payment.facility_id)
     invoice = db.query(Invoice).filter(Invoice.id == payment.invoice_id).first()
     return {
         "data": {

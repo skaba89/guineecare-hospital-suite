@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.pagination import PaginationParams, paginate
+from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
 from app.modules.rbac.dependencies import require_permission
@@ -18,7 +19,7 @@ def list_patients(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("patient.read")),
 ):
-    query = db.query(Patient).order_by(Patient.created_at.desc())
+    query = tenant_query(db, Patient, current_user).order_by(Patient.created_at.desc())
     if pagination.search:
         query = query.filter(
             (Patient.first_name.ilike(f"%{pagination.search}%"))
@@ -34,7 +35,11 @@ def create_patient(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("patient.create")),
 ):
-    row = Patient(**payload.model_dump())
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
+    row = Patient(**data)
     db.add(row)
     db.flush()
     record_activity(
@@ -59,4 +64,5 @@ def get_patient(
     row = db.query(Patient).filter(Patient.id == patient_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Patient not found")
+    enforce_facility_access(current_user, row.facility_id)
     return {"data": row, "message": "patient detail"}

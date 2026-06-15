@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
 from app.modules.reporting.models import EpidemicAlert, HealthStatistic, NationalReport
@@ -29,7 +30,7 @@ def list_national_reports(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("reporting.read")),
 ):
-    query = db.query(NationalReport)
+    query = tenant_query(db, NationalReport, current_user)
     if facility_id:
         query = query.filter(NationalReport.facility_id == facility_id)
     if status:
@@ -49,6 +50,7 @@ def create_national_report(
     row = NationalReport(**payload.model_dump(exclude_none=True))
     if not row.facility_id:
         row.facility_id = current_user.facility_id
+    enforce_facility_access(current_user, row.facility_id)
     db.add(row)
     db.flush()
     record_activity(
@@ -73,6 +75,7 @@ def submit_national_report(
     report = db.query(NationalReport).filter(NationalReport.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="National report not found")
+    enforce_facility_access(current_user, report.facility_id)
     if report.status != "DRAFT":
         raise HTTPException(status_code=409, detail="Only DRAFT reports can be submitted")
 
@@ -102,6 +105,7 @@ def validate_national_report(
     report = db.query(NationalReport).filter(NationalReport.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="National report not found")
+    enforce_facility_access(current_user, report.facility_id)
     if report.status != "SUBMITTED":
         raise HTTPException(status_code=409, detail="Only SUBMITTED reports can be validated")
 
@@ -131,6 +135,7 @@ def reject_national_report(
     report = db.query(NationalReport).filter(NationalReport.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="National report not found")
+    enforce_facility_access(current_user, report.facility_id)
     if report.status != "SUBMITTED":
         raise HTTPException(status_code=409, detail="Only SUBMITTED reports can be rejected")
 
@@ -159,7 +164,7 @@ def list_epidemic_alerts(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("reporting.read")),
 ):
-    query = db.query(EpidemicAlert)
+    query = tenant_query(db, EpidemicAlert, current_user)
     if facility_id:
         query = query.filter(EpidemicAlert.facility_id == facility_id)
     if status:
@@ -179,6 +184,7 @@ def create_epidemic_alert(
     row = EpidemicAlert(**payload.model_dump(exclude_none=True))
     if not row.facility_id:
         row.facility_id = current_user.facility_id
+    enforce_facility_access(current_user, row.facility_id)
     if not row.reported_by:
         row.reported_by = current_user.id
     db.add(row)
@@ -205,6 +211,7 @@ def close_epidemic_alert(
     alert = db.query(EpidemicAlert).filter(EpidemicAlert.id == alert_id).first()
     if not alert:
         raise HTTPException(status_code=404, detail="Epidemic alert not found")
+    enforce_facility_access(current_user, alert.facility_id)
     if alert.status == "CLOSED":
         raise HTTPException(status_code=409, detail="Alert is already closed")
 
@@ -235,7 +242,7 @@ def list_health_statistics(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("reporting.read")),
 ):
-    query = db.query(HealthStatistic)
+    query = tenant_query(db, HealthStatistic, current_user)
     if facility_id:
         query = query.filter(HealthStatistic.facility_id == facility_id)
     if category:
@@ -257,6 +264,7 @@ def create_health_statistic(
     row = HealthStatistic(**payload.model_dump(exclude_none=True))
     if not row.facility_id:
         row.facility_id = current_user.facility_id
+    enforce_facility_access(current_user, row.facility_id)
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -271,11 +279,12 @@ def get_dashboard(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("reporting.read")),
 ):
-    report_q = db.query(NationalReport)
-    alert_q = db.query(EpidemicAlert)
-    stat_q = db.query(HealthStatistic)
+    report_q = tenant_query(db, NationalReport, current_user)
+    alert_q = tenant_query(db, EpidemicAlert, current_user)
+    stat_q = tenant_query(db, HealthStatistic, current_user)
 
     if facility_id:
+        enforce_facility_access(current_user, facility_id)
         report_q = report_q.filter(NationalReport.facility_id == facility_id)
         alert_q = alert_q.filter(EpidemicAlert.facility_id == facility_id)
         stat_q = stat_q.filter(HealthStatistic.facility_id == facility_id)

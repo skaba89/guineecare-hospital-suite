@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.pagination import PaginationParams, paginate
+from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.pharmacy.models import PharmacyProduct, PharmacyStock, StockMovement
 from app.modules.pharmacy.schemas import PharmacyProductCreate, StockMovementCreate
@@ -20,7 +21,7 @@ def list_products(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("pharmacy.read")),
 ):
-    query = db.query(PharmacyProduct).order_by(PharmacyProduct.name)
+    query = tenant_query(db, PharmacyProduct, current_user).order_by(PharmacyProduct.name)
     if pagination.search:
         query = query.filter(
             (PharmacyProduct.name.ilike(f"%{pagination.search}%"))
@@ -35,7 +36,11 @@ def create_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("pharmacy.manage")),
 ):
-    row = PharmacyProduct(**payload.model_dump())
+    data = payload.model_dump(exclude_none=True)
+    if not data.get("facility_id"):
+        data["facility_id"] = current_user.facility_id
+    enforce_facility_access(current_user, data.get("facility_id"))
+    row = PharmacyProduct(**data)
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -48,7 +53,7 @@ def get_stock(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("pharmacy.read")),
 ):
-    query = db.query(PharmacyStock).order_by(PharmacyStock.updated_at.desc())
+    query = tenant_query(db, PharmacyStock, current_user).order_by(PharmacyStock.updated_at.desc())
     if pagination.search:
         query = query.join(PharmacyProduct, PharmacyStock.product_id == PharmacyProduct.id).filter(
             (PharmacyProduct.name.ilike(f"%{pagination.search}%"))
@@ -63,6 +68,8 @@ def create_stock_movement(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("pharmacy.manage")),
 ):
+    enforce_facility_access(current_user, payload.facility_id)
+
     product = db.query(PharmacyProduct).filter(PharmacyProduct.id == payload.product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -112,7 +119,7 @@ def list_stock_movements(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("pharmacy.read")),
 ):
-    query = db.query(StockMovement).order_by(StockMovement.performed_at.desc())
+    query = tenant_query(db, StockMovement, current_user).order_by(StockMovement.performed_at.desc())
     if pagination.search:
         query = query.filter(
             (StockMovement.reason.ilike(f"%{pagination.search}%"))
