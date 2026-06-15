@@ -402,7 +402,6 @@ def _hours_ago(n):
 
 
 def run_seed():
-    init_db()
     db = SessionLocal()
     try:
         _run_seed_inner(db)
@@ -438,6 +437,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 2. DEPARTMENTS per facility
+    db.commit()
+    print(f'  ✅ Sections 1-1 committed')
+
     # ═══════════════════════════════════════
     departments = {}
     for code, facility in facilities.items():
@@ -461,6 +463,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 3. USERS
+    db.commit()
+    print(f'  ✅ Sections 1-2 committed')
+
     # ═══════════════════════════════════════
     users = {}
     for email, first_name, last_name, role, facility_code in USERS_DATA:
@@ -482,6 +487,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 4. STAFF MEMBERS
+    db.commit()
+    print(f'  ✅ Sections 1-3 committed')
+
     # ═══════════════════════════════════════
     staff = {}
     prof_map = {
@@ -565,6 +573,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 5. PATIENTS — 50 patients across facilities
+    db.commit()
+    print(f'  ✅ Sections 1-4 committed')
+
     # ═══════════════════════════════════════
     patients = []
     facility_codes_list = list(facilities.keys())
@@ -611,7 +622,7 @@ def _run_seed_inner(db):
             patient_number=pat_num,
             first_name=first,
             last_name=last,
-            date_of_birth=dob.date() if hasattr(dob, 'date') else dob,
+            date_of_birth=dob.date() if callable(getattr(dob, 'date', None)) else dob,
             gender=gender,
             phone=f"+224 6{randint(10,99)} {randint(10,99)} {randint(10,99)} {randint(10,99)}",
             address=address,
@@ -627,6 +638,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 6. ROOMS & BEDS for main facilities
+    db.commit()
+    print(f'  ✅ Sections 1-5 committed')
+
     # ═══════════════════════════════════════
     rooms = {}
     beds = {}
@@ -688,6 +702,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 7. OPERATING ROOMS
+    db.commit()
+    print(f'  ✅ Sections 1-6 committed')
+
     # ═══════════════════════════════════════
     op_rooms = {}
     for fc, room_defs in [
@@ -717,6 +734,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 8. ADMISSIONS — 30 admissions with various statuses
+    db.commit()
+    print(f'  ✅ Sections 1-7 committed')
+
     # ═══════════════════════════════════════
     admissions = []
     admission_types = ["CONSULTATION", "URGENCE", "HOSPITALISATION", "PROGRAMMÉ", "MATERNITÉ"]
@@ -754,6 +774,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 9. EMERGENCY VISITS — 20 visits
+    db.commit()
+    print(f'  ✅ Sections 1-8 committed')
+
     # ═══════════════════════════════════════
     emergency_statuses = ["WAITING", "BEING_SEEN", "ORIENTED", "DISCHARGED", "HOSPITALIZED", "TRANSFERRED"]
     priority_levels = ["CRITICAL", "URGENT", "NORMAL", "LOW"]
@@ -816,6 +839,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 10. HOSPITAL STAYS — 15 active stays
+    db.commit()
+    print(f'  ✅ Sections 1-9 committed')
+
     # ═══════════════════════════════════════
     hospital_stays = []
     available_beds = [b for b in beds.values() if b.bed_status == "AVAILABLE"]
@@ -850,6 +876,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 11. PHARMACY PRODUCTS & STOCK
+    db.commit()
+    print(f'  ✅ Sections 1-10 committed')
+
     # ═══════════════════════════════════════
     products = {}
     pharmacy_facilities = [fc for fc, f in facilities.items() if f.category in ("CHU", "HGR", "PRIVE", "PHARMACIE")]
@@ -915,6 +944,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 12. LAB TESTS, ORDERS & RESULTS
+    db.commit()
+    print(f'  ✅ Sections 1-11 committed')
+
     # ═══════════════════════════════════════
     lab_tests = {}
     for fc in ["CHU-DONKA", "CHU-IGNACE-DEEN", "HGR-KINDIA", "HGR-KANKAN", "HGR-LABE"]:
@@ -981,7 +1013,7 @@ def _run_seed_inner(db):
                 "GE": ("Positive - Plasmodium falciparum", "Paludisme confirmé"),
                 "TDR-PALU": ("Positif", "Paludisme à P. falciparum"),
                 "CREAT": (f"{randint(5,25)} mg/L", "Créatinine" + (" normale" if randint(1,3)>1 else " élevée - insuffisance rénale")),
-                "UREE": (f"{randint(0.1,0.8):.1f} g/L", "Urée normale"),
+                "UREE": (f"{randint(1,8)/10:.1f} g/L", "Urée normale"),
                 "GROUP": (choice(["O+", "A+", "B+", "AB+", "O-", "A-"]), "Groupe déterminé"),
                 "CRP": (f"{randint(1,100)} mg/L", "CRP" + (" normale" if randint(1,3)>1 else " élevée - syndrome inflammatoire")),
                 "ECBU": ("E. coli 10^5 UFC/ml", "Infection urinaire à E. coli"),
@@ -1007,6 +1039,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 13. IMAGING ORDERS & RESULTS
+    db.commit()
+    print(f'  ✅ Sections 1-12 committed')
+
     # ═══════════════════════════════════════
     imaging_data = [
         ("RADIOGRAPHIE", "Thorax", "Toux persistante, fièvre", "ROUTINE"),
@@ -1077,6 +1112,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 14. CLINICAL NOTES, MEASUREMENTS, DIAGNOSES
+    db.commit()
+    print(f'  ✅ Sections 1-13 committed')
+
     # ═══════════════════════════════════════
     for i in range(25):
         pat = patients[i % len(patients)]
@@ -1148,6 +1186,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 15. MATERNITY RECORDS
+    db.commit()
+    print(f'  ✅ Sections 1-14 committed')
+
     # ═══════════════════════════════════════
     female_patients = [p for p in patients if p.gender == "F"]
     midwife_emails = [e for e, u in users.items() if u.role == "MIDWIFE"]
@@ -1173,7 +1214,7 @@ def _run_seed_inner(db):
             gravidity=str(randint(1, 7)),
             parity=str(randint(0, 5)),
             last_menstrual_period=_days_ago(randint(60, 250)),
-            expected_due_date=_days_ago(randint(-90, 30)),
+            expected_due_date=_days_ago(randint(0, 90)),
             blood_type=choice(blood_types[:6]),
             Rh_factor=choice(["Positif", "Négatif"]),
             allergies=choice(["Aucune", "Pénicilline", "Sulfamides", "Aucune", "Aucune"]),
@@ -1229,6 +1270,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 16. SURGERY SCHEDULES & REPORTS
+    db.commit()
+    print(f'  ✅ Sections 1-15 committed')
+
     # ═══════════════════════════════════════
     surgery_data = [
         ("Appendicectomie", "CHIR-APPEN", "NOT_APPLICABLE", "PLANNED"),
@@ -1311,6 +1355,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 17. BILLING — Tariffs, Invoices, Payments
+    db.commit()
+    print(f'  ✅ Sections 1-16 committed')
+
     # ═══════════════════════════════════════
     for fc in ["CHU-DONKA", "CHU-IGNACE-DEEN", "HGR-KINDIA", "HGR-KANKAN", "HGR-LABE", "CLINIQUE-PASTEUR", "CLINIQUE-ESPERANCE"]:
         fac = facilities[fc]
@@ -1375,6 +1422,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 18. QUALITY INDICATORS & INCIDENTS
+    db.commit()
+    print(f'  ✅ Sections 1-17 committed')
+
     # ═══════════════════════════════════════
     for fc in ["CHU-DONKA", "CHU-IGNACE-DEEN", "HGR-KINDIA", "HGR-KANKAN"]:
         fac = facilities[fc]
@@ -1472,6 +1522,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 19. REPORTING — National Reports & Epidemic Alerts
+    db.commit()
+    print(f'  ✅ Sections 1-18 committed')
+
     # ═══════════════════════════════════════
     for fc in ["CHU-DONKA", "CHU-IGNACE-DEEN", "HGR-KINDIA", "HGR-KANKAN", "HGR-LABE", "HGR-BOKE", "HGR-MAMOU", "HGR-NZEREKORE", "HGR-FARANAH"]:
         fac = facilities[fc]
@@ -1554,6 +1607,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 20. ON-CALL SCHEDULES (garde)
+    db.commit()
+    print(f'  ✅ Sections 1-19 committed')
+
     # ═══════════════════════════════════════
     for fc in ["CHU-DONKA", "CHU-IGNACE-DEEN", "HGR-KINDIA"]:
         fac = facilities[fc]
@@ -1578,6 +1634,9 @@ def _run_seed_inner(db):
 
     # ═══════════════════════════════════════
     # 21. ACTIVITY LOG ENTRIES
+    db.commit()
+    print(f'  ✅ Sections 1-20 committed')
+
     # ═══════════════════════════════════════
     activity_actions = [
         ("LOGIN", "users", None, "NORMAL", "Connexion utilisateur"),
