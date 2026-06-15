@@ -1,13 +1,11 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class LoginRequest(BaseModel):
-    email: str
-    secret: str = Field(alias="password")
+    model_config = ConfigDict(populate_by_name=True)
 
-    @property
-    def password(self) -> str:
-        return self.secret
+    email: str
+    password: str
 
 
 class TokenResponse(BaseModel):

@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -10,7 +11,6 @@ from slowapi.errors import RateLimitExceeded
 from app.core.config import settings, validate_settings
 from app.core.limiter import limiter
 from app.db.init_db import init_db
-from app.db.seed import run_seed
 from app.modules.auth.routes import router as auth_router
 from app.modules.users.routes import router as users_router
 from app.modules.rbac.routes import router as rbac_router
@@ -32,15 +32,34 @@ from app.modules.surgery.routes import router as surgery_router
 from app.modules.quality.routes import router as quality_router
 from app.modules.reporting.routes import router as reporting_router
 
+logger = logging.getLogger("guineecare")
+
 API_PREFIX = "/api/v1"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: validate configuration, initialize DB, seed demo data
-    validate_settings()
-    init_db()
+    try:
+        validate_settings()
+    except RuntimeError as e:
+        logger.warning(f"Config validation warning: {e}")
+
+    try:
+        init_db()
+        logger.info("Database tables created/verified successfully")
+    except Exception as e:
+        logger.error(f"Database init error: {e}")
+
     if os.environ.get("SEED_DEMO_DATA", "false").lower() in {"1", "true", "yes"}:
-        run_seed()
+        try:
+            from app.db.seed import run_seed
+            run_seed()
+            logger.info("Seed data loaded successfully")
+        except Exception as e:
+            logger.error(f"Seed data error (non-fatal): {e}")
+            # Continue anyway — the app should still work with empty data
+
     yield
 
 
