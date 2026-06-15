@@ -92,10 +92,38 @@ def auth_headers(client, db):
         first_name="Test",
         last_name="Admin",
         role="SUPER_ADMIN",
+        is_active=True,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
 
-    token = create_access_token(subject=user.id)
+    token = create_access_token(
+        subject=user.id,
+        facility_id=user.facility_id,
+        role=user.role,
+    )
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def admin_headers(client, db):
+    """SUPER_ADMIN with valid JWT including facility_id and role."""
+    user = User(
+        email="admin@test.com",
+        password_hash=hash_password("testpassword123"),
+        first_name="Admin",
+        last_name="Admin",
+        role="SUPER_ADMIN",
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    token = create_access_token(
+        subject=user.id,
+        facility_id=user.facility_id,
+        role=user.role,
+    )
     return {"Authorization": f"Bearer {token}"}

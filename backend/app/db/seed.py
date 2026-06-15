@@ -15,6 +15,7 @@ Realistic data modelled after Guinea's healthcare system with:
 import json
 from datetime import datetime, timedelta
 from random import choice, randint, seed as rseed
+from uuid import uuid4
 
 from app.core.security import hash_password
 from app.db.init_db import init_db
@@ -1216,7 +1217,7 @@ def _run_seed_inner(db):
             last_menstrual_period=_days_ago(randint(60, 250)),
             expected_due_date=_days_ago(randint(0, 90)),
             blood_type=choice(blood_types[:6]),
-            Rh_factor=choice(["Positif", "Négatif"]),
+            rh_factor=choice(["Positif", "Négatif"]),
             allergies=choice(["Aucune", "Pénicilline", "Sulfamides", "Aucune", "Aucune"]),
             risk_level=choice(risk_levels),
             status=choice(["ACTIVE", "DELIVERED", "ACTIVE", "ACTIVE"]),
@@ -1395,7 +1396,7 @@ def _run_seed_inner(db):
             facility_id=pat.facility_id,
             patient_id=pat.id,
             admission_id=adm.id if adm else None,
-            invoice_number=f"GC-FAC-{_now().year}-{i+1:05d}",
+            invoice_number=f"GC-FAC-{_now().year}-{i+1:05d}-{uuid4().hex[:6]}",
             description=choice(["Consultation + examens", "Hospitalisation + chirurgie", "Accouchement", "Examens laboratoire", "Urgences + imagerie", "Consultation prénatale + accouchement", "Bilan complet"]),
             net_amount=net,
             paid_amount=paid,

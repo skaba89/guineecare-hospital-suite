@@ -1,34 +1,33 @@
-from app.core.security import create_access_token
+from app.core.security import create_access_token, hash_password
 from app.db.session import SessionLocal
 from app.modules.users.models import User
 
 
 def create_super_admin_and_login(client):
+    """Create a SUPER_ADMIN user directly in DB, then login to get a valid JWT."""
     db = SessionLocal()
     try:
-        admin = db.query(User).filter(User.email == "admin@test.com").first()
-        admin_id = admin.id if admin else "unknown"
+        # Check if admin already exists
+        admin = db.query(User).filter(User.email == "admin@guineecare.com").first()
+        if not admin:
+            admin = User(
+                email="admin@guineecare.com",
+                password_hash=hash_password("StrongPassword123"),
+                first_name="Admin",
+                last_name="Test",
+                role="SUPER_ADMIN",
+                is_active=True,
+            )
+            db.add(admin)
+            db.commit()
+            db.refresh(admin)
     finally:
         db.close()
 
-    admin_token = create_access_token(subject=admin_id)
-    headers = {"Authorization": f"Bearer {admin_token}"}
-
-    user_payload = {
-        "email": "admin@guineecare.com",
-        "password": "StrongPassword123",
-        "first_name": "Admin",
-        "last_name": "Test",
-        "facility_id": None,
-        "role": "SUPER_ADMIN",
-    }
-    create_response = client.post("/api/v1/users", json=user_payload, headers=headers)
-    assert create_response.status_code == 200
-
     login_response = client.post(
         "/api/v1/auth/login",
-        json={"email": user_payload["email"], "password": user_payload["password"]},
+        json={"email": "admin@guineecare.com", "password": "StrongPassword123"},
     )
-    assert login_response.status_code == 200
+    assert login_response.status_code == 200, f"Login failed: {login_response.text}"
     token = login_response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}

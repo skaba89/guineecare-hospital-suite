@@ -59,6 +59,8 @@ DEFAULT_PERMISSIONS = [
 
 ROLE_PERMISSION_MAP = {
     "DOCTOR": [
+        "facility.read",
+        "department.read",
         "patient.read",
         "admission.read",
         "admission.create",
@@ -86,6 +88,8 @@ ROLE_PERMISSION_MAP = {
         "reporting.read",
     ],
     "NURSE": [
+        "facility.read",
+        "department.read",
         "patient.read",
         "admission.read",
         "emergency.read",
@@ -100,23 +104,28 @@ ROLE_PERMISSION_MAP = {
         "quality.read",
     ],
     "PHARMACIST": [
+        "facility.read",
         "patient.read",
         "pharmacy.read",
         "pharmacy.manage",
     ],
     "LAB_TECH": [
+        "facility.read",
         "patient.read",
         "lab.read",
         "lab.result",
         "lab.validate",
     ],
     "CASHIER": [
+        "facility.read",
         "patient.read",
         "billing.read",
         "billing.manage",
         "billing.pay",
     ],
     "MIDWIFE": [
+        "facility.read",
+        "department.read",
         "patient.read",
         "maternity.read",
         "maternity.write",
