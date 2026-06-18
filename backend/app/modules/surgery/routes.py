@@ -4,6 +4,7 @@ from app.core.datetime import utcnow
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.pagination import PaginationParams, paginate
 from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
@@ -25,6 +26,7 @@ router = APIRouter(prefix="/surgery", tags=["surgery"])
 def list_rooms(
     facility_id: str | None = None,
     status: str | None = None,
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("surgery.read")),
 ):
@@ -33,8 +35,8 @@ def list_rooms(
         query = query.filter(OperatingRoom.facility_id == facility_id)
     if status:
         query = query.filter(OperatingRoom.status == status)
-    rows = query.order_by(OperatingRoom.code).all()
-    return {"data": rows, "message": "rooms list"}
+    query = query.order_by(OperatingRoom.code)
+    return paginate(query, pagination)
 
 
 @router.post("/rooms")
@@ -71,6 +73,7 @@ def list_schedules(
     status: str | None = None,
     operating_room_id: str | None = None,
     date: str | None = None,
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("surgery.read")),
 ):
@@ -84,8 +87,8 @@ def list_schedules(
     if date:
         filter_date = datetime.strptime(date, "%Y-%m-%d")
         query = query.filter(SurgerySchedule.scheduled_date >= filter_date)
-    rows = query.order_by(SurgerySchedule.scheduled_date.desc()).all()
-    return {"data": rows, "message": "schedules list"}
+    query = query.order_by(SurgerySchedule.scheduled_date.desc())
+    return paginate(query, pagination)
 
 
 @router.post("/schedules")
@@ -226,6 +229,7 @@ def cancel_surgery(
 def list_reports(
     patient_id: str | None = None,
     schedule_id: str | None = None,
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("surgery.read")),
 ):
@@ -234,8 +238,8 @@ def list_reports(
         query = query.filter(SurgeryReport.patient_id == patient_id)
     if schedule_id:
         query = query.filter(SurgeryReport.schedule_id == schedule_id)
-    rows = query.order_by(SurgeryReport.created_at.desc()).all()
-    return {"data": rows, "message": "reports list"}
+    query = query.order_by(SurgeryReport.created_at.desc())
+    return paginate(query, pagination)
 
 
 @router.post("/reports")

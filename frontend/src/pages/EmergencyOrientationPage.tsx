@@ -99,13 +99,13 @@ export function EmergencyOrientationPage({
     setLoading(true);
     setError("");
     try {
-      const payload = await apiRequest<any>("/emergency/queue");
+      const payload = await apiRequest<any>("/emergency/queue?page_size=1000");
       const allVisits = Array.isArray(payload.data) ? payload.data : [];
       setVisits(allVisits);
 
       // Load beds for hospitalization orientation
       try {
-        const bedsPayload = await apiRequest<any>("/hospitalization/beds");
+        const bedsPayload = await apiRequest<any>("/hospitalization/beds?page_size=1000");
         const allBeds = Array.isArray(bedsPayload.data) ? bedsPayload.data : [];
         setBeds(allBeds.filter((b: Row) => b.bed_status === "AVAILABLE"));
       } catch {

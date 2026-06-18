@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.pagination import PaginationParams, paginate
 from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
@@ -27,6 +28,7 @@ def list_national_reports(
     facility_id: str | None = None,
     status: str | None = None,
     report_type: str | None = None,
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("reporting.read")),
 ):
@@ -37,8 +39,8 @@ def list_national_reports(
         query = query.filter(NationalReport.status == status)
     if report_type:
         query = query.filter(NationalReport.report_type == report_type)
-    rows = query.order_by(NationalReport.created_at.desc()).all()
-    return {"data": rows, "message": "national reports list"}
+    query = query.order_by(NationalReport.created_at.desc())
+    return paginate(query, pagination)
 
 
 @router.post("/national-reports")
@@ -161,6 +163,7 @@ def list_epidemic_alerts(
     facility_id: str | None = None,
     status: str | None = None,
     alert_level: str | None = None,
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("reporting.read")),
 ):
@@ -171,8 +174,8 @@ def list_epidemic_alerts(
         query = query.filter(EpidemicAlert.status == status)
     if alert_level:
         query = query.filter(EpidemicAlert.alert_level == alert_level)
-    rows = query.order_by(EpidemicAlert.created_at.desc()).all()
-    return {"data": rows, "message": "epidemic alerts list"}
+    query = query.order_by(EpidemicAlert.created_at.desc())
+    return paginate(query, pagination)
 
 
 @router.post("/epidemic-alerts")
@@ -239,6 +242,7 @@ def list_health_statistics(
     category: str | None = None,
     period_start: datetime | None = None,
     period_end: datetime | None = None,
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("reporting.read")),
 ):
@@ -251,8 +255,8 @@ def list_health_statistics(
         query = query.filter(HealthStatistic.period_start >= period_start)
     if period_end:
         query = query.filter(HealthStatistic.period_end <= period_end)
-    rows = query.order_by(HealthStatistic.created_at.desc()).all()
-    return {"data": rows, "message": "health statistics list"}
+    query = query.order_by(HealthStatistic.created_at.desc())
+    return paginate(query, pagination)
 
 
 @router.post("/statistics")

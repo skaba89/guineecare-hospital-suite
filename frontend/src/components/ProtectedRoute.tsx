@@ -53,5 +53,11 @@ export function useNavVisibility() {
     canSeeActivity: hasRole("SUPER_ADMIN", "ADMIN"),
     canSeeNational: hasRole("SUPER_ADMIN", "ADMIN"),
     canSeeReporting: hasPermission("reporting.read"),
+    // System admin pages (Users, RBAC, Facilities, Departments)
+    canSeeSystemAdmin: isSuperAdmin || isAdmin,
+    canSeeUsers: isSuperAdmin || isAdmin,
+    canSeeRbac: isSuperAdmin || isAdmin,
+    canSeeFacilities: hasPermission("facility.read") || isSuperAdmin || isAdmin,
+    canSeeDepartments: hasPermission("department.read") || isSuperAdmin || isAdmin,
   };
 }

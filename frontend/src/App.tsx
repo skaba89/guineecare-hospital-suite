@@ -3,6 +3,10 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { useLookupData } from "./hooks/useLookupData";
 import { AppLayout } from "./layout/AppLayout";
 import { ActivityPage } from "./pages/ActivityPage";
+import { UsersPage } from "./pages/UsersPage";
+import { RbacPage } from "./pages/RbacPage";
+import { FacilitiesPage } from "./pages/FacilitiesPage";
+import { DepartmentsPage } from "./pages/DepartmentsPage";
 import { AdmissionsPage } from "./pages/AdmissionsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { EmergencyPage } from "./pages/EmergencyPage";
@@ -85,6 +89,10 @@ function AppInner() {
           <Route path="/emergency/triage" element={<ProtectedRoute permission="emergency.triage"><EmergencyTriagePage lookups={lookups} onCreated={refreshAll} getPatientName={getPatientName} /></ProtectedRoute>} />
           <Route path="/emergency/orientation" element={<ProtectedRoute permission="emergency.orient"><EmergencyOrientationPage lookups={lookups} onCreated={refreshAll} getPatientName={getPatientName} /></ProtectedRoute>} />
           <Route path="/national" element={<ProtectedRoute roles={["SUPER_ADMIN", "ADMIN"]}><NationalPilotagePage lookups={lookups} /></ProtectedRoute>} />
+          <Route path="/users" element={<ProtectedRoute roles={["SUPER_ADMIN", "ADMIN"]}><UsersPage /></ProtectedRoute>} />
+          <Route path="/rbac" element={<ProtectedRoute roles={["SUPER_ADMIN", "ADMIN"]}><RbacPage /></ProtectedRoute>} />
+          <Route path="/facilities" element={<ProtectedRoute roles={["SUPER_ADMIN", "ADMIN"]}><FacilitiesPage /></ProtectedRoute>} />
+          <Route path="/departments" element={<ProtectedRoute roles={["SUPER_ADMIN", "ADMIN"]}><DepartmentsPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AppLayout>

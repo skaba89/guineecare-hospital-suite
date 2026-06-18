@@ -385,7 +385,7 @@ function ResultsTab({ lookups }: { lookups: LookupData }) {
     setLoading(true);
     setError("");
     try {
-      const payload = await apiRequest<any>("/imaging/results");
+      const payload = await apiRequest<any>("/imaging/results?page_size=1000");
       setResults(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       setError("Impossible de charger les résultats.");
@@ -396,7 +396,7 @@ function ResultsTab({ lookups }: { lookups: LookupData }) {
 
   const loadPendingOrders = useCallback(async () => {
     try {
-      const payload = await apiRequest<any>("/imaging/orders?status=COMPLETED");
+      const payload = await apiRequest<any>("/imaging/orders?status=COMPLETED&page_size=1000");
       setPendingOrders(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       // Silently fail

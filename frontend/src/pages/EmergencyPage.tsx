@@ -38,7 +38,7 @@ export function EmergencyPage({
     let mounted = true;
     async function fetchVisits() {
       try {
-        const payload = await apiRequest<any>("/emergency/queue");
+        const payload = await apiRequest<any>("/emergency/queue?page_size=1000");
         const data: Row[] = Array.isArray(payload.data) ? payload.data : [];
         if (mounted) setVisits(data);
       } catch {

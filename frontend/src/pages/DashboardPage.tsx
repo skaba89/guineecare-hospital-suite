@@ -90,13 +90,13 @@ export function DashboardPage({ lookups }: { lookups: LookupData }) {
     try {
       const [patients, admissions, emergency, stays, beds, labOrders, imagingOrders, reporting] =
         await Promise.all([
-          apiRequest<{ data?: Row[] }>("/patients"),
-          apiRequest<{ data?: Row[] }>("/admissions"),
-          apiRequest<{ data?: Row[] }>("/emergency/queue"),
-          apiRequest<{ data?: Row[] }>("/hospitalization/stays?status=ACTIVE"),
+          apiRequest<{ data?: Row[]; total?: number }>("/patients?page_size=1"),
+          apiRequest<{ data?: Row[]; total?: number }>("/admissions?page_size=1"),
+          apiRequest<{ data?: Row[]; total?: number }>("/emergency/queue?page_size=1"),
+          apiRequest<{ data?: Row[]; total?: number }>("/hospitalization/stays?status=ACTIVE&page_size=1"),
           apiRequest<{ data?: Row[] }>(`/hospitalization/bed-board?facility_id=${facilityId}`),
-          apiRequest<{ data?: Row[] }>("/laboratory/orders"),
-          apiRequest<{ data?: Row[] }>("/imaging/orders?status=PENDING"),
+          apiRequest<{ data?: Row[]; total?: number }>("/laboratory/orders?page_size=1000"),
+          apiRequest<{ data?: Row[] }>("/imaging/orders?status=PENDING&page_size=1000"),
           apiRequest<{ data?: Record<string, unknown> }>("/reporting/dashboard"),
         ]);
 
@@ -116,10 +116,10 @@ export function DashboardPage({ lookups }: { lookups: LookupData }) {
       const draftReports = Number(reportingData.draft_reports || 0);
 
       setStats({
-        patients: Array.isArray(patients.data) ? patients.data.length : 0,
-        admissions: Array.isArray(admissions.data) ? admissions.data.length : 0,
-        emergencyVisits: Array.isArray(emergency.data) ? emergency.data.length : 0,
-        activeStays: Array.isArray(stays.data) ? stays.data.length : 0,
+        patients: typeof patients.total === "number" ? patients.total : (patients.data?.length || 0),
+        admissions: typeof admissions.total === "number" ? admissions.total : (admissions.data?.length || 0),
+        emergencyVisits: typeof emergency.total === "number" ? emergency.total : (emergency.data?.length || 0),
+        activeStays: typeof stays.total === "number" ? stays.total : (stays.data?.length || 0),
         availableBeds,
         totalBeds: bedsList.length,
         occupiedBeds,
@@ -134,12 +134,18 @@ export function DashboardPage({ lookups }: { lookups: LookupData }) {
 
       setAllBeds(bedsList);
 
-      const patientsList = Array.isArray(patients.data) ? patients.data : [];
-      setRecentPatients(patientsList.slice(0, 5));
-
-      const admissionsList = Array.isArray(admissions.data) ? admissions.data : [];
+      // For recent lists we need real patient records, not just totals
+      const [recentPatientsRes, recentAdmissionsRes] = await Promise.all([
+        apiRequest<{ data?: Row[] }>("/patients?page_size=5"),
+        apiRequest<{ data?: Row[] }>("/admissions?page_size=5"),
+      ]);
+      setRecentPatients(Array.isArray(recentPatientsRes.data) ? recentPatientsRes.data.slice(0, 5) : []);
+      const admissionsList = Array.isArray(recentAdmissionsRes.data) ? recentAdmissionsRes.data : [];
       setRecentAdmissions(admissionsList.slice(0, 5));
-      setAllAdmissions(admissionsList);
+
+      // For the chart we need a fuller set of admissions
+      const allAdmRes = await apiRequest<{ data?: Row[] }>("/admissions?page_size=1000");
+      setAllAdmissions(Array.isArray(allAdmRes.data) ? allAdmRes.data : []);
     } catch {
       // Silently fail — dashboard should remain usable
     } finally {

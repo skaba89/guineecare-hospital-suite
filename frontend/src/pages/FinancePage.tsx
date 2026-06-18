@@ -141,8 +141,8 @@ function DashboardTab({ lookups }: { lookups: LookupData }) {
     setLoading(true);
     try {
       const [invoicesRes, paymentsRes] = await Promise.all([
-        apiRequest<any>("/billing/invoices"),
-        apiRequest<any>("/billing/payments"),
+        apiRequest<any>("/billing/invoices?page_size=1000"),
+        apiRequest<any>("/billing/payments?page_size=1000"),
       ]);
       setInvoices(Array.isArray(invoicesRes.data) ? invoicesRes.data : []);
       setPayments(Array.isArray(paymentsRes.data) ? paymentsRes.data : []);
@@ -447,8 +447,8 @@ function InvoicesTab({
     setLoading(true);
     try {
       const [invoicesRes, tariffsRes] = await Promise.all([
-        apiRequest<any>("/billing/invoices"),
-        apiRequest<any>("/billing/tariffs"),
+        apiRequest<any>("/billing/invoices?page_size=1000"),
+        apiRequest<any>("/billing/tariffs?page_size=1000"),
       ]);
       setInvoices(Array.isArray(invoicesRes.data) ? invoicesRes.data : []);
       setTariffs(Array.isArray(tariffsRes.data) ? tariffsRes.data : []);
@@ -851,8 +851,8 @@ function PaymentsTab({
     setLoading(true);
     try {
       const [paymentsRes, invoicesRes] = await Promise.all([
-        apiRequest<any>("/billing/payments"),
-        apiRequest<any>("/billing/invoices"),
+        apiRequest<any>("/billing/payments?page_size=1000"),
+        apiRequest<any>("/billing/invoices?page_size=1000"),
       ]);
       setPayments(Array.isArray(paymentsRes.data) ? paymentsRes.data : []);
       setInvoices(Array.isArray(invoicesRes.data) ? invoicesRes.data : []);
@@ -1115,7 +1115,7 @@ function TariffsTab({
   const loadTariffs = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiRequest<any>("/billing/tariffs");
+      const res = await apiRequest<any>("/billing/tariffs?page_size=1000");
       setTariffs(Array.isArray(res.data) ? res.data : []);
     } catch {
       showToast("Erreur de chargement des tarifs.", "error");

@@ -91,7 +91,7 @@ function RecordsTab({
     setLoading(true);
     setError("");
     try {
-      const payload = await apiRequest<any>("/maternity/records");
+      const payload = await apiRequest<any>("/maternity/records?page_size=1000");
       setRecords(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       setError("Impossible de charger les dossiers maternité.");
@@ -311,7 +311,7 @@ function ConsultationsTab({
 
   async function loadRecords() {
     try {
-      const payload = await apiRequest<any>("/maternity/records");
+      const payload = await apiRequest<any>("/maternity/records?page_size=1000");
       setRecords(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       // Silently fail
@@ -535,7 +535,7 @@ function DeliveriesTab({
 
   async function loadRecords() {
     try {
-      const payload = await apiRequest<any>("/maternity/records");
+      const payload = await apiRequest<any>("/maternity/records?page_size=1000");
       setRecords(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       // Silently fail

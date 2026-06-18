@@ -104,7 +104,7 @@ export function EmergencyTriagePage({
     setLoading(true);
     setError("");
     try {
-      const payload = await apiRequest<any>("/emergency/queue");
+      const payload = await apiRequest<any>("/emergency/queue?page_size=1000");
       const allVisits = Array.isArray(payload.data) ? payload.data : [];
       setVisits(allVisits);
     } catch {

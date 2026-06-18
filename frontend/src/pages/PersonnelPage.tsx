@@ -323,7 +323,7 @@ function OnCallTab({ lookups, canManage }: { lookups: LookupData; canManage: boo
     setLoading(true);
     setError("");
     try {
-      const payload = await apiRequest<any>("/personnel/on-call");
+      const payload = await apiRequest<any>("/personnel/on-call?page_size=1000");
       setOnCallList(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       setError("Impossible de charger le planning de garde.");
@@ -334,7 +334,7 @@ function OnCallTab({ lookups, canManage }: { lookups: LookupData; canManage: boo
 
   const loadStaffForDropdown = useCallback(async () => {
     try {
-      const payload = await apiRequest<any>("/personnel/staff");
+      const payload = await apiRequest<any>("/personnel/staff?page_size=1000");
       const list = Array.isArray(payload.data) ? payload.data : [];
       setStaffOptions(
         list.map((s: Row) => ({
@@ -495,7 +495,7 @@ function LeavesTab({ lookups, canManage }: { lookups: LookupData; canManage: boo
 
   const loadStaffForDropdown = useCallback(async () => {
     try {
-      const payload = await apiRequest<any>("/personnel/staff?status=ACTIVE");
+      const payload = await apiRequest<any>("/personnel/staff?status=ACTIVE&page_size=1000");
       const list = Array.isArray(payload.data) ? payload.data : [];
       setStaffOptions(
         list.map((s: Row) => ({
@@ -659,7 +659,7 @@ function ContractsTab({ lookups, canManage }: { lookups: LookupData; canManage: 
     setLoading(true);
     setError("");
     try {
-      const payload = await apiRequest<any>("/personnel/contracts");
+      const payload = await apiRequest<any>("/personnel/contracts?page_size=1000");
       setContracts(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       setError("Impossible de charger les contrats.");
@@ -670,7 +670,7 @@ function ContractsTab({ lookups, canManage }: { lookups: LookupData; canManage: 
 
   const loadStaffForDropdown = useCallback(async () => {
     try {
-      const payload = await apiRequest<any>("/personnel/staff");
+      const payload = await apiRequest<any>("/personnel/staff?page_size=1000");
       const list = Array.isArray(payload.data) ? payload.data : [];
       setStaffOptions(
         list.map((s: Row) => ({
@@ -801,7 +801,7 @@ function StatsTab() {
     setLoading(true);
     setError("");
     try {
-      const payload = await apiRequest<any>("/personnel/stats");
+      const payload = await apiRequest<any>("/personnel/stats?page_size=1000");
       setStats(payload.data);
     } catch {
       setError("Impossible de charger les statistiques.");

@@ -4,6 +4,7 @@ from app.core.datetime import utcnow
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.pagination import PaginationParams, paginate
 from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
@@ -27,6 +28,7 @@ router = APIRouter(prefix="/hospitalization", tags=["hospitalization"])
 def list_rooms(
     facility_id: str | None = None,
     department_id: str | None = None,
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("hospitalization.read")),
 ):
@@ -35,8 +37,8 @@ def list_rooms(
         query = query.filter(Room.facility_id == facility_id)
     if department_id:
         query = query.filter(Room.department_id == department_id)
-    rows = query.order_by(Room.code).all()
-    return {"data": rows, "message": "rooms list"}
+    query = query.order_by(Room.code)
+    return paginate(query, pagination)
 
 
 @router.post("/rooms")
@@ -71,6 +73,7 @@ def create_room(
 def list_beds(
     room_id: str | None = None,
     bed_status: str | None = None,
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("hospitalization.read")),
 ):
@@ -79,8 +82,8 @@ def list_beds(
         query = query.filter(Bed.room_id == room_id)
     if bed_status:
         query = query.filter(Bed.bed_status == bed_status)
-    rows = query.order_by(Bed.bed_number).all()
-    return {"data": rows, "message": "beds list"}
+    query = query.order_by(Bed.bed_number)
+    return paginate(query, pagination)
 
 
 @router.post("/beds")
@@ -205,6 +208,7 @@ def admit_patient(
 def list_stays(
     patient_id: str | None = None,
     status: str | None = None,
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("hospitalization.read")),
 ):
@@ -213,8 +217,8 @@ def list_stays(
         query = query.filter(HospitalStay.patient_id == patient_id)
     if status:
         query = query.filter(HospitalStay.status == status)
-    rows = query.order_by(HospitalStay.admitted_at.desc()).all()
-    return {"data": rows, "message": "stays list"}
+    query = query.order_by(HospitalStay.admitted_at.desc())
+    return paginate(query, pagination)
 
 
 @router.post("/stays/{stay_id}/discharge")

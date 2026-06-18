@@ -84,6 +84,15 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void; curre
       ],
     },
     {
+      title: "SYSTÈME",
+      items: [
+        { label: "Utilisateurs", path: "/users", icon: Users, visible: navVisibility.canSeeUsers },
+        { label: "Rôles & Permissions", path: "/rbac", icon: Shield, visible: navVisibility.canSeeRbac },
+        { label: "Établissements", path: "/facilities", icon: Building2, visible: navVisibility.canSeeFacilities },
+        { label: "Départements", path: "/departments", icon: Building2, visible: navVisibility.canSeeDepartments },
+      ],
+    },
+    {
       title: "NATIONAL",
       items: [
         { label: "Pilotage", path: "/national", icon: Building2, accent: true, visible: navVisibility.canSeeNational },

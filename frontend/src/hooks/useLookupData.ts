@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { apiRequest } from "../services/api";
 import { emptyLookups, LookupData } from "../types";
 
+// page_size=1000 to fetch all items in one shot (lookup arrays need to be complete for dropdowns)
+const ALL = "?page_size=1000";
+
 export function useLookupData(enabled: boolean, version: number): LookupData {
   const [lookups, setLookups] = useState<LookupData>(emptyLookups);
 
@@ -12,15 +15,15 @@ export function useLookupData(enabled: boolean, version: number): LookupData {
     async function load() {
       const results = await Promise.allSettled([
         apiRequest<any>("/facilities"),
-        apiRequest<any>("/patients"),
+        apiRequest<any>(`/patients${ALL}`),
         apiRequest<any>("/departments"),
-        apiRequest<any>("/admissions"),
-        apiRequest<any>("/pharmacy/products"),
-        apiRequest<any>("/laboratory/tests"),
-        apiRequest<any>("/laboratory/orders"),
-        apiRequest<any>("/billing/invoices"),
-        apiRequest<any>("/maternity/records"),
-        apiRequest<any>("/personnel/staff"),
+        apiRequest<any>(`/admissions${ALL}`),
+        apiRequest<any>(`/pharmacy/products${ALL}`),
+        apiRequest<any>(`/laboratory/tests${ALL}`),
+        apiRequest<any>(`/laboratory/orders${ALL}`),
+        apiRequest<any>(`/billing/invoices${ALL}`),
+        apiRequest<any>(`/maternity/records${ALL}`),
+        apiRequest<any>(`/personnel/staff${ALL}`),
       ]);
 
       if (!mounted) return;

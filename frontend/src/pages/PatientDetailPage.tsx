@@ -673,9 +673,9 @@ function HistoriqueTab({ patientId }: { patientId: string }) {
       setLoading(true);
       try {
         const [admissionsRes, staysRes, emergencyRes] = await Promise.all([
-          apiRequest<any>(`/admissions?patient_id=${patientId}`),
-          apiRequest<any>(`/hospitalization/stays?patient_id=${patientId}`),
-          apiRequest<any>(`/emergency/queue`),
+          apiRequest<any>(`/admissions?patient_id=${patientId}&page_size=1000`),
+          apiRequest<any>(`/hospitalization/stays?patient_id=${patientId}&page_size=1000`),
+          apiRequest<any>(`/emergency/queue?page_size=1000`),
         ]);
         setAdmissions(Array.isArray(admissionsRes.data) ? admissionsRes.data : []);
         setStays(Array.isArray(staysRes.data) ? staysRes.data : []);
@@ -830,8 +830,8 @@ function ExamensTab({ patientId, lookups }: { patientId: string; lookups: Lookup
       setLoading(true);
       try {
         const [imagingRes, labRes] = await Promise.all([
-          apiRequest<any>(`/imaging/orders?patient_id=${patientId}`),
-          apiRequest<any>(`/laboratory/orders`),
+          apiRequest<any>(`/imaging/orders?patient_id=${patientId}&page_size=1000`),
+          apiRequest<any>(`/laboratory/orders?page_size=1000`),
         ]);
         setImagingOrders(Array.isArray(imagingRes.data) ? imagingRes.data : []);
         const allLab = Array.isArray(labRes.data) ? labRes.data : [];

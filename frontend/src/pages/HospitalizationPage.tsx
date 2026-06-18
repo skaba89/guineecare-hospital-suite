@@ -190,7 +190,7 @@ function StaysTab({ lookups }: { lookups: LookupData }) {
       const params = new URLSearchParams();
       if (statusFilter) params.set("status", statusFilter);
       const qs = params.toString();
-      const payload = await apiRequest<any>(`/hospitalization/stays${qs ? `?${qs}` : ""}`);
+      const payload = await apiRequest<any>(`/hospitalization/stays${qs ? `?${qs}&page_size=1000` : "?page_size=1000"}`);
       setStays(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       setError("Impossible de charger les séjours.");
@@ -202,7 +202,7 @@ function StaysTab({ lookups }: { lookups: LookupData }) {
   const loadAvailableBeds = useCallback(async () => {
     if (!facilityId) return;
     try {
-      const payload = await apiRequest<any>(`/hospitalization/beds?bed_status=AVAILABLE`);
+      const payload = await apiRequest<any>(`/hospitalization/beds?bed_status=AVAILABLE&page_size=1000`);
       setAvailableBeds(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       // Silently fail

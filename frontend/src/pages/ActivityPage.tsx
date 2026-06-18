@@ -194,7 +194,7 @@ export function ActivityPage({ lookups }: { lookups: LookupData }) {
   const loadEntries = useCallback(async () => {
     setLoading(true);
     try {
-      const payload = await apiRequest<any>("/activity");
+      const payload = await apiRequest<any>("/activity?page_size=1000");
       const data: Row[] = Array.isArray(payload.data) ? payload.data : [];
       setEntries(data);
     } catch {

@@ -107,7 +107,7 @@ function RoomsTab({ lookups }: { lookups: LookupData }) {
     setLoading(true);
     setError("");
     try {
-      const payload = await apiRequest<any>("/surgery/rooms");
+      const payload = await apiRequest<any>("/surgery/rooms?page_size=1000");
       setRooms(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       setError("Impossible de charger les salles.");
@@ -295,7 +295,7 @@ function SchedulesTab({ lookups }: { lookups: LookupData }) {
     setLoading(true);
     setError("");
     try {
-      const payload = await apiRequest<any>("/surgery/schedules");
+      const payload = await apiRequest<any>("/surgery/schedules?page_size=1000");
       setSchedules(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       setError("Impossible de charger les programmations.");
@@ -306,7 +306,7 @@ function SchedulesTab({ lookups }: { lookups: LookupData }) {
 
   const loadRooms = useCallback(async () => {
     try {
-      const payload = await apiRequest<any>("/surgery/rooms");
+      const payload = await apiRequest<any>("/surgery/rooms?page_size=1000");
       setRooms(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       // Silently fail
@@ -601,7 +601,7 @@ function ReportsTab({ lookups }: { lookups: LookupData }) {
     setLoading(true);
     setError("");
     try {
-      const payload = await apiRequest<any>("/surgery/reports");
+      const payload = await apiRequest<any>("/surgery/reports?page_size=1000");
       setReports(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       setError("Impossible de charger les comptes rendus.");
@@ -612,7 +612,7 @@ function ReportsTab({ lookups }: { lookups: LookupData }) {
 
   const loadCompletedSchedules = useCallback(async () => {
     try {
-      const payload = await apiRequest<any>("/surgery/schedules?status=COMPLETED");
+      const payload = await apiRequest<any>("/surgery/schedules?status=COMPLETED&page_size=1000");
       setCompletedSchedules(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       // Silently fail

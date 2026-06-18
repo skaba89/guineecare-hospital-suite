@@ -150,8 +150,8 @@ function DashboardTab({ lookups }: { lookups: LookupData }) {
     setLoading(true);
     try {
       const [ordersRes, resultsRes] = await Promise.all([
-        apiRequest<any>("/laboratory/orders"),
-        apiRequest<any>("/laboratory/results"),
+        apiRequest<any>("/laboratory/orders?page_size=1000"),
+        apiRequest<any>("/laboratory/results?page_size=1000"),
       ]);
       setOrders(Array.isArray(ordersRes.data) ? ordersRes.data : []);
       setResults(Array.isArray(resultsRes.data) ? resultsRes.data : []);
@@ -379,7 +379,7 @@ function OrdersTab({
   const loadOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiRequest<any>("/laboratory/orders");
+      const res = await apiRequest<any>("/laboratory/orders?page_size=1000");
       setOrders(Array.isArray(res.data) ? res.data : []);
     } catch {
       showToast("Erreur de chargement des demandes.", "error");
@@ -711,8 +711,8 @@ function ResultsTab({
     setLoading(true);
     try {
       const [resultsRes, ordersRes] = await Promise.all([
-        apiRequest<any>("/laboratory/results"),
-        apiRequest<any>("/laboratory/orders"),
+        apiRequest<any>("/laboratory/results?page_size=1000"),
+        apiRequest<any>("/laboratory/orders?page_size=1000"),
       ]);
       setResults(Array.isArray(resultsRes.data) ? resultsRes.data : []);
       setOrders(Array.isArray(ordersRes.data) ? ordersRes.data : []);
@@ -1031,7 +1031,7 @@ function CatalogTab({
   const loadTests = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiRequest<any>("/laboratory/tests");
+      const res = await apiRequest<any>("/laboratory/tests?page_size=1000");
       setTests(Array.isArray(res.data) ? res.data : []);
     } catch {
       showToast("Erreur de chargement du catalogue.", "error");

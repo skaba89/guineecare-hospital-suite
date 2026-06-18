@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.pagination import PaginationParams, paginate
 from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
@@ -24,6 +25,7 @@ router = APIRouter(prefix="/quality", tags=["quality"])
 def list_indicators(
     facility_id: str | None = None,
     category: str | None = None,
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("quality.read")),
 ):
@@ -32,8 +34,8 @@ def list_indicators(
         query = query.filter(QualityIndicator.facility_id == facility_id)
     if category:
         query = query.filter(QualityIndicator.category == category)
-    rows = query.order_by(QualityIndicator.code).all()
-    return {"data": rows, "message": "indicators list"}
+    query = query.order_by(QualityIndicator.code)
+    return paginate(query, pagination)
 
 
 @router.post("/indicators")
@@ -67,6 +69,7 @@ def create_indicator(
 def list_measurements(
     indicator_id: str | None = None,
     facility_id: str | None = None,
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("quality.read")),
 ):
@@ -75,8 +78,8 @@ def list_measurements(
         query = query.filter(QualityMeasurement.indicator_id == indicator_id)
     if facility_id:
         query = query.filter(QualityMeasurement.facility_id == facility_id)
-    rows = query.order_by(QualityMeasurement.period_start.desc()).all()
-    return {"data": rows, "message": "measurements list"}
+    query = query.order_by(QualityMeasurement.period_start.desc())
+    return paginate(query, pagination)
 
 
 @router.post("/measurements")
@@ -116,6 +119,7 @@ def list_incidents(
     facility_id: str | None = None,
     status: str | None = None,
     severity: str | None = None,
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("quality.read")),
 ):
@@ -126,8 +130,8 @@ def list_incidents(
         query = query.filter(IncidentReport.status == status)
     if severity:
         query = query.filter(IncidentReport.severity == severity)
-    rows = query.order_by(IncidentReport.incident_date.desc()).all()
-    return {"data": rows, "message": "incidents list"}
+    query = query.order_by(IncidentReport.incident_date.desc())
+    return paginate(query, pagination)
 
 
 @router.post("/incidents")

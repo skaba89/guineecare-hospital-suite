@@ -191,7 +191,7 @@ function ReportsTab({ lookups }: { lookups: LookupData }) {
     setLoading(true);
     setError("");
     try {
-      const payload = await apiRequest<any>("/reporting/national-reports");
+      const payload = await apiRequest<any>("/reporting/national-reports?page_size=1000");
       setReports(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       setError("Impossible de charger les rapports.");
@@ -508,7 +508,7 @@ function AlertsTab({ lookups }: { lookups: LookupData }) {
     setLoading(true);
     setError("");
     try {
-      const payload = await apiRequest<any>("/reporting/epidemic-alerts");
+      const payload = await apiRequest<any>("/reporting/epidemic-alerts?page_size=1000");
       setAlerts(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       setError("Impossible de charger les alertes épidémiques.");
@@ -736,7 +736,7 @@ function StatisticsTab({ lookups }: { lookups: LookupData }) {
     setLoading(true);
     setError("");
     try {
-      const payload = await apiRequest<any>("/reporting/statistics");
+      const payload = await apiRequest<any>("/reporting/statistics?page_size=1000");
       setStats(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       setError("Impossible de charger les statistiques.");

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.pagination import PaginationParams, paginate
 from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
@@ -43,6 +44,7 @@ def _get_record_or_404(db: Session, record_id: str, current_user: User | None = 
 def list_maternity_records(
     facility_id: str | None = None,
     status: str | None = None,
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("maternity.read")),
 ):
@@ -51,8 +53,8 @@ def list_maternity_records(
         query = query.filter(MaternityRecord.facility_id == facility_id)
     if status:
         query = query.filter(MaternityRecord.status == status)
-    rows = query.order_by(MaternityRecord.created_at.desc()).all()
-    return {"data": rows, "message": "maternity records list"}
+    query = query.order_by(MaternityRecord.created_at.desc())
+    return paginate(query, pagination)
 
 
 @router.post("/records")

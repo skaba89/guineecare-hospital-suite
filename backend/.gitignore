@@ -1,2 +1,11 @@
 test_guineecare.db
 pytest_test.db
+dev_guineecare.db
+guineecare.db
+guineecare_dev.db
+*.db
+__pycache__/
+*.pyc
+.env
+.env.local
+.venv/

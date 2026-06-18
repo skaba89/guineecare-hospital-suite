@@ -137,8 +137,8 @@ function StockTab({ lookups }: { lookups: LookupData }) {
     setLoading(true);
     try {
       const [stockRes, prodRes] = await Promise.all([
-        apiRequest<any>("/pharmacy/stock"),
-        apiRequest<any>("/pharmacy/products"),
+        apiRequest<any>("/pharmacy/stock?page_size=1000"),
+        apiRequest<any>("/pharmacy/products?page_size=1000"),
       ]);
       setStock(Array.isArray(stockRes.data) ? stockRes.data : []);
       setProducts(Array.isArray(prodRes.data) ? prodRes.data : []);
@@ -480,7 +480,7 @@ function DispensationTab({
 
   const loadStock = useCallback(async () => {
     try {
-      const res = await apiRequest<any>("/pharmacy/stock");
+      const res = await apiRequest<any>("/pharmacy/stock?page_size=1000");
       setStock(Array.isArray(res.data) ? res.data : []);
     } catch {
       /* silent */
@@ -489,7 +489,7 @@ function DispensationTab({
 
   const loadMovements = useCallback(async () => {
     try {
-      const res = await apiRequest<any>("/pharmacy/stock/movements");
+      const res = await apiRequest<any>("/pharmacy/stock/movements?page_size=1000");
       const movements = Array.isArray(res.data) ? res.data : [];
       setRecentDispensations(movements.filter((m: Row) => m.movement_type === "OUT"));
     } catch {
@@ -818,7 +818,7 @@ function ProductsTab({
   const loadProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiRequest<any>("/pharmacy/products");
+      const res = await apiRequest<any>("/pharmacy/products?page_size=1000");
       setProducts(Array.isArray(res.data) ? res.data : []);
     } catch {
       showToast("Erreur de chargement des produits.", "error");
@@ -1058,7 +1058,7 @@ function MovementsTab({
   const loadMovements = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiRequest<any>("/pharmacy/stock/movements");
+      const res = await apiRequest<any>("/pharmacy/stock/movements?page_size=1000");
       setMovements(Array.isArray(res.data) ? res.data : []);
     } catch {
       showToast("Erreur de chargement des mouvements.", "error");

@@ -4,6 +4,7 @@ from app.core.datetime import utcnow
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.pagination import PaginationParams, paginate
 from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
@@ -25,6 +26,7 @@ def list_imaging_orders(
     patient_id: str | None = None,
     status: str | None = None,
     exam_type: str | None = None,
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("imaging.read")),
 ):
@@ -35,8 +37,8 @@ def list_imaging_orders(
         query = query.filter(ImagingOrder.status == status)
     if exam_type:
         query = query.filter(ImagingOrder.exam_type == exam_type)
-    rows = query.order_by(ImagingOrder.ordered_at.desc()).all()
-    return {"data": rows, "message": "imaging orders list"}
+    query = query.order_by(ImagingOrder.ordered_at.desc())
+    return paginate(query, pagination)
 
 
 @router.post("/orders")
@@ -141,6 +143,7 @@ def complete_imaging_order(
 def list_imaging_results(
     patient_id: str | None = None,
     order_id: str | None = None,
+    pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("imaging.read")),
 ):
@@ -149,8 +152,8 @@ def list_imaging_results(
         query = query.filter(ImagingResult.patient_id == patient_id)
     if order_id:
         query = query.filter(ImagingResult.order_id == order_id)
-    rows = query.order_by(ImagingResult.created_at.desc()).all()
-    return {"data": rows, "message": "imaging results list"}
+    query = query.order_by(ImagingResult.created_at.desc())
+    return paginate(query, pagination)
 
 
 @router.post("/results")

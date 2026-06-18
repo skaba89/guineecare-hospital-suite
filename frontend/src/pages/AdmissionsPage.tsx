@@ -163,7 +163,7 @@ function TableauTab({
       const params = new URLSearchParams();
       if (statusFilter) params.set("search", statusFilter);
       const qs = params.toString();
-      const payload = await apiRequest<any>(`/admissions${qs ? `?${qs}` : ""}`);
+      const payload = await apiRequest<any>(`/admissions${qs ? `?${qs}&page_size=1000` : "?page_size=1000"}`);
       const data: Row[] = Array.isArray(payload.data) ? payload.data : [];
       setAdmissions(data);
     } catch {
@@ -1059,7 +1059,7 @@ function HistoriqueTab({ lookups }: { lookups: LookupData }) {
   const loadAdmissions = useCallback(async () => {
     setLoading(true);
     try {
-      const payload = await apiRequest<any>("/admissions");
+      const payload = await apiRequest<any>("/admissions?page_size=1000");
       const data: Row[] = Array.isArray(payload.data) ? payload.data : [];
       setAdmissions(data);
     } catch {

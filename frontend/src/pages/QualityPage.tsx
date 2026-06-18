@@ -143,7 +143,7 @@ function IndicatorsTab({ lookups }: { lookups: LookupData }) {
     setLoading(true);
     setError("");
     try {
-      const payload = await apiRequest<any>("/quality/indicators");
+      const payload = await apiRequest<any>("/quality/indicators?page_size=1000");
       setIndicators(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       setError("Impossible de charger les indicateurs.");
@@ -349,7 +349,7 @@ function MeasurementsTab({ lookups }: { lookups: LookupData }) {
     setLoading(true);
     setError("");
     try {
-      const payload = await apiRequest<any>("/quality/measurements");
+      const payload = await apiRequest<any>("/quality/measurements?page_size=1000");
       setMeasurements(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       setError("Impossible de charger les mesures.");
@@ -360,7 +360,7 @@ function MeasurementsTab({ lookups }: { lookups: LookupData }) {
 
   const loadIndicators = useCallback(async () => {
     try {
-      const payload = await apiRequest<any>("/quality/indicators");
+      const payload = await apiRequest<any>("/quality/indicators?page_size=1000");
       setIndicators(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       // Silently fail
@@ -568,7 +568,7 @@ function IncidentsTab({ lookups }: { lookups: LookupData }) {
     setLoading(true);
     setError("");
     try {
-      const payload = await apiRequest<any>("/quality/incidents");
+      const payload = await apiRequest<any>("/quality/incidents?page_size=1000");
       setIncidents(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       setError("Impossible de charger les événements indésirables.");
