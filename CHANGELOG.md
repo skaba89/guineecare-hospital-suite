@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.5.0 — 2026-06-20
+
+### Added — Tests Playwright E2E
+- **12 parcours UI** avec Playwright 1.61 + Chromium
+  - Authentification (login succès/échec, logout, multi-rôles)
+  - Navigation pages admin (/users, /rbac, /facilities, /departments)
+  - RBAC (DOCTOR/NURSE redirigés des pages admin)
+  - Parcours patients
+  - Dashboard (KPI visibles)
+- `frontend/playwright.config.ts` — config avec webServer auto-start, traces, screenshots, vidéo
+- `frontend/tests/e2e/guineecare.spec.ts` — 12 tests couvrant les parcours critiques
+- Scripts npm : `npm run test:e2e`, `npm run test:e2e:ui`, `npm run test:e2e:report`
+
+### Added — Vite proxy
+- `frontend/vite.config.ts` — proxy `/api/*` → `http://127.0.0.1:8000`
+- Plus besoin de `VITE_API_BASE_URL` en développement local
+- Variable `VITE_API_PROXY_TARGET` configurable pour pointer vers un backend distant
+
+### Added — CI/CD GitHub Actions (4 workflows)
+- **`backend-tests.yml`** — pytest (84 tests) + cache pip + upload XML results
+- **`frontend-build.yml`** — TypeCheck + build Vite + upload artifact `dist/`
+- **`e2e-admin-pages.yml`** — 31 tests API E2E (déjà existant, inchangé)
+- **`e2e-playwright.yml`** — Nouveau : démarre backend + seed, installe Chromium, lance les 12 tests Playwright, upload rapport HTML + traces
+- Tous les workflows : `on: push: branches: [main]` + `pull_request`
+- Badges README pour les 4 workflows
+
+### Fixed — Backend
+- **Rate limiter** `@limiter.limit("5/minute")` sur `/auth/login` :
+  - Désactivé en `ENVIRONMENT=local|test|dev` (facilite tests E2E et Playwright)
+  - Activé en production/staging (sécurité brute-force)
+- Correction syntaxe YAML dans `backend-tests.yml` et `frontend-build.yml` (`branches: ain]` → `branches: [main]`)
+
+### Updated — Documentation
+- README enrichi : badges CI, table des 4 workflows, section Proxy Vite, section Contribution, conventions de commit Angular, roadmap v0.6-v1.0
+- Référence aux scripts Playwright (`npm run test:e2e*`)
+- Exemples de code multi-tenant RLS et ProtectedRoute
+
+### Statistics
+- 84/84 tests pytest backend
+- 31/31 tests E2E API pages admin
+- 12 tests Playwright UI (parcours critiques)
+- 4 workflows GitHub Actions opérationnels
+- ~3 min de pipeline CI total
+
+---
+
 ## 0.4.0 — 2026-06-19
 
 ### Added — Pages admin (section SYSTÈME)

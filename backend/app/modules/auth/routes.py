@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.security import create_access_token, verify_password
 from app.db.session import get_db
@@ -11,8 +12,17 @@ from app.modules.users.models import User
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+# En dev/test, on désactive le rate-limit pour permettre les tests E2E et Playwright.
+# En production, le rate-limit reste actif (5/minute par IP).
+_LOGIN_LIMIT = (
+    limiter.limit("5/minute")
+    if settings.environment not in ("local", "test", "dev")
+    else (lambda f: f)  # no-op decorator
+)
+
+
 @router.post("/login")
-@limiter.limit("5/minute")
+@_LOGIN_LIMIT
 def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
     if not user or not verify_password(payload.password, user.password_hash):
