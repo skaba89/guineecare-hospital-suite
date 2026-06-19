@@ -1,0 +1,226 @@
+name: e2e-admin-pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  e2e-admin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Start backend with seed
+        working-directory: backend
+        env:
+          DATABASE_URL: sqlite:///./dev_guineecare.db
+          AUTH_SECRET: ci-secret-key-2025
+          ENVIRONMENT: local
+          SEED_DEMO_DATA: "true"
+          CORS_ORIGINS: '["*"]'
+        run: |
+          rm -f dev_guineecare.db
+          nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/backend.log 2>&1 &
+          echo $! > /tmp/backend.pid
+
+          # Wait up to 60s for backend to be ready
+          for i in $(seq 1 60); do
+            if curl -s http://127.0.0.1:8000/health > /dev/null 2>&1; then
+              echo "Backend ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+
+          if ! curl -s http://127.0.0.1:8000/health > /dev/null 2>&1; then
+            echo "Backend failed to start"
+            cat /tmp/backend.log
+            exit 1
+          fi
+
+      - name: Verify backend health
+        run: |
+          curl -s http://127.0.0.1:8000/health | grep -q '"status":"ok"'
+          echo "Backend health OK"
+
+      - name: Run E2E admin pages verification
+        env:
+          BASE_URL: http://127.0.0.1:8000/api/v1
+        run: |
+          python - <<'EOF'
+          import json
+          import sys
+          import time
+          import urllib.request
+          import urllib.error
+          from typing import Optional
+
+          BASE = "http://127.0.0.1:8000/api/v1"
+          results = {"passed": 0, "failed": 0}
+
+          def log_ok(msg):
+              print(f"  [OK] {msg}")
+              results["passed"] += 1
+
+          def log_fail(msg, detail=""):
+              print(f"  [FAIL] {msg}" + (f"\n        {detail}" if detail else ""))
+              results["failed"] += 1
+
+          def http(method, path, token=None, body=None, expect=None):
+              url = f"{BASE}{path}"
+              headers = {"Content-Type": "application/json"}
+              if token:
+                  headers["Authorization"] = f"Bearer {token}"
+              data = json.dumps(body).encode() if body else None
+              req = urllib.request.Request(url, data=data, headers=headers, method=method)
+              try:
+                  with urllib.request.urlopen(req, timeout=15) as resp:
+                      text = resp.read().decode()
+                      try:
+                          payload = json.loads(text)
+                      except json.JSONDecodeError:
+                          payload = text
+                      status = resp.status
+              except urllib.error.HTTPError as e:
+                  text = e.read().decode()
+                  try:
+                      payload = json.loads(text)
+                  except json.JSONDecodeError:
+                      payload = text
+                  status = e.code
+              except Exception as e:
+                  return 0, None, str(e)
+              if expect is not None and status != expect:
+                  return status, payload, f"Expected {expect}, got {status}"
+              return status, payload, None
+
+          def login(email, password):
+              time.sleep(2)
+              status, payload, err = http("POST", "/auth/login", body={"email": email, "password": password})
+              if err or status != 200:
+                  return None
+              return payload.get("access_token")
+
+          print("=== 1. Login multi-rôles ===")
+          tokens = {}
+          accounts = [
+              ("SUPER_ADMIN", "admin@guineecare.com", "admin123"),
+              ("ADMIN", "admin.donka@chu-donka.gn", "admin123"),
+              ("DOCTOR", "dr.diallo@chu-donka.gn", "doctor123"),
+              ("NURSE", "inf.konde@chu-donka.gn", "nurse123"),
+          ]
+          for role, email, pwd in accounts:
+              tok = login(email, pwd)
+              if tok:
+                  tokens[role] = tok
+                  log_ok(f"Login {role}")
+              else:
+                  log_fail(f"Login {role}")
+
+          print("=== 2. RBAC /users ===")
+          status, p, err = http("GET", "/users?page_size=1000", token=tokens.get("SUPER_ADMIN"), expect=200)
+          if err: log_fail("SUPER_ADMIN GET /users", err)
+          else: log_ok(f"SUPER_ADMIN GET /users → total={p.get('total', 0) if isinstance(p, dict) else 0}")
+
+          status, p, err = http("GET", "/users?page_size=1000", token=tokens.get("ADMIN"), expect=200)
+          if err: log_fail("ADMIN GET /users", err)
+          else: log_ok(f"ADMIN GET /users → total={p.get('total', 0) if isinstance(p, dict) else 0}")
+
+          status, _, err = http("GET", "/users", token=tokens.get("DOCTOR"), expect=403)
+          if err: log_fail("DOCTOR GET /users doit être 403", err)
+          else: log_ok("DOCTOR GET /users → 403 (RBAC OK)")
+
+          print("=== 3. RBAC /rbac ===")
+          status, p, err = http("GET", "/rbac/roles?page_size=1000", token=tokens.get("SUPER_ADMIN"), expect=200)
+          if err: log_fail("SUPER_ADMIN GET /rbac/roles", err)
+          else: log_ok(f"SUPER_ADMIN GET /rbac/roles → total={p.get('total', 0) if isinstance(p, dict) else 0}")
+
+          status, _, err = http("GET", "/rbac/roles", token=tokens.get("DOCTOR"), expect=403)
+          if err: log_fail("DOCTOR GET /rbac/roles doit être 403", err)
+          else: log_ok("DOCTOR GET /rbac/roles → 403 (RBAC OK)")
+
+          print("=== 4. /facilities isolation multi-tenant ===")
+          status, p, err = http("GET", "/facilities?page_size=1000", token=tokens.get("SUPER_ADMIN"), expect=200)
+          if err: log_fail("SUPER_ADMIN GET /facilities", err)
+          else: log_ok(f"SUPER_ADMIN GET /facilities → total={p.get('total', 0) if isinstance(p, dict) else 0}")
+
+          status, p, err = http("GET", "/facilities", token=tokens.get("ADMIN"), expect=200)
+          if err: log_fail("ADMIN GET /facilities", err)
+          else: log_ok(f"ADMIN GET /facilities → total={p.get('total', 0) if isinstance(p, dict) else 0} (son établissement)")
+
+          print("=== 5. /departments ===")
+          status, _, err = http("GET", "/departments?page_size=1000", token=tokens.get("SUPER_ADMIN"), expect=200)
+          if err: log_fail("SUPER_ADMIN GET /departments", err)
+          else: log_ok("SUPER_ADMIN GET /departments → 200")
+
+          print("=== 6. Bug fix #1 — POST /patients auto-gen ===")
+          status, p, err = http("POST", "/patients", token=tokens.get("SUPER_ADMIN"),
+              body={"first_name": "E2E", "last_name": "Test", "date_of_birth": "1990-01-01", "gender": "M"},
+              expect=200)
+          if err:
+              log_fail("POST /patients auto-gen", err)
+          else:
+              data = p.get("data", p) if isinstance(p, dict) else {}
+              if data.get("facility_id") and data.get("patient_number"):
+                  log_ok(f"POST /patients auto-gen → patient_number={data.get('patient_number')}")
+              else:
+                  log_fail("POST /patients: facility_id ou patient_number manquant",
+                           f"facility_id={data.get('facility_id')}, patient_number={data.get('patient_number')}")
+
+          print("=== 7. Bug fix #2 — /bed-board sans facility_id ===")
+          status, _, err = http("GET", "/hospitalization/bed-board", token=tokens.get("SUPER_ADMIN"), expect=200)
+          if err: log_fail("SUPER_ADMIN GET /bed-board sans facility_id", err)
+          else: log_ok("SUPER_ADMIN GET /bed-board sans facility_id → 200")
+
+          status, _, err = http("GET", "/hospitalization/bed-board", token=tokens.get("ADMIN"), expect=200)
+          if err: log_fail("ADMIN GET /bed-board sans facility_id", err)
+          else: log_ok("ADMIN GET /bed-board sans facility_id → 200 (fallback)")
+
+          print("=== 8. Bug fix #3 — Pydantic v2 validation ===")
+          status, _, err = http("POST", "/patients", token=tokens.get("SUPER_ADMIN"),
+              body={"first_name": "X"}, expect=422)
+          if err: log_fail("POST /patients champ invalide doit être 422", err)
+          else: log_ok("POST /patients champ invalide → 422 (Pydantic v2 OK)")
+
+          status, _, err = http("POST", "/users", token=tokens.get("SUPER_ADMIN"),
+              body={"email": "not-an-email", "password": "x", "first_name": "X", "last_name": "Y", "role": "NURSE", "facility_id": "FAC-CHU-DONKA"},
+              expect=422)
+          if err: log_fail("POST /users email invalide doit être 422", err)
+          else: log_ok("POST /users email invalide → 422 (EmailStr OK)")
+
+          print(f"\n=== RÉSUMÉ ===\nTotal: {results['passed']+results['failed']}  |  OK: {results['passed']}  |  FAIL: {results['failed']}")
+          if results["failed"] > 0:
+              print("❌ E2E admin tests FAILED")
+              sys.exit(1)
+          else:
+              print("✅ All E2E admin tests PASSED")
+              sys.exit(0)
+          EOF
+
+      - name: Show backend logs on failure
+        if: failure()
+        run: |
+          echo "=== Backend logs (last 50 lines) ==="
+          tail -50 /tmp/backend.log || true
+
+      - name: Stop backend
+        if: always()
+        run: |
+          if [ -f /tmp/backend.pid ]; then
+            kill $(cat /tmp/backend.pid) 2>/dev/null || true
+          fi
