@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from datetime import datetime, timezone
 
 from app.core.pagination import PaginationParams, paginate
 from app.core.tenant import tenant_query, enforce_facility_access
@@ -36,9 +37,13 @@ def create_patient(
     current_user: User = Depends(require_permission("patient.create")),
 ):
     data = payload.model_dump(exclude_none=True)
+    # Auto-génère facility_id si manquant
     if not data.get("facility_id"):
         data["facility_id"] = current_user.facility_id
     enforce_facility_access(current_user, data.get("facility_id"))
+    # Auto-génère patient_number si manquant (format PAT-YYYYMMDDHHMMSS)
+    if not data.get("patient_number"):
+        data["patient_number"] = f"PAT-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
     row = Patient(**data)
     db.add(row)
     db.flush()

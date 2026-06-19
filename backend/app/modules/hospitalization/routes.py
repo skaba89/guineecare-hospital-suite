@@ -120,17 +120,30 @@ def create_bed(
 
 @router.get("/bed-board")
 def get_bed_board(
-    facility_id: str,
+    facility_id: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("hospitalization.read")),
 ):
-    enforce_facility_access(current_user, facility_id)
-    beds = (
-        tenant_query(db, Bed, current_user)
-        .filter(Bed.facility_id == facility_id)
-        .order_by(Bed.bed_number)
-        .all()
-    )
+    # If no facility_id provided, fallback to current user's facility
+    # SUPER_ADMIN without facility_id sees all beds
+    if not facility_id:
+        if current_user.role == "SUPER_ADMIN":
+            beds = db.query(Bed).order_by(Bed.bed_number).all()
+        else:
+            beds = (
+                tenant_query(db, Bed, current_user)
+                .filter(Bed.facility_id == current_user.facility_id)
+                .order_by(Bed.bed_number)
+                .all()
+            )
+    else:
+        enforce_facility_access(current_user, facility_id)
+        beds = (
+            tenant_query(db, Bed, current_user)
+            .filter(Bed.facility_id == facility_id)
+            .order_by(Bed.bed_number)
+            .all()
+        )
 
     items: list[dict] = []
     for bed in beds:

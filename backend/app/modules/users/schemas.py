@@ -1,20 +1,20 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class UserCreate(BaseModel):
-    email: str
-    password: str
-    first_name: str
-    last_name: str
+    email: EmailStr
+    password: str = Field(min_length=8)
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
     facility_id: str | None = None
     role: str = "USER"
 
 
 class UserUpdate(BaseModel):
-    email: str | None = None
-    password: str | None = None
-    first_name: str | None = None
-    last_name: str | None = None
+    email: EmailStr | None = None
+    password: str | None = Field(default=None, min_length=8)
+    first_name: str | None = Field(default=None, min_length=1, max_length=100)
+    last_name: str | None = Field(default=None, min_length=1, max_length=100)
     facility_id: str | None = None
     role: str | None = None
     is_active: bool | None = None
@@ -29,5 +29,4 @@ class UserRead(BaseModel):
     role: str
     is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
