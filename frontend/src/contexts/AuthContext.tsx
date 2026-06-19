@@ -7,14 +7,20 @@ import {
   setStoredUser,
   setToken,
 } from "../services/api";
-import { getCurrentUser, login as apiLogin, type CurrentUser, type LoginPayload } from "../services/authService";
+import {
+  getCurrentUser,
+  login as apiLogin,
+  logout as apiLogout,
+  type CurrentUser,
+  type LoginPayload,
+} from "../services/authService";
 
 type AuthContextType = {
   currentUser: CurrentUser | null;
   isAuthenticated: boolean;
   loading: boolean;
   login: (payload: LoginPayload) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isSuperAdmin: boolean;
   isAdmin: boolean;
   isDoctor: boolean;
@@ -109,8 +115,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(true);
   }, []);
 
-  const logout = useCallback(() => {
-    clearToken();
+  const logout = useCallback(async () => {
+    await apiLogout();
     setIsAuthenticated(false);
     setCurrentUser(null);
   }, []);

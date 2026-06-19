@@ -40,7 +40,7 @@ type NavSection = {
   items: NavItem[];
 };
 
-export function Sidebar({ onLogout, currentUser }: { onLogout: () => void; currentUser: CurrentUser | null }) {
+export function Sidebar({ onLogout, currentUser }: { onLogout: () => void | Promise<void>; currentUser: CurrentUser | null }) {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
@@ -90,6 +90,7 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void; curre
         { label: "Rôles & Permissions", path: "/rbac", icon: Shield, visible: navVisibility.canSeeRbac },
         { label: "Établissements", path: "/facilities", icon: Building2, visible: navVisibility.canSeeFacilities },
         { label: "Départements", path: "/departments", icon: Building2, visible: navVisibility.canSeeDepartments },
+        { label: "Journal d'audit", path: "/audit", icon: Shield, visible: navVisibility.canSeeAudit },
       ],
     },
     {

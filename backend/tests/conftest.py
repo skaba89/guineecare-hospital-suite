@@ -25,6 +25,7 @@ from app.modules.admissions.models import Admission
 from app.modules.users.models import User
 from app.modules.rbac.models import Role, Permission, RolePermission
 from app.modules.activity.models import ActivityEntry
+from app.modules.auth.models import RefreshToken, AuditLog
 from app.modules.emergency.models import EmergencyVisit
 from app.modules.pharmacy.models import PharmacyProduct, PharmacyStock, StockMovement
 from app.modules.laboratory.models import LabTest, LabOrder, LabResult

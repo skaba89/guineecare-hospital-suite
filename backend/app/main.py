@@ -31,6 +31,7 @@ from app.modules.imaging.routes import router as imaging_router
 from app.modules.surgery.routes import router as surgery_router
 from app.modules.quality.routes import router as quality_router
 from app.modules.reporting.routes import router as reporting_router
+from app.modules.audit.routes import router as audit_router
 
 logger = logging.getLogger("guineecare")
 
@@ -113,6 +114,7 @@ app.include_router(imaging_router, prefix=API_PREFIX)
 app.include_router(surgery_router, prefix=API_PREFIX)
 app.include_router(quality_router, prefix=API_PREFIX)
 app.include_router(reporting_router, prefix=API_PREFIX)
+app.include_router(audit_router, prefix=API_PREFIX)
 
 
 @app.get("/health")
@@ -125,5 +127,5 @@ def api_root():
     return {
         "name": "GuineeCare Hospital Suite",
         "version": "0.1.0",
-        "modules": ["auth", "users", "rbac", "facilities", "departments", "patients", "admissions", "emergency", "pharmacy", "laboratory", "billing", "hospitalization", "activity", "clinical", "maternity", "personnel", "imaging", "surgery", "quality", "reporting"],
+        "modules": ["auth", "users", "rbac", "facilities", "departments", "patients", "admissions", "emergency", "pharmacy", "laboratory", "billing", "hospitalization", "activity", "clinical", "maternity", "personnel", "imaging", "surgery", "quality", "reporting", "audit"],
     }

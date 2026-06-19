@@ -27,9 +27,10 @@ export function LoginPage({ onLogin }: { onLogin: (payload: LoginPayload) => Pro
         <h1>GuinéeCare Hospital Suite</h1>
         <p className="muted">Système d'Information Hospitalier — Guinée</p>
         <form onSubmit={submit}>
-          <label className="form-control">
+          <label className="form-control" htmlFor="login-email">
             Email
             <input
+              id="login-email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               type="email"
@@ -38,9 +39,10 @@ export function LoginPage({ onLogin }: { onLogin: (payload: LoginPayload) => Pro
               autoFocus
             />
           </label>
-          <label className="form-control">
+          <label className="form-control" htmlFor="login-password">
             Mot de passe
             <input
+              id="login-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

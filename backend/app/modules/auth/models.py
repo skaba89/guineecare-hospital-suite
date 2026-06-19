@@ -1,0 +1,65 @@
+"""Models for refresh tokens and audit logs (v0.6.0)."""
+from datetime import datetime
+from uuid import uuid4
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+
+from app.core.datetime import utcnow
+from app.db.base import Base
+
+
+class RefreshToken(Base):
+    """Long-lived refresh token for JWT rotation.
+
+    The token itself is never stored in clear — only its SHA-256 hash.
+    To validate a refresh token presented by the client:
+        1. Hash the presented token
+        2. Look up by `token_hash`
+        3. Check `revoked_at IS NULL` AND `expires_at > now()`
+        4. On use: rotate (revoke + issue a new one, set `replaced_by_id`)
+    """
+
+    __tablename__ = "refresh_tokens"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    token_hash = Column(String(128), nullable=False, unique=True, index=True)
+    facility_id = Column(String(36), ForeignKey("facilities.id"), nullable=True, index=True)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    revoked_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    created_ip = Column(String(45), nullable=True)
+    created_user_agent = Column(String(512), nullable=True)
+    last_used_at = Column(DateTime, nullable=True)
+    replaced_by_id = Column(
+        String(36), ForeignKey("refresh_tokens.id"), nullable=True
+    )
+
+    def is_valid(self) -> bool:
+        return self.revoked_at is None and self.expires_at > utcnow()
+
+
+class AuditLog(Base):
+    """Append-only journal of every mutation in the system.
+
+    Rows are written by the `audit` decorator/service. They are never updated
+    or deleted — only inserted. Read access is restricted to SUPER_ADMIN and
+    ADMIN (via the /audit API module).
+    """
+
+    __tablename__ = "audit_logs"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    created_at = Column(DateTime, default=utcnow, nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=True, index=True)
+    facility_id = Column(String(36), ForeignKey("facilities.id"), nullable=True, index=True)
+    action = Column(String(64), nullable=False, index=True)
+    resource_type = Column(String(64), nullable=True, index=True)
+    resource_id = Column(String(36), nullable=True, index=True)
+    http_method = Column(String(10), nullable=True)
+    http_path = Column(String(512), nullable=True)
+    status_code = Column(Integer, nullable=True)
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(String(512), nullable=True)
+    # JSON-encoded payload (e.g. before/after diff for mutations)
+    payload = Column(Text, nullable=True)

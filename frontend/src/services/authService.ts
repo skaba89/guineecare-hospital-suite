@@ -1,4 +1,4 @@
-import { apiRequest, setToken, clearToken, setStoredUser } from "./api";
+import { apiRequest, setToken, setRefreshToken, clearToken, setStoredUser } from "./api";
 
 export type LoginPayload = {
   email: string;
@@ -47,6 +47,9 @@ export async function login(payload: LoginPayload) {
     body: JSON.stringify(payload),
   });
   setToken(response.access_token);
+  if (response.refresh_token) {
+    setRefreshToken(response.refresh_token);
+  }
   if (response.user) {
     setStoredUser(response.user);
   }
@@ -59,6 +62,18 @@ export async function getCurrentUser(): Promise<CurrentUser> {
   return response;
 }
 
-export function logout() {
-  clearToken();
+export async function logout(): Promise<void> {
+  const refreshToken = localStorage.getItem("guineecare_refresh_token");
+  try {
+    // Best-effort: notify backend to revoke the refresh token.
+    // If it fails (network error, expired token), we still clear locally.
+    await apiRequest<any>("/auth/logout", {
+      method: "POST",
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+  } catch {
+    // ignore — local clear is the source of truth for the UI
+  } finally {
+    clearToken();
+  }
 }

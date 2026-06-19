@@ -11,7 +11,7 @@ export function AppLayout({
   getStaffName,
   children,
 }: {
-  onLogout: () => void;
+  onLogout: () => void | Promise<void>;
   currentUser: CurrentUser | null;
   getPatientName: (id: string) => string;
   getStaffName: (id: string) => string;

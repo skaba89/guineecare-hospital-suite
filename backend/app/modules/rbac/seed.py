@@ -55,6 +55,7 @@ DEFAULT_PERMISSIONS = [
     ("quality.manage", "Gerer la qualite", "quality"),
     ("reporting.read", "Voir le reporting", "reporting"),
     ("reporting.manage", "Gerer le reporting", "reporting"),
+    ("audit.read", "Consulter le journal d'audit", "audit"),
 ]
 
 ROLE_PERMISSION_MAP = {

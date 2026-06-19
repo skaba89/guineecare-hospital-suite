@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+import hashlib
+import secrets
 from app.core.datetime import utcnow
 
 from jose import jwt
@@ -7,6 +9,11 @@ from passlib.context import CryptContext
 from app.core.config import settings
 
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Default lifetime for refresh tokens: 30 days
+REFRESH_TOKEN_DAYS = 30
+# Length of the random refresh token (before hashing)
+REFRESH_TOKEN_BYTES = 32
 
 
 def hash_password(password: str) -> str:
@@ -34,3 +41,21 @@ def create_access_token(
 
 def decode_access_token(token: str) -> dict:
     return jwt.decode(token, settings.auth_secret, algorithms=[settings.auth_algorithm])
+
+
+# ---------------------------------------------------------------------------
+# Refresh token helpers
+# ---------------------------------------------------------------------------
+
+def generate_refresh_token() -> str:
+    """Generate a new random refresh token (URL-safe, 43 chars)."""
+    return secrets.token_urlsafe(REFRESH_TOKEN_BYTES)
+
+
+def hash_refresh_token(token: str) -> str:
+    """Hash a refresh token with SHA-256 for storage (constant-time comparison)."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def create_refresh_token_expiry() -> datetime:
+    return utcnow() + timedelta(days=REFRESH_TOKEN_DAYS)

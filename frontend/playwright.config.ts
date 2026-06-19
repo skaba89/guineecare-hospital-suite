@@ -34,7 +34,9 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: 'http://127.0.0.1:5173',
-    reuseExistingServer: !process.env.CI,
+    // Reuse an existing Vite server if one is already running (local dev + CI script).
+    // In pure GitHub Actions, no server is pre-started, so Playwright starts one itself.
+    reuseExistingServer: true,
     timeout: 60_000,
     stdout: 'ignore',
     stderr: 'pipe',

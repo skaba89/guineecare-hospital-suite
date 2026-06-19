@@ -8,36 +8,44 @@ import { test, expect, type Page } from '@playwright/test';
  *   - Frontend Vite sur http://127.0.0.1:5173 (Vite proxy /api → backend)
  *
  * Couverture :
- *   - Authentification (login succès/échec, logout)
+ *   - Authentification (login succès/échec, logout, multi-rôles)
  *   - Navigation pages admin (/users, /rbac, /facilities, /departments)
  *   - RBAC (DOCTOR/NURSE redirigés des pages admin)
  *   - Parcours patients
  *   - Dashboard
- *
- * Note : certains tests peuvent être flaky (re-render React asynchrone).
- * En cas d'échec intermittent, relancer : `npm run test:e2e`
  */
 
 const SUPER_ADMIN = { email: 'admin@guineecare.com', password: 'admin123' };
 const DOCTOR = { email: 'dr.diallo@chu-donka.gn', password: 'doctor123' };
 const NURSE = { email: 'inf.konde@chu-donka.gn', password: 'nurse123' };
 
+/**
+ * Connexion fiable :
+ *   1. Vide localStorage pour repartir d'un état propre
+ *   2. Charge la page de login
+ *   3. Remplit les champs via leurs IDs stables
+ *   4. Soumet le formulaire et attend l'apparition de la sidebar
+ */
 async function login(page: Page, creds: { email: string; password: string }) {
+  // Clear any residual auth state from previous test
   await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => {
+    localStorage.removeItem('guineecare_token');
+    localStorage.removeItem('guineecare_user');
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
 
-  // Si résidu d'un test précédent, se déconnecter
-  const logoutBtn = page.locator('.sidebar-logout-btn, [title="Déconnexion"]');
-  if (await logoutBtn.first().isVisible({ timeout: 1500 }).catch(() => false)) {
-    await logoutBtn.first().click({ force: true });
-    await page.getByLabel('Email').first().waitFor({ state: 'visible', timeout: 10_000 });
-  }
-
-  const emailInput = page.getByLabel('Email').first();
+  // Wait for the login form to be ready
+  const emailInput = page.locator('#login-email');
   await emailInput.waitFor({ state: 'visible', timeout: 15_000 });
   await emailInput.fill(creds.email);
-  await page.getByLabel('Mot de passe').first().fill(creds.password);
+  await page.locator('#login-password').fill(creds.password);
+
+  // Submit + wait for sidebar (proves login succeeded)
   await page.getByRole('button', { name: /Se connecter/ }).click();
-  await expect(page.locator('aside.sidebar')).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('aside.sidebar')).toBeVisible({ timeout: 25_000 });
+
+  // Wait for network idle so that subsequent navigation doesn't race with auth bootstrap
   await page.waitForLoadState('networkidle').catch(() => {});
 }
 
@@ -52,10 +60,16 @@ test.describe('Authentification', () => {
 
   test('login avec mauvais mot de passe → message d\'erreur', async ({ page }) => {
     await page.goto('/');
-    await page.getByLabel('Email').first().fill('admin@guineecare.com');
-    await page.getByLabel('Mot de passe').first().fill('wrong-password');
+    await page.evaluate(() => {
+      localStorage.removeItem('guineecare_token');
+      localStorage.removeItem('guineecare_user');
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+
+    await page.locator('#login-email').fill('admin@guineecare.com');
+    await page.locator('#login-password').fill('wrong-password');
     await page.getByRole('button', { name: /Se connecter/ }).click();
-    await expect(page.locator('body')).toContainText(/impossible|incorrect|invalid/i);
+    await expect(page.locator('body')).toContainText(/impossible|incorrect|invalid/i, { timeout: 10_000 });
   });
 
   test('login DOCTOR réussit', async ({ page }) => {
@@ -65,10 +79,10 @@ test.describe('Authentification', () => {
 
   test('logout retourne à la page de login', async ({ page }) => {
     await login(page, SUPER_ADMIN);
-    const logoutBtn = page.locator('.sidebar-logout-btn, [title="Déconnexion"]');
-    await expect(logoutBtn.first()).toBeVisible();
-    await logoutBtn.first().click({ force: true });
-    await expect(page.getByRole('button', { name: /Se connecter/ })).toBeVisible({ timeout: 15_000 });
+    const logoutBtn = page.locator('.sidebar-logout-btn');
+    await expect(logoutBtn).toBeVisible({ timeout: 10_000 });
+    await logoutBtn.click();
+    await expect(page.locator('#login-email')).toBeVisible({ timeout: 15_000 });
   });
 });
 
@@ -113,6 +127,8 @@ test.describe('Pages admin (SUPER_ADMIN only)', () => {
   test('page /departments accessible', async ({ page }) => {
     await page.goto('/departments', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/departments/i);
+    // The DepartmentsPage renders a ResourcePage with title "Départements"
+    await expect(page.locator('h1, h2, .page-title, .resource-title').first()).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('body')).toContainText(/département|department/i, { timeout: 15_000 });
   });
 });
@@ -124,7 +140,8 @@ test.describe('RBAC restrictions', () => {
   test('DOCTOR redirigé de /users vers /', async ({ page }) => {
     await login(page, DOCTOR);
     await page.goto('/users', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2000);
+    // Give the ProtectedRoute time to evaluate and redirect
+    await page.waitForTimeout(2500);
     const url = page.url();
     const bodyText = (await page.locator('body').textContent() || '').toLowerCase();
     const redirected = !url.includes('/users');
@@ -135,7 +152,7 @@ test.describe('RBAC restrictions', () => {
   test('NURSE redirigé de /rbac vers /', async ({ page }) => {
     await login(page, NURSE);
     await page.goto('/rbac', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(2500);
     const url = page.url();
     const bodyText = (await page.locator('body').textContent() || '').toLowerCase();
     const redirected = !url.includes('/rbac');
@@ -151,5 +168,26 @@ test.describe('Dashboard SUPER_ADMIN', () => {
   test('affiche du contenu après login', async ({ page }) => {
     await login(page, SUPER_ADMIN);
     await expect(page.locator('body')).toContainText(/\d+/, { timeout: 15_000 });
+  });
+});
+
+// ----------------------------------------------------------------------------
+// 6. AUDIT LOG (v0.6.0)
+// ----------------------------------------------------------------------------
+test.describe('Journal d\'audit (v0.6.0)', () => {
+  test('page /audit accessible pour SUPER_ADMIN', async ({ page }) => {
+    await login(page, SUPER_ADMIN);
+    await page.goto('/audit', { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(/audit/i);
+    await expect(page.locator('h1')).toContainText(/audit/i, { timeout: 15_000 });
+  });
+
+  test('DOCTOR redirigé de /audit', async ({ page }) => {
+    await login(page, DOCTOR);
+    await page.goto('/audit', { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2500);
+    const url = page.url();
+    const redirected = !url.includes('/audit');
+    expect(redirected).toBeTruthy();
   });
 });
