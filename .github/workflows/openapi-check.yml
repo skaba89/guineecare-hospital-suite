@@ -1,0 +1,71 @@
+name: openapi-check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/app/**"
+      - "docs/api/**"
+      - "scripts/generate_openapi_artifacts.py"
+      - ".github/workflows/openapi-check.yml"
+  pull_request:
+    paths:
+      - "backend/app/**"
+      - "docs/api/**"
+      - "scripts/generate_openapi_artifacts.py"
+      - ".github/workflows/openapi-check.yml"
+
+jobs:
+  drift-check:
+    name: OpenAPI drift detection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend deps
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Regenerate OpenAPI artifacts
+        env:
+          DATABASE_URL: sqlite:///./test_guineecare.db
+          AUTH_SECRET: test-secret-key-ci
+          ENVIRONMENT: test
+        run: python scripts/generate_openapi_artifacts.py
+
+      - name: Check for drift in openapi.json
+        run: |
+          if ! git diff --exit-code docs/api/openapi.json; then
+            echo "::error::openapi.json drift détecté. Régénérez avec :"
+            echo "::error::  python scripts/generate_openapi_artifacts.py"
+            echo "::error::Puis commitez le fichier mis à jour."
+            exit 1
+          fi
+          echo "✅ openapi.json est à jour."
+
+      - name: Check for drift in Postman collection
+        run: |
+          if ! git diff --exit-code docs/api/guineecare.postman_collection.json; then
+            echo "::error::Collection Postman drift détectée. Régénérez avec :"
+            echo "::error::  python scripts/generate_openapi_artifacts.py"
+            exit 1
+          fi
+          echo "✅ Collection Postman est à jour."
+
+      - name: Validate spec structure (tags, summaries, security)
+        env:
+          DATABASE_URL: sqlite:///./test_guineecare.db
+          AUTH_SECRET: test-secret-key-ci
+          ENVIRONMENT: test
+        working-directory: backend
+        run: pytest tests/test_openapi.py -v --tb=short

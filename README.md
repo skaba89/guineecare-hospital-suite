@@ -4,12 +4,13 @@
 [![Frontend build](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/frontend-build.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/frontend-build.yml)
 [![E2E admin pages](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-admin-pages.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-admin-pages.yml)
 [![E2E Playwright](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-playwright.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-playwright.yml)
-[![Version](https://img.shields.io/badge/version-v0.9.0-blue.svg)](https://github.com/skaba89/guineecare-hospital-suite/releases)
+[![OpenAPI drift](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/openapi-check.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/openapi-check.yml)
+[![Version](https://img.shields.io/badge/version-v0.10.0-blue.svg)](https://github.com/skaba89/guineecare-hospital-suite/releases)
 [![License](https://img.shields.io/badge/license-Private-red.svg)](#licence)
 
 Plateforme hospitalière complète pour la Guinée, inspirée des meilleurs SIH modernes : dossier patient informatisé, maternité, urgences, hospitalisation, pharmacie, laboratoire, imagerie, facturation, bloc opératoire, RH, qualité, reporting national et architecture technique industrielle.
 
-**Version actuelle :** `v0.9.0` — Hardening sécurité complet (OWASP Top 10) + tests de charge Locust
+**Version actuelle :** `v0.10.0` — Documentation OpenAPI 3.1 complète + collection Postman (138 endpoints, 25 tags, Bearer security auto-injecté)
 
 ## Objectif
 
@@ -196,7 +197,7 @@ server: {
 - ✅ v0.7 — Notifications multicanal + observabilité (Prometheus, health checks, JSON logs)
 - ✅ v0.8 — Audit sécurité OWASP Top 10 + hardening (13/21 findings corrigés, Bandit SAST en CI)
 - ✅ v0.9 — Hardening LOW restant + tests de charge Locust (TRUSTED_PROXIES, METRICS_TOKEN, bootstrap CLI, jti blacklist, A06 fail-mode)
-- 🔜 v0.10 — Documentation OpenAPI complète + Postman collection
+- ✅ v0.10 — Documentation OpenAPI complète + Postman collection (138 endpoints, 25 tags, Bearer security, drift CI)
 - 🎯 v1.0 — Déploiement pilote CHU Donka
 
 ## Sécurité
@@ -259,7 +260,44 @@ Le CLI valide la politique de mot de passe (12+ chars, complexité) et refuse la
 
 Workflow CI `load-test.yml` : nightly 03:00 UTC, 20 users / 30s, rapport HTML uploadé en artifact.
 
-Voir `load_tests/README.md` pour la doc complète.
+## Documentation API (v0.10.0+)
+
+L'API GuinéeCare est entièrement documentée en **OpenAPI 3.1** (138 endpoints, 25 tags thématiques). Toutes les routes protégées exposent automatiquement les réponses `401`, `403`, `429`, `500` et le security scheme `HTTPBearer` (JWT).
+
+### Consultation interactive
+
+| URL | Usage |
+|-----|-------|
+| `http://localhost:8000/docs` | Swagger UI — test interactif (cliquez sur 🔒 Authorize puis collez votre JWT) |
+| `http://localhost:8000/redoc` | ReDoc — vue lecture seule, plus ergonomique |
+| `http://localhost:8000/api/v1/openapi.json` | Spécification OpenAPI 3.1 machine-lisible |
+
+### Artifacts versionnés
+
+| Fichier | Taille | Usage |
+|---------|--------|-------|
+| `docs/api/openapi.json` | 545 KB | Spec OpenAPI 3.1 statique (auditable hors-ligne) |
+| `docs/api/guineecare.postman_collection.json` | 173 KB | Collection Postman v2.1 (138 endpoints, 25 dossiers, auto-capture du JWT) |
+| `docs/api/guineecare-local.postman_environment.json` | 1 KB | Environnement Postman (localhost + comptes de test) |
+
+### Régénération
+
+Après toute modification d'endpoint, exécutez :
+
+```bash
+python scripts/generate_openapi_artifacts.py
+git add docs/api/
+git commit -m "docs(api): regenerate openapi + postman"
+```
+
+Le workflow CI `openapi-check.yml` détecte automatiquement tout drift oublié et exécute `pytest tests/test_openapi.py` (19 tests de structure).
+
+### Guides détaillés
+
+- [`docs/api/OPENAPI_GUIDE.md`](docs/api/OPENAPI_GUIDE.md) — Vue d'ensemble, enrichissement automatique, CI drift detection, consultation interactive (Postman/Insomnia/Hoppscotch).
+- [`docs/api/POSTMAN_GUIDE.md`](docs/api/POSTMAN_GUIDE.md) — Import Postman, variables d'environnement, authentification automatique, scénarios de démarrage rapide, Newman CLI.
+
+Voir `load_tests/README.md` pour la doc complète des tests de charge.
 
 ## Organisation documentaire
 

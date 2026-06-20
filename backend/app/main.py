@@ -41,6 +41,79 @@ from app.modules.observability.metrics import set_app_info
 logger = logging.getLogger("guineecare")
 
 API_PREFIX = "/api/v1"
+APP_VERSION = "0.10.0"
+
+# --- OpenAPI documentation metadata (v0.10.0) ---
+API_DESCRIPTION = """\
+# GuinéeCare Hospital Suite — REST API
+
+API REST sécurisée pour la **plateforme hospitalière GuinéeCare**, déployée
+pour les établissements de santé de Guinée (CHU Donka, CHU Ignace Deen, etc.).
+
+## Conventions
+
+- **Toutes les routes** sont préfixées par `/api/v1` (sauf `/health`, `/metrics`).
+- **Authentification** : JWT Bearer (header `Authorization: Bearer <token>`).
+  - POST `/api/v1/auth/login` → `access_token` (60 min) + `refresh_token` (30 jours).
+  - POST `/api/v1/auth/refresh` pour renouveler l'`access_token`.
+  - POST `/api/v1/auth/logout` pour révoquer le `jti` (blacklist côté serveur).
+- **Multi-tenant** : isolation par `facility_id` (RLS-like via `tenant_query`).
+  - SUPER_ADMIN voit tous les établissements ; les autres rôles ne voient que le leur.
+- **RBAC** : 8 rôles (SUPER_ADMIN, ADMIN, DOCTOR, NURSE, MIDWIFE, PHARMACIST, LAB_TECH, CASHIER)
+  avec permissions granulaires (`patients.read`, `patients.write`, `billing.validate`, etc.).
+- **Pagination** : `?page=1&page_size=20` → réponse `{items, total, page, page_size}`.
+- **Rate limiting** : 5 logins/min sur `/auth/login` (prod), 30 refreshs/min sur `/auth/refresh`.
+- **Audit log** : toutes les mutations sensibles sont journalisées (table `audit_logs`).
+
+## Codes d'erreur standards
+
+| Code | Signification |
+|------|---------------|
+| 400  | Requête invalide (validation métier) |
+| 401  | Non authentifié — JWT manquant, expiré ou révoqué |
+| 403  | Non autorisé — permission RBAC insuffisante ou accès cross-tenant |
+| 404  | Ressource introuvable |
+| 409  | Conflit (duplicate, état invalide) |
+| 422  | Erreur de validation Pydantic |
+| 423  | Compte verrouillé (lockout après 5 échecs de login) |
+| 429  | Rate limit dépassé |
+| 500  | Erreur serveur interne |
+
+## Documentation
+
+- **OpenAPI JSON** : `/api/v1/openapi.json` (spécification machine-lisible).
+- **Swagger UI** : `/docs` (interactive, permet de tester les endpoints).
+- **ReDoc** : `/redoc` (vue lecture seule, plus adaptée à la documentation).
+- **Collection Postman** : `docs/api/guineecare.postman_collection.json` (importable).
+"""
+
+OPENAPI_TAGS = [
+    {"name": "auth", "description": "Authentification JWT (login, refresh, logout, profil)."},
+    {"name": "users", "description": "Utilisateurs, rôles, bootstrap super-admin, lockout."},
+    {"name": "rbac", "description": "Contrôle d'accès basé sur les rôles (rôles, permissions)."},
+    {"name": "facilities", "description": "Établissements de santé (multi-tenant)."},
+    {"name": "departments", "description": "Départements / services par établissement."},
+    {"name": "patients", "description": "Dossier Patient Informatisé (DPI) : création, recherche, consultation."},
+    {"name": "admissions", "description": "Admissions programmées et urgentes."},
+    {"name": "emergency", "description": "File d'attente des urgences, triage (niveaux 1-5), orientation."},
+    {"name": "hospitalization", "description": "Hospitalisation, lits, séjours, bed-board."},
+    {"name": "clinical", "description": "DPI clinique : antécédents, allergies, constantes, diagnostics."},
+    {"name": "maternity", "description": "Grossesses, accouchements, CPoN (Consultation Post-Natale)."},
+    {"name": "pharmacy", "description": "Pharmacie : stock, dispensation, médicaments."},
+    {"name": "laboratory", "description": "Laboratoire : prélèvements, analyses, validation."},
+    {"name": "imaging", "description": "Imagerie médicale : demandes, résultats, comptes rendus."},
+    {"name": "surgery", "description": "Bloc opératoire : programmation, comptes rendus."},
+    {"name": "billing", "description": "Facturation hospitalière, caisse, paiements."},
+    {"name": "personnel", "description": "RH hospitalières : effectifs, plannings, gardes."},
+    {"name": "quality", "description": "Qualité, indicateurs, événements indésirables."},
+    {"name": "reporting", "description": "Reporting national, agrégats multi-établissements."},
+    {"name": "audit", "description": "Journal d'audit (consultation, filtres)."},
+    {"name": "activity", "description": "Flux d'activité temps réel (timeline)."},
+    {"name": "notifications", "description": "Notifications multicanal (console, email, SMS)."},
+    {"name": "health", "description": "Health checks (/health, /health/live, /health/ready)."},
+    {"name": "metrics", "description": "Métriques Prometheus (/metrics, token-gated)."},
+    {"name": "system", "description": "Endpoints racine et utilitaires système."},
+]
 
 
 @asynccontextmanager
@@ -49,7 +122,7 @@ async def lifespan(app: FastAPI):
     configure_logging(environment=os.environ.get("ENVIRONMENT", "local"))
 
     # Set app_info gauge labels for Prometheus
-    set_app_info(version="0.9.0", environment=os.environ.get("ENVIRONMENT", "local"))
+    set_app_info(version=APP_VERSION, environment=os.environ.get("ENVIRONMENT", "local"))
 
     # Startup: validate configuration, initialize DB, seed demo data
     try:
@@ -86,7 +159,31 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="GuineeCare API", version="0.9.0", lifespan=lifespan)
+app = FastAPI(
+    title="GuinéeCare Hospital Suite API",
+    summary="Plateforme hospitalière multi-tenant pour la Guinée — API REST sécurisée.",
+    description=API_DESCRIPTION,
+    version=APP_VERSION,
+    openapi_tags=OPENAPI_TAGS,
+    contact={
+        "name": "GuinéeCare Tech Team",
+        "url": "https://github.com/skaba89/guineecare-hospital-suite",
+        "email": "tech@guineecare.gn",
+    },
+    license_info={
+        "name": "Private — Usage réservé CHU Donka / Ministère Santé Guinée",
+        "url": "https://github.com/skaba89/guineecare-hospital-suite/blob/main/LICENSE",
+    },
+    servers=[
+        {"url": "/api/v1", "description": "Serveur courant (proxy Vite / nginx / k8s)"},
+        {"url": "http://localhost:8000/api/v1", "description": "Développement local (uvicorn)"},
+        {"url": "https://api.guineecare.gn/api/v1", "description": "Production — pilote CHU Donka"},
+    ],
+    openapi_url=f"{API_PREFIX}/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan,
+)
 
 # --- SlowAPI rate-limiting state & handler ---
 app.state.limiter = limiter
@@ -146,11 +243,11 @@ app.include_router(observability_router)
 app.include_router(metrics_router)
 
 
-@app.get(API_PREFIX)
+@app.get(API_PREFIX, tags=["system"], summary="Racine API — version et modules disponibles")
 def api_root():
     return {
         "name": "GuineeCare Hospital Suite",
-        "version": "0.9.0",
+        "version": APP_VERSION,
         "modules": [
             "auth", "users", "rbac", "facilities", "departments",
             "patients", "admissions", "emergency", "pharmacy", "laboratory",
@@ -159,3 +256,173 @@ def api_root():
             "audit", "notifications", "observability",
         ],
     }
+
+
+# --- Custom OpenAPI enrichment (v0.10.0) ---
+# Inject standard 401/403/422/500 responses + Bearer security on protected
+# operations, so the spec is fully documented without polluting each route.
+_PUBLIC_PATHS = frozenset({
+    "/api/v1",
+    "/api/v1/auth/login",
+    "/api/v1/auth/refresh",
+    "/health",
+    "/health/live",
+    "/health/ready",
+    "/metrics",
+    "/api/v1/openapi.json",
+    "/docs",
+    "/redoc",
+})
+
+
+def _is_public(path: str) -> bool:
+    """True for endpoints that don't require JWT authentication."""
+    return path in _PUBLIC_PATHS
+
+_STANDARD_RESPONSES = {
+    "401": {
+        "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+        "content": {
+            "application/json": {
+                "schema": {"$ref": "#/components/schemas/HTTPValidationError"},
+                "example": {"detail": "Not authenticated"},
+            }
+        },
+    },
+    "403": {
+        "description": (
+            "Non autorisé — permission RBAC insuffisante ou accès cross-tenant "
+            "(tentative de lecture d'un établissement non autorisé)."
+        ),
+        "content": {
+            "application/json": {
+                "schema": {"$ref": "#/components/schemas/HTTPValidationError"},
+                "example": {"detail": "Permission insuffisante : patients.write requis"},
+            }
+        },
+    },
+    "429": {
+        "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+        "content": {
+            "application/json": {
+                "schema": {"$ref": "#/components/schemas/HTTPValidationError"},
+                "example": {"detail": "Too many requests"},
+            }
+        },
+    },
+    "500": {
+        "description": "Erreur serveur interne (cf. logs structurés JSON).",
+        "content": {
+            "application/json": {
+                "schema": {"$ref": "#/components/schemas/HTTPValidationError"},
+                "example": {"detail": "Internal Server Error"},
+            }
+        },
+    },
+}
+
+
+def _is_public(path: str) -> bool:
+    """True for endpoints that don't require JWT authentication."""
+    return path in _PUBLIC_PATHS
+
+
+def _build_enriched_openapi():
+    """Generate the OpenAPI spec, then inject standard responses + security."""
+    spec = app.openapi_original() if hasattr(app, "openapi_original") else None
+    if spec is None:
+        from fastapi.openapi.utils import get_openapi
+        spec = get_openapi(
+            title=app.title,
+            version=app.version,
+            description=app.description,
+            routes=app.routes,
+            openapi_tags=app.openapi_tags,
+            servers=app.servers,
+            contact=app.contact,
+            license_info=app.license_info,
+            summary=app.summary,
+        )
+
+    for path, ops in spec.get("paths", {}).items():
+        for method, op in ops.items():
+            if method not in ("get", "post", "put", "patch", "delete"):
+                continue
+            responses = op.setdefault("responses", {})
+
+            # Inject 422 on operations that declare a request body
+            if "requestBody" in op and "422" not in responses:
+                responses["422"] = {
+                    "description": "Erreur de validation Pydantic (champ manquant, type incorrect, etc.).",
+                    "content": {
+                        "application/json": {
+                            "schema": {"$ref": "#/components/schemas/HTTPValidationError"},
+                            "example": {
+                                "detail": [
+                                    {
+                                        "loc": ["body", "email"],
+                                        "msg": "value is not a valid email address",
+                                        "type": "value_error.email",
+                                    }
+                                ]
+                            },
+                        }
+                    },
+                }
+
+            # Inject 401/403/429/500 only on protected operations
+            if not _is_public(path):
+                for code, resp in _STANDARD_RESPONSES.items():
+                    if code not in responses:
+                        responses[code] = resp
+                # Tag Bearer security
+                op.setdefault("security", [{"HTTPBearer": []}])
+
+    # Ensure HTTPValidationError schema exists (it's auto-added by FastAPI when
+    # any 422 response is declared). If it doesn't exist (edge case), add it.
+    components = spec.setdefault("components", {})
+    schemas = components.setdefault("schemas", {})
+    if "HTTPValidationError" not in schemas:
+        schemas["HTTPValidationError"] = {
+            "title": "HTTPValidationError",
+            "type": "object",
+            "properties": {
+                "detail": {
+                    "title": "Detail",
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/ValidationError"},
+                }
+            },
+        }
+        schemas["ValidationError"] = {
+            "title": "ValidationError",
+            "required": ["loc", "msg", "type"],
+            "type": "object",
+            "properties": {
+                "loc": {
+                    "title": "Location",
+                    "type": "array",
+                    "items": {"anyOf": [{"type": "string"}, {"type": "integer"}]},
+                },
+                "msg": {"title": "Message", "type": "string"},
+                "type": {"title": "Error Type", "type": "string"},
+            },
+        }
+
+    return spec
+
+
+def custom_openapi():
+    """Cached enriched OpenAPI spec (401/403/422/429/500 + Bearer security)."""
+    cached = getattr(app, "openapi_schema_cache", None)
+    if cached is not None:
+        return cached
+    spec = _build_enriched_openapi()
+    app.openapi_schema_cache = spec
+    return spec
+
+
+# Preserve the original openapi() for reference, then override.
+if not hasattr(app, "openapi_original"):
+    app.openapi_original = app.openapi
+app.openapi = custom_openapi

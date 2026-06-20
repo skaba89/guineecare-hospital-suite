@@ -1,5 +1,94 @@
 # Changelog
 
+## [0.10.0] — 2026-06-21
+
+### Added — Documentation OpenAPI complète + collection Postman
+
+Cette release fait passer la documentation API de GuinéeCare au niveau d'une API publique prête pour l'intégration partenaires (Ministère Santé, éditeurs tiers, intégrateurs régionaux). L'ensemble de la surface API (138 opérations sur 98 chemins, 25 tags thématiques) est désormais documenté avec exemples, codes d'erreur standardisés, schéma de sécurité JWT Bearer, et export Postman + OpenAPI 3.1 statiques.
+
+#### Enrichissement OpenAPI 3.1
+
+- **Métadonnées API** : `title`, `summary`, `description` (2084 caractères, format Markdown avec conventions, codes d'erreur, liens doc), `contact`, `license_info`, `servers` (3 environnements : courant, localhost, production CHU Donka).
+- **25 tags** déclarés avec description (auth, users, rbac, facilities, departments, patients, admissions, emergency, hospitalization, clinical, maternity, pharmacy, laboratory, imaging, surgery, billing, personnel, quality, reporting, audit, activity, notifications, health, metrics, system).
+- **Enrichissement automatique** via `custom_openapi()` dans `main.py` :
+  - Injection des réponses standard `401`, `403`, `429`, `500` sur les 137 routes protégées (exclut 6 routes publiques : `/api/v1`, `/auth/login`, `/auth/refresh`, `/health`, `/health/live`, `/health/ready`, `/metrics`).
+  - Injection de la réponse `422` sur les routes avec `requestBody`.
+  - Attachment automatique du security scheme `HTTPBearer` sur les routes protégées (bouton 🔓 Authorize de Swagger UI fonctionnel).
+  - Schémas `HTTPValidationError` + `ValidationError` garantis présents dans `components.schemas`.
+  - Cache de la spec enrichie pour éviter la régénération à chaque appel.
+- **Routes racine** : `GET /api/v1` désormais taguée `system` avec `summary` explicite.
+- **Endpoints docs** : `openapi_url=/api/v1/openapi.json`, `docs_url=/docs` (Swagger), `redoc_url=/redoc` (ReDoc) déclarés explicitement.
+
+#### Artifacts générés et versionnés
+
+- `docs/api/openapi.json` (545 KB) — Spécification OpenAPI 3.1 statique, machine-lisible, committée dans Git pour audit hors-ligne.
+- `docs/api/guineecare.postman_collection.json` (173 KB) — Collection Postman v2.1 avec 138 endpoints organisés en 25 dossiers, headers `Content-Type` et `Authorization: Bearer {{access_token}}` pré-déclarés, query params et body examples extraits de l'OpenAPI, script de test Postman qui capture automatiquement `access_token` et `refresh_token` après `/auth/login` ou `/auth/refresh`.
+- `docs/api/guineecare-local.postman_environment.json` (1 KB) — Environnement Postman pour dev local : `host`, `base_url`, variables `access_token` / `refresh_token` (auto-remplies), et credentials de test (admin/doctor).
+
+#### Script de génération
+
+- `scripts/generate_openapi_artifacts.py` — Régénère les 3 artifacts en une commande. À exécuter après toute modification de routes. Override explicite de `DATABASE_URL`, `AUTH_SECRET`, `ENVIRONMENT` (résistance aux env vars shell polluantes).
+
+#### Documentation
+
+- `docs/api/OPENAPI_GUIDE.md` — Guide complet : vue d'ensemble, endpoints exposés, métadonnées, enrichissement automatique, génération statique, workflow de mise à jour, CI drift detection, validation tests, consultation interactive (Swagger/ReDoc/Postman/Insomnia), bonnes pratiques.
+- `docs/api/POSTMAN_GUIDE.md` — Guide Postman : import, variables d'environnement, authentification automatique (script de test intégré), scénarios de démarrage rapide (login SUPER_ADMIN, cross-tenant refusé), structure de la collection (25 dossiers), Runner Postman, Newman CLI, régénération, astuces.
+
+#### Tests — 19 nouveaux
+
+- `backend/tests/test_openapi.py` :
+  - `test_openapi_version_is_3_1`, `test_app_version_matches_v0_10`, `test_app_has_description`, `test_app_has_contact_and_license`, `test_app_has_servers`, `test_app_has_security_scheme`, `test_app_has_all_25_tags` (7 tests structure).
+  - `test_every_operation_has_tag`, `test_every_operation_has_summary` (2 tests couverture).
+  - `test_protected_operations_have_401_response`, `test_protected_operations_have_403_response`, `test_protected_operations_have_429_response`, `test_protected_operations_have_500_response`, `test_protected_operations_have_bearer_security` (5 tests enrichissement).
+  - `test_body_operations_have_422_response` (1 test body).
+  - `test_api_root_is_tagged_system`, `test_public_operations_have_no_security` (2 tests edge cases).
+  - `test_committed_openapi_json_in_sync` — drift detection runtime vs `docs/api/openapi.json` committé.
+  - `test_committed_postman_collection_exists` — sanity check collection.
+
+#### CI/CD — 1 nouveau workflow
+
+- `.github/workflows/openapi-check.yml` — Déclenché sur push/PR touchant `backend/app/**`, `docs/api/**`, ou le script de génération.
+  - Job `drift-check` : régénère les artifacts, compare avec `git diff --exit-code` sur `openapi.json` et `guineecare.postman_collection.json`. Échoue si drift, avec message d'erreur explicite rappelant la commande à exécuter.
+  - Étape finale : exécute `pytest tests/test_openapi.py` pour valider la structure (tags, summaries, security, responses).
+
+### Changed
+
+- `backend/app/main.py` — Refonte complète du bloc `FastAPI(...)` :
+  - `title` → `GuinéeCare Hospital Suite API` (avec accent).
+  - Ajout `summary`, `description`, `openapi_tags`, `contact`, `license_info`, `servers`, `openapi_url`, `docs_url`, `redoc_url`.
+  - `version` 0.9.0 → 0.10.0 (constante `APP_VERSION`).
+  - `set_app_info(version=APP_VERSION)` au lieu de littéral `"0.9.0"`.
+  - `GET /api/v1` décoré avec `tags=["system"]` et `summary`.
+  - Ajout du bloc enrichment OpenAPI (~150 lignes) + override `app.openapi = custom_openapi`.
+- `README.md` — Badge version v0.9.0 → v0.10.0, roadmap `🔜 v0.10` → `✅ v0.10`, nouvelle section "Documentation API" avec badges/links vers `/docs`, `/redoc`, `openapi.json`, et les guides.
+
+### Stats
+
+- **215/215** tests backend pytest passent (196 + 19 nouveaux, 64s).
+- **0** régression sur les tests existants.
+- **138** opérations OpenAPI documentées (98 paths).
+- **25** tags thématiques.
+- **137** routes protégées avec 401/403/429/500 + Bearer security.
+- **6** routes publiques exemptées d'enrichissement.
+- **3** artifacts générés et versionnés (`openapi.json` 545 KB + Postman 173 KB + env 1 KB).
+- **2** nouveaux guides Markdown (~400 lignes au total).
+- **1** nouveau workflow CI (`openapi-check.yml`).
+- Bundle frontend inchangé (253 KB initial).
+
+### Migration
+
+Aucune action requise pour les développeurs existants. Les nouveaux artifacts sont dans `docs/api/` et les guides associés dans le même dossier. Pour régénérer après une modification de routes :
+
+```bash
+python scripts/generate_openapi_artifacts.py
+git add docs/api/
+git commit -m "docs(api): regenerate openapi + postman"
+```
+
+Le CI `openapi-check.yml` détectera automatiquement tout drift oublié.
+
+---
+
 ## [0.9.0] — 2026-06-21
 
 ### Added — Hardening LOW restant + tests de charge Locust

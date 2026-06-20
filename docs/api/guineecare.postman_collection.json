@@ -1,0 +1,5904 @@
+{
+  "info": {
+    "name": "GuinéeCare Hospital Suite API",
+    "_postman_id": "guineecare-v0-10-0",
+    "description": "Collection Postman pour l'API GuinéeCare.\n\n## Démarrage rapide\n1. Importez l'environement `guineecare-local.postman_environment.json`.\n2. Définissez `host` = `localhost:8000` et `base_url` = `http://localhost:8000/api/v1`.\n3. Appelez `Auth > Login` avec un compte de test (voir README).\n4. Le script de response injecte automatiquement `access_token` et `refresh_token`.\n5. Les autres requêtes utilisent `Bearer {{access_token}}`.\n",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-refresh token si bientôt expiré (optionnel)",
+          "// const exp = pm.environment.get('access_token_exp');",
+          "// if (exp && Date.now() > exp - 60000) { ... }"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Capture automatique des tokens après login/refresh",
+          "if (pm.request.url.path.includes('auth/login') || pm.request.url.path.includes('auth/refresh')) {",
+          "    const json = pm.response.json();",
+          "    if (json.access_token) {",
+          "        pm.environment.set('access_token', json.access_token);",
+          "        // 60 minutes - 1 minute de marge",
+          "        pm.environment.set('access_token_exp', Date.now() + 59 * 60 * 1000);",
+          "    }",
+          "    if (json.refresh_token) {",
+          "        pm.environment.set('refresh_token', json.refresh_token);",
+          "    }",
+          "}",
+          "// Vérification standard",
+          "pm.test('Status 2xx', () => pm.expect(pm.response.code).to.be.within(200, 299));"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "host",
+      "value": "localhost:8000"
+    },
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api/v1"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "refresh_token",
+      "value": ""
+    },
+    {
+      "key": "access_token_exp",
+      "value": "0"
+    }
+  ],
+  "item": [
+    {
+      "name": "System API",
+      "item": [
+        {
+          "name": "Racine API — version et modules disponibles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}"
+              ],
+              "query": []
+            },
+            "description": "Racine API — version et modules disponibles"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth API",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/auth/login",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "auth",
+                "login"
+              ],
+              "query": []
+            },
+            "description": "Login"
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/auth/refresh",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "auth",
+                "refresh"
+              ],
+              "query": []
+            },
+            "description": "Exchange a valid refresh token for a new access + refresh token pair.\n\nImplements refresh token rotation: the presented refresh token is revoked\nand replaced by a new one. This limits the impact of a leaked refresh token."
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/auth/logout",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "auth",
+                "logout"
+              ],
+              "query": []
+            },
+            "description": "Revoke a refresh token (explicit logout) and optionally the access token jti.\n\nSECURITY (A07 — v0.9.0): if `access_token` is provided in the request,\nits jti is added to the `revoked_jtis` blacklist. This means the\naccess_token becomes immediately unusable — even if it was leaked.\nWithout `access_token`, the access_token stays valid until its natural\nexpiry (60 min) — only the refresh_token is revoked."
+          },
+          "response": []
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/auth/me",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "auth",
+                "me"
+              ],
+              "query": []
+            },
+            "description": "Me"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users API",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/users",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "facility_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "role",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Users"
+          },
+          "response": []
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/users",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "users"
+              ],
+              "query": []
+            },
+            "description": "Create User"
+          },
+          "response": []
+        },
+        {
+          "name": "Bootstrap First User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/users/bootstrap",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "users",
+                "bootstrap"
+              ],
+              "query": []
+            },
+            "description": "Create the first SUPER_ADMIN. Only works when the users table is empty.\n\nSECURITY (A05-004 — v0.9.0): in non-local environments, this endpoint\nrequires an `X-Bootstrap-Token` header matching the `BOOTSTRAP_TOKEN`\nenv var. If `BOOTSTRAP_TOKEN` is unset in non-local, the endpoint is\ndisabled entirely — operators MUST use `python -m app.cli create-superuser`\ninstead. In local env, the endpoint is open (chicken-and-egg convenience).\n\nIn all environments, the endpoint refuses to run if the users table is\nnon-empty."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User Info",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/users/me",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "users",
+                "me"
+              ],
+              "query": []
+            },
+            "description": "Get Current User Info"
+          },
+          "response": []
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/users/{{user_id}}",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "users",
+                "{{user_id}}"
+              ],
+              "query": []
+            },
+            "description": "Update User"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Rbac API",
+      "item": [
+        {
+          "name": "List Roles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/rbac/roles",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "rbac",
+                "roles"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Roles"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/rbac/roles",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "rbac",
+                "roles"
+              ],
+              "query": []
+            },
+            "description": "Create Role"
+          },
+          "response": []
+        },
+        {
+          "name": "List Permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/rbac/permissions",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "rbac",
+                "permissions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Permissions"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Permission",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/rbac/permissions",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "rbac",
+                "permissions"
+              ],
+              "query": []
+            },
+            "description": "Create Permission"
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Permission To Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/rbac/role-permissions",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "rbac",
+                "role-permissions"
+              ],
+              "query": []
+            },
+            "description": "Assign Permission To Role"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Facilities API",
+      "item": [
+        {
+          "name": "List Facilities",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/facilities",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "facilities"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Facilities"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Facility",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/facilities",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "facilities"
+              ],
+              "query": []
+            },
+            "description": "Create Facility"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Facility",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/facilities/{{facility_id}}",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "facilities",
+                "{{facility_id}}"
+              ],
+              "query": []
+            },
+            "description": "Get Facility"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Facility",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/facilities/{{facility_id}}",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "facilities",
+                "{{facility_id}}"
+              ],
+              "query": []
+            },
+            "description": "Update Facility"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Departments API",
+      "item": [
+        {
+          "name": "List Departments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/departments",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "departments"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Departments"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Department",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/departments",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "departments"
+              ],
+              "query": []
+            },
+            "description": "Create Department"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Patients API",
+      "item": [
+        {
+          "name": "List Patients",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/patients",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "patients"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Patients"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Patient",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/patients",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "patients"
+              ],
+              "query": []
+            },
+            "description": "Create Patient"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Patient",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/patients/{{patient_id}}",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "patients",
+                "{{patient_id}}"
+              ],
+              "query": []
+            },
+            "description": "Get Patient"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admissions API",
+      "item": [
+        {
+          "name": "List Admissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/admissions",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "admissions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Admissions"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Admission",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/admissions",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "admissions"
+              ],
+              "query": []
+            },
+            "description": "Create Admission"
+          },
+          "response": []
+        },
+        {
+          "name": "Close Admission",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/admissions/{{admission_id}}/close",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "admissions",
+                "{{admission_id}}",
+                "close"
+              ],
+              "query": []
+            },
+            "description": "Close Admission"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Emergency API",
+      "item": [
+        {
+          "name": "Get Emergency Queue",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/emergency/queue",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "emergency",
+                "queue"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get Emergency Queue"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Emergency Visit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/emergency/visits",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "emergency",
+                "visits"
+              ],
+              "query": []
+            },
+            "description": "Create Emergency Visit"
+          },
+          "response": []
+        },
+        {
+          "name": "Triage Visit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/emergency/visits/{{visit_id}}/triage",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "emergency",
+                "visits",
+                "{{visit_id}}",
+                "triage"
+              ],
+              "query": []
+            },
+            "description": "Triage Visit"
+          },
+          "response": []
+        },
+        {
+          "name": "Orient Visit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/emergency/visits/{{visit_id}}/orientation",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "emergency",
+                "visits",
+                "{{visit_id}}",
+                "orientation"
+              ],
+              "query": []
+            },
+            "description": "Orient Visit"
+          },
+          "response": []
+        },
+        {
+          "name": "Care Visit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/emergency/visits/{{visit_id}}/care",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "emergency",
+                "visits",
+                "{{visit_id}}",
+                "care"
+              ],
+              "query": []
+            },
+            "description": "Prise en charge médicale — transition TRIAGED → IN_CARE"
+          },
+          "response": []
+        },
+        {
+          "name": "Discharge Visit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/emergency/visits/{{visit_id}}/discharge",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "emergency",
+                "visits",
+                "{{visit_id}}",
+                "discharge"
+              ],
+              "query": []
+            },
+            "description": "Sortie des urgences — transition IN_CARE → DISCHARGED"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Hospitalization API",
+      "item": [
+        {
+          "name": "List Rooms",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/hospitalization/rooms",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "hospitalization",
+                "rooms"
+              ],
+              "query": [
+                {
+                  "key": "facility_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "department_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Rooms"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Room",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/hospitalization/rooms",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "hospitalization",
+                "rooms"
+              ],
+              "query": []
+            },
+            "description": "Create Room"
+          },
+          "response": []
+        },
+        {
+          "name": "List Beds",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/hospitalization/beds",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "hospitalization",
+                "beds"
+              ],
+              "query": [
+                {
+                  "key": "room_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "bed_status",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Beds"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Bed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/hospitalization/beds",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "hospitalization",
+                "beds"
+              ],
+              "query": []
+            },
+            "description": "Create Bed"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Bed Board",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/hospitalization/bed-board",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "hospitalization",
+                "bed-board"
+              ],
+              "query": [
+                {
+                  "key": "facility_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get Bed Board"
+          },
+          "response": []
+        },
+        {
+          "name": "Admit Patient",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/hospitalization/stays",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "hospitalization",
+                "stays"
+              ],
+              "query": []
+            },
+            "description": "Admit Patient"
+          },
+          "response": []
+        },
+        {
+          "name": "List Stays",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/hospitalization/stays",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "hospitalization",
+                "stays"
+              ],
+              "query": [
+                {
+                  "key": "patient_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Stays"
+          },
+          "response": []
+        },
+        {
+          "name": "Discharge Patient",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/hospitalization/stays/{{stay_id}}/discharge",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "hospitalization",
+                "stays",
+                "{{stay_id}}",
+                "discharge"
+              ],
+              "query": []
+            },
+            "description": "Discharge Patient"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Clinical API",
+      "item": [
+        {
+          "name": "List Clinical Notes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/clinical/patients/{{patient_id}}/notes",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "clinical",
+                "patients",
+                "{{patient_id}}",
+                "notes"
+              ],
+              "query": []
+            },
+            "description": "List Clinical Notes"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Clinical Note",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/clinical/patients/{{patient_id}}/notes",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "clinical",
+                "patients",
+                "{{patient_id}}",
+                "notes"
+              ],
+              "query": []
+            },
+            "description": "Create Clinical Note"
+          },
+          "response": []
+        },
+        {
+          "name": "List Patient Measurements",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/clinical/patients/{{patient_id}}/measurements",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "clinical",
+                "patients",
+                "{{patient_id}}",
+                "measurements"
+              ],
+              "query": []
+            },
+            "description": "List Patient Measurements"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Patient Measurement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/clinical/patients/{{patient_id}}/measurements",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "clinical",
+                "patients",
+                "{{patient_id}}",
+                "measurements"
+              ],
+              "query": []
+            },
+            "description": "Create Patient Measurement"
+          },
+          "response": []
+        },
+        {
+          "name": "List Diagnoses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/clinical/patients/{{patient_id}}/diagnoses",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "clinical",
+                "patients",
+                "{{patient_id}}",
+                "diagnoses"
+              ],
+              "query": []
+            },
+            "description": "List Diagnoses"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Diagnosis",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/clinical/patients/{{patient_id}}/diagnoses",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "clinical",
+                "patients",
+                "{{patient_id}}",
+                "diagnoses"
+              ],
+              "query": []
+            },
+            "description": "Create Diagnosis"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Maternity API",
+      "item": [
+        {
+          "name": "List Maternity Records",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/maternity/records",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "maternity",
+                "records"
+              ],
+              "query": [
+                {
+                  "key": "facility_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Maternity Records"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Maternity Record",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/maternity/records",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "maternity",
+                "records"
+              ],
+              "query": []
+            },
+            "description": "Create Maternity Record"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Maternity Record",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/maternity/records/{{record_id}}",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "maternity",
+                "records",
+                "{{record_id}}"
+              ],
+              "query": []
+            },
+            "description": "Get Maternity Record"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Consultation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/maternity/records/{{record_id}}/consultations",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "maternity",
+                "records",
+                "{{record_id}}",
+                "consultations"
+              ],
+              "query": []
+            },
+            "description": "Create Consultation"
+          },
+          "response": []
+        },
+        {
+          "name": "List Consultations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/maternity/records/{{record_id}}/consultations",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "maternity",
+                "records",
+                "{{record_id}}",
+                "consultations"
+              ],
+              "query": []
+            },
+            "description": "List Consultations"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Delivery",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/maternity/records/{{record_id}}/deliveries",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "maternity",
+                "records",
+                "{{record_id}}",
+                "deliveries"
+              ],
+              "query": []
+            },
+            "description": "Create Delivery"
+          },
+          "response": []
+        },
+        {
+          "name": "List Deliveries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/maternity/records/{{record_id}}/deliveries",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "maternity",
+                "records",
+                "{{record_id}}",
+                "deliveries"
+              ],
+              "query": []
+            },
+            "description": "List Deliveries"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Pharmacy API",
+      "item": [
+        {
+          "name": "List Products",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/pharmacy/products",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "pharmacy",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Products"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Product",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/pharmacy/products",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "pharmacy",
+                "products"
+              ],
+              "query": []
+            },
+            "description": "Create Product"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Stock",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/pharmacy/stock",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "pharmacy",
+                "stock"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get Stock"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Stock Movement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/pharmacy/stock/movements",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "pharmacy",
+                "stock",
+                "movements"
+              ],
+              "query": []
+            },
+            "description": "Create Stock Movement"
+          },
+          "response": []
+        },
+        {
+          "name": "List Stock Movements",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/pharmacy/stock/movements",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "pharmacy",
+                "stock",
+                "movements"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Stock Movements"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Laboratory API",
+      "item": [
+        {
+          "name": "List Tests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/laboratory/tests",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "laboratory",
+                "tests"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Tests"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Test",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/laboratory/tests",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "laboratory",
+                "tests"
+              ],
+              "query": []
+            },
+            "description": "Create Test"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/laboratory/orders",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "laboratory",
+                "orders"
+              ],
+              "query": []
+            },
+            "description": "Create Order"
+          },
+          "response": []
+        },
+        {
+          "name": "List Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/laboratory/orders",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "laboratory",
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Orders"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Result",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/laboratory/orders/{{order_id}}/results",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "laboratory",
+                "orders",
+                "{{order_id}}",
+                "results"
+              ],
+              "query": []
+            },
+            "description": "Create Result"
+          },
+          "response": []
+        },
+        {
+          "name": "Validate Result",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/laboratory/results/{{result_id}}/validate",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "laboratory",
+                "results",
+                "{{result_id}}",
+                "validate"
+              ],
+              "query": []
+            },
+            "description": "Validate Result"
+          },
+          "response": []
+        },
+        {
+          "name": "List Results",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/laboratory/results",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "laboratory",
+                "results"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Results"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Imaging API",
+      "item": [
+        {
+          "name": "List Imaging Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/imaging/orders",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "imaging",
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "patient_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "exam_type",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Imaging Orders"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Imaging Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/imaging/orders",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "imaging",
+                "orders"
+              ],
+              "query": []
+            },
+            "description": "Create Imaging Order"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Imaging Order",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/imaging/orders/{{order_id}}",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "imaging",
+                "orders",
+                "{{order_id}}"
+              ],
+              "query": []
+            },
+            "description": "Get Imaging Order"
+          },
+          "response": []
+        },
+        {
+          "name": "Start Imaging Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/imaging/orders/{{order_id}}/start",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "imaging",
+                "orders",
+                "{{order_id}}",
+                "start"
+              ],
+              "query": []
+            },
+            "description": "Start Imaging Order"
+          },
+          "response": []
+        },
+        {
+          "name": "Complete Imaging Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/imaging/orders/{{order_id}}/complete",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "imaging",
+                "orders",
+                "{{order_id}}",
+                "complete"
+              ],
+              "query": []
+            },
+            "description": "Complete Imaging Order"
+          },
+          "response": []
+        },
+        {
+          "name": "List Imaging Results",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/imaging/results",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "imaging",
+                "results"
+              ],
+              "query": [
+                {
+                  "key": "patient_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "order_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Imaging Results"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Imaging Result",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/imaging/results",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "imaging",
+                "results"
+              ],
+              "query": []
+            },
+            "description": "Create Imaging Result"
+          },
+          "response": []
+        },
+        {
+          "name": "Validate Imaging Result",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/imaging/results/{{result_id}}/validate",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "imaging",
+                "results",
+                "{{result_id}}",
+                "validate"
+              ],
+              "query": []
+            },
+            "description": "Validate Imaging Result"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Surgery API",
+      "item": [
+        {
+          "name": "List Rooms",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/surgery/rooms",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "surgery",
+                "rooms"
+              ],
+              "query": [
+                {
+                  "key": "facility_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Rooms"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Room",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/surgery/rooms",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "surgery",
+                "rooms"
+              ],
+              "query": []
+            },
+            "description": "Create Room"
+          },
+          "response": []
+        },
+        {
+          "name": "List Schedules",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/surgery/schedules",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "surgery",
+                "schedules"
+              ],
+              "query": [
+                {
+                  "key": "patient_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "operating_room_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "date",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Schedules"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Schedule",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/surgery/schedules",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "surgery",
+                "schedules"
+              ],
+              "query": []
+            },
+            "description": "Create Schedule"
+          },
+          "response": []
+        },
+        {
+          "name": "Start Surgery",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/surgery/schedules/{{schedule_id}}/start",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "surgery",
+                "schedules",
+                "{{schedule_id}}",
+                "start"
+              ],
+              "query": []
+            },
+            "description": "Start Surgery"
+          },
+          "response": []
+        },
+        {
+          "name": "Complete Surgery",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/surgery/schedules/{{schedule_id}}/complete",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "surgery",
+                "schedules",
+                "{{schedule_id}}",
+                "complete"
+              ],
+              "query": []
+            },
+            "description": "Complete Surgery"
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Surgery",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/surgery/schedules/{{schedule_id}}/cancel",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "surgery",
+                "schedules",
+                "{{schedule_id}}",
+                "cancel"
+              ],
+              "query": []
+            },
+            "description": "Cancel Surgery"
+          },
+          "response": []
+        },
+        {
+          "name": "List Reports",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/surgery/reports",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "surgery",
+                "reports"
+              ],
+              "query": [
+                {
+                  "key": "patient_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "schedule_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Reports"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/surgery/reports",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "surgery",
+                "reports"
+              ],
+              "query": []
+            },
+            "description": "Create Report"
+          },
+          "response": []
+        },
+        {
+          "name": "Validate Report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/surgery/reports/{{report_id}}/validate",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "surgery",
+                "reports",
+                "{{report_id}}",
+                "validate"
+              ],
+              "query": []
+            },
+            "description": "Validate Report"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Billing API",
+      "item": [
+        {
+          "name": "List Tariffs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/billing/tariffs",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "billing",
+                "tariffs"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Tariffs"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Tariff",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/billing/tariffs",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "billing",
+                "tariffs"
+              ],
+              "query": []
+            },
+            "description": "Create Tariff"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/billing/invoices",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "billing",
+                "invoices"
+              ],
+              "query": []
+            },
+            "description": "Create Invoice"
+          },
+          "response": []
+        },
+        {
+          "name": "List Invoices",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/billing/invoices",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "billing",
+                "invoices"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Invoices"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/billing/invoices/{{invoice_id}}/payments",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "billing",
+                "invoices",
+                "{{invoice_id}}",
+                "payments"
+              ],
+              "query": []
+            },
+            "description": "Create Payment"
+          },
+          "response": []
+        },
+        {
+          "name": "List Payments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/billing/payments",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "billing",
+                "payments"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Payments"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Receipt",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/billing/payments/{{payment_id}}/receipt",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "billing",
+                "payments",
+                "{{payment_id}}",
+                "receipt"
+              ],
+              "query": []
+            },
+            "description": "Get Receipt"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Personnel API",
+      "item": [
+        {
+          "name": "List Staff",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/personnel/staff",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "personnel",
+                "staff"
+              ],
+              "query": [
+                {
+                  "key": "department_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "profession",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Staff"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Staff Member",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/personnel/staff",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "personnel",
+                "staff"
+              ],
+              "query": []
+            },
+            "description": "Create Staff Member"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Staff Member",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/personnel/staff/{{staff_id}}",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "personnel",
+                "staff",
+                "{{staff_id}}"
+              ],
+              "query": []
+            },
+            "description": "Get Staff Member"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Staff Member",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/personnel/staff/{{staff_id}}",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "personnel",
+                "staff",
+                "{{staff_id}}"
+              ],
+              "query": []
+            },
+            "description": "Update Staff Member"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Staff Member",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/personnel/staff/{{staff_id}}",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "personnel",
+                "staff",
+                "{{staff_id}}"
+              ],
+              "query": []
+            },
+            "description": "Delete Staff Member"
+          },
+          "response": []
+        },
+        {
+          "name": "List On Call Schedules",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/personnel/on-call",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "personnel",
+                "on-call"
+              ],
+              "query": [
+                {
+                  "key": "department_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "on_call_date",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List On Call Schedules"
+          },
+          "response": []
+        },
+        {
+          "name": "Create On Call Entry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/personnel/on-call",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "personnel",
+                "on-call"
+              ],
+              "query": []
+            },
+            "description": "Create On Call Entry"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete On Call Entry",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/personnel/on-call/{{schedule_id}}",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "personnel",
+                "on-call",
+                "{{schedule_id}}"
+              ],
+              "query": []
+            },
+            "description": "Delete On Call Entry"
+          },
+          "response": []
+        },
+        {
+          "name": "List Leave Requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/personnel/leaves",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "personnel",
+                "leaves"
+              ],
+              "query": [
+                {
+                  "key": "staff_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "leave_type",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Leave Requests"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Leave Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/personnel/leaves",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "personnel",
+                "leaves"
+              ],
+              "query": []
+            },
+            "description": "Create Leave Request"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Leave Request",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/personnel/leaves/{{leave_id}}",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "personnel",
+                "leaves",
+                "{{leave_id}}"
+              ],
+              "query": []
+            },
+            "description": "Update Leave Request"
+          },
+          "response": []
+        },
+        {
+          "name": "List Contracts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/personnel/contracts",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "personnel",
+                "contracts"
+              ],
+              "query": [
+                {
+                  "key": "staff_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "contract_type",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Contracts"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Contract",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/personnel/contracts",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "personnel",
+                "contracts"
+              ],
+              "query": []
+            },
+            "description": "Create Contract"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Contract",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/personnel/contracts/{{contract_id}}",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "personnel",
+                "contracts",
+                "{{contract_id}}"
+              ],
+              "query": []
+            },
+            "description": "Update Contract"
+          },
+          "response": []
+        },
+        {
+          "name": "Personnel Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/personnel/stats",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "personnel",
+                "stats"
+              ],
+              "query": []
+            },
+            "description": "Get personnel statistics for the current facility."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Quality API",
+      "item": [
+        {
+          "name": "List Indicators",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/quality/indicators",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "quality",
+                "indicators"
+              ],
+              "query": [
+                {
+                  "key": "facility_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "category",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Indicators"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Indicator",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/quality/indicators",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "quality",
+                "indicators"
+              ],
+              "query": []
+            },
+            "description": "Create Indicator"
+          },
+          "response": []
+        },
+        {
+          "name": "List Measurements",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/quality/measurements",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "quality",
+                "measurements"
+              ],
+              "query": [
+                {
+                  "key": "indicator_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "facility_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Measurements"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Measurement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/quality/measurements",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "quality",
+                "measurements"
+              ],
+              "query": []
+            },
+            "description": "Create Measurement"
+          },
+          "response": []
+        },
+        {
+          "name": "List Incidents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/quality/incidents",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "quality",
+                "incidents"
+              ],
+              "query": [
+                {
+                  "key": "facility_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "severity",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Incidents"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Incident",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/quality/incidents",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "quality",
+                "incidents"
+              ],
+              "query": []
+            },
+            "description": "Create Incident"
+          },
+          "response": []
+        },
+        {
+          "name": "Investigate Incident",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/quality/incidents/{{incident_id}}/investigate",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "quality",
+                "incidents",
+                "{{incident_id}}",
+                "investigate"
+              ],
+              "query": []
+            },
+            "description": "Investigate Incident"
+          },
+          "response": []
+        },
+        {
+          "name": "Resolve Incident",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/quality/incidents/{{incident_id}}/resolve",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "quality",
+                "incidents",
+                "{{incident_id}}",
+                "resolve"
+              ],
+              "query": []
+            },
+            "description": "Resolve Incident"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Reporting API",
+      "item": [
+        {
+          "name": "List National Reports",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/reporting/national-reports",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "reporting",
+                "national-reports"
+              ],
+              "query": [
+                {
+                  "key": "facility_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "report_type",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List National Reports"
+          },
+          "response": []
+        },
+        {
+          "name": "Create National Report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/reporting/national-reports",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "reporting",
+                "national-reports"
+              ],
+              "query": []
+            },
+            "description": "Create National Report"
+          },
+          "response": []
+        },
+        {
+          "name": "Submit National Report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/reporting/national-reports/{{report_id}}/submit",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "reporting",
+                "national-reports",
+                "{{report_id}}",
+                "submit"
+              ],
+              "query": []
+            },
+            "description": "Submit National Report"
+          },
+          "response": []
+        },
+        {
+          "name": "Validate National Report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/reporting/national-reports/{{report_id}}/validate",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "reporting",
+                "national-reports",
+                "{{report_id}}",
+                "validate"
+              ],
+              "query": []
+            },
+            "description": "Validate National Report"
+          },
+          "response": []
+        },
+        {
+          "name": "Reject National Report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/reporting/national-reports/{{report_id}}/reject",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "reporting",
+                "national-reports",
+                "{{report_id}}",
+                "reject"
+              ],
+              "query": []
+            },
+            "description": "Reject National Report"
+          },
+          "response": []
+        },
+        {
+          "name": "List Epidemic Alerts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/reporting/epidemic-alerts",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "reporting",
+                "epidemic-alerts"
+              ],
+              "query": [
+                {
+                  "key": "facility_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "alert_level",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Epidemic Alerts"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Epidemic Alert",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/reporting/epidemic-alerts",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "reporting",
+                "epidemic-alerts"
+              ],
+              "query": []
+            },
+            "description": "Create Epidemic Alert"
+          },
+          "response": []
+        },
+        {
+          "name": "Close Epidemic Alert",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/reporting/epidemic-alerts/{{alert_id}}/close",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "reporting",
+                "epidemic-alerts",
+                "{{alert_id}}",
+                "close"
+              ],
+              "query": []
+            },
+            "description": "Close Epidemic Alert"
+          },
+          "response": []
+        },
+        {
+          "name": "List Health Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/reporting/statistics",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "reporting",
+                "statistics"
+              ],
+              "query": [
+                {
+                  "key": "facility_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "category",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "period_start",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "period_end",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Health Statistics"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Health Statistic",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/reporting/statistics",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "reporting",
+                "statistics"
+              ],
+              "query": []
+            },
+            "description": "Create Health Statistic"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/reporting/dashboard",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "reporting",
+                "dashboard"
+              ],
+              "query": [
+                {
+                  "key": "facility_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get Dashboard"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Audit API",
+      "item": [
+        {
+          "name": "List Audit Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/audit/logs",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "audit",
+                "logs"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 50,
+                  "description": "",
+                  "disabled": false
+                },
+                {
+                  "key": "action",
+                  "value": "",
+                  "description": "Filter by action (e.g. 'patient.create')",
+                  "disabled": true
+                },
+                {
+                  "key": "resource_type",
+                  "value": "",
+                  "description": "Filter by resource type",
+                  "disabled": true
+                },
+                {
+                  "key": "resource_id",
+                  "value": "",
+                  "description": "Filter by resource ID",
+                  "disabled": true
+                },
+                {
+                  "key": "user_id",
+                  "value": "",
+                  "description": "Filter by user ID",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Filter logs from this date",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "Filter logs until this date",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List audit logs with filters and pagination.\n\nSUPER_ADMIN sees all logs. ADMIN sees only their facility's logs.\nOther roles receive 403 (audit.read permission required)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Audit Log",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/audit/logs/{{log_id}}",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "audit",
+                "logs",
+                "{{log_id}}"
+              ],
+              "query": []
+            },
+            "description": "Get a single audit log entry by ID."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Activity API",
+      "item": [
+        {
+          "name": "List Activity",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/activity",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "activity"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "Page number",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "Items per page (max 1000)",
+                  "disabled": false
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search term",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Activity"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Notifications API",
+      "item": [
+        {
+          "name": "List My Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/notifications",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "",
+                  "disabled": false
+                },
+                {
+                  "key": "category",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "unread_only",
+                  "value": false,
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List the current user's notifications (paginated, with unread count)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Unread Count",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/notifications/unread-count",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "notifications",
+                "unread-count"
+              ],
+              "query": []
+            },
+            "description": "Return the count of unread notifications for the current user (for header badge)."
+          },
+          "response": []
+        },
+        {
+          "name": "Mark All My Read",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/notifications/mark-all-read",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "notifications",
+                "mark-all-read"
+              ],
+              "query": []
+            },
+            "description": "Mark all of the current user's notifications as read."
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Notification Read",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/notifications/{{notification_id}}/read",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "notifications",
+                "{{notification_id}}",
+                "read"
+              ],
+              "query": []
+            },
+            "description": "Mark a single notification as read. Only the recipient can do this."
+          },
+          "response": []
+        },
+        {
+          "name": "Dismiss Notification",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/notifications/{{notification_id}}",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "notifications",
+                "{{notification_id}}"
+              ],
+              "query": []
+            },
+            "description": "Dismiss a notification (soft-delete). Only the recipient can do this."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin Send Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/notifications/send",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "notifications",
+                "send"
+              ],
+              "query": []
+            },
+            "description": "Admin-only: send a notification to a specific user.\n\nRequires the `notification.send` permission (SUPER_ADMIN/ADMIN bypass).\nSECURITY (A01-003): facility-scoped ADMINs can only send to users in\ntheir own facility. SUPER_ADMIN can send to anyone."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Health API",
+      "item": [
+        {
+          "name": "Health Live",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/health/live",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "health",
+                "live"
+              ],
+              "query": []
+            },
+            "description": "Liveness — process is up. Kubernetes liveness probe target."
+          },
+          "response": []
+        },
+        {
+          "name": "Health Live",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/health",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "health"
+              ],
+              "query": []
+            },
+            "description": "Liveness — process is up. Kubernetes liveness probe target."
+          },
+          "response": []
+        },
+        {
+          "name": "Health Ready",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/health/ready",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "health",
+                "ready"
+              ],
+              "query": []
+            },
+            "description": "Readiness — DB is reachable. Kubernetes readiness probe target.\n\nReturns 200 if DB ping succeeds, 503 otherwise. We do NOT raise —\nKubernetes interprets non-2xx as not-ready and will keep the old pod\nserving traffic until this endpoint recovers."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Metrics API",
+      "item": [
+        {
+          "name": "Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/metrics",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "metrics"
+              ],
+              "query": []
+            },
+            "description": "Prometheus text exposition format.\n\nWhen METRICS_TOKEN is configured, requires `Authorization: Bearer <token>`."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
