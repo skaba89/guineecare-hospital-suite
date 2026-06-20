@@ -1,5 +1,7 @@
 # Rapport d'audit de sécurité — v0.8.0
 
+> **Mise à jour v0.9.0 (2026-06-21)** : Les 5 findings LOW acceptés dans ce rapport sont **désormais tous corrigés** dans la release v0.9.0. Voir `CHANGELOG.md` section `[0.9.0]` pour le détail. L'ensemble des 21 findings OWASP Top 10 sont désormais couverts.
+
 **Date** : 2026-06-20
 **Périmètre** : backend FastAPI + frontend React
 **Méthodologie** : OWASP Top 10 (2021) + SAST Bandit + revue manuelle

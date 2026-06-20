@@ -36,11 +36,19 @@ logger = logging.getLogger("guineecare.audit")
 def _extract_request_meta(request: Request | None) -> tuple[str | None, str | None, str | None, str | None]:
     if request is None:
         return None, None, None, None
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        ip = forwarded.split(",")[0].strip()
+    # SECURITY (A05-001 — v0.9.0): only trust X-Forwarded-For when the
+    # direct peer is a configured TRUSTED_PROXY. Prevents IP spoofing.
+    from app.core.config import is_ip_trusted, settings
+
+    remote_addr = request.client.host if request.client else None
+    if is_ip_trusted(remote_addr, settings.trusted_proxies):
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            ip = forwarded.split(",")[0].strip()
+        else:
+            ip = remote_addr
     else:
-        ip = request.client.host if request.client else None
+        ip = remote_addr
     ua = request.headers.get("user-agent")
     if ua and len(ua) > 512:
         ua = ua[:512]

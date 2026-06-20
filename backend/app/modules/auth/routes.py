@@ -52,12 +52,23 @@ LOCKOUT_DURATION_MINUTES = 15
 
 
 def _extract_request_meta(request: Request) -> tuple[str | None, str | None]:
-    """Extract client IP and User-Agent from request."""
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        ip = forwarded.split(",")[0].strip()
+    """Extract client IP and User-Agent from request.
+
+    SECURITY (A05-001 — v0.9.0): only honors X-Forwarded-For when the
+    direct peer is a configured TRUSTED_PROXY. Falls back to remote_addr
+    otherwise — prevents IP spoofing when the backend is exposed directly.
+    """
+    from app.core.config import is_ip_trusted, settings
+
+    remote_addr = request.client.host if request.client else None
+    if is_ip_trusted(remote_addr, settings.trusted_proxies):
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            ip = forwarded.split(",")[0].strip()
+        else:
+            ip = remote_addr
     else:
-        ip = request.client.host if request.client else None
+        ip = remote_addr
     ua = request.headers.get("user-agent")
     if ua and len(ua) > 512:
         ua = ua[:512]
@@ -296,11 +307,47 @@ def logout(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Revoke a refresh token (explicit logout).
+    """Revoke a refresh token (explicit logout) and optionally the access token jti.
 
-    The access token remains valid until expiry (short-lived, 60 min).
-    For immediate revocation of access tokens, see roadmap: token blacklist (v0.7).
+    SECURITY (A07 — v0.9.0): if `access_token` is provided in the request,
+    its jti is added to the `revoked_jtis` blacklist. This means the
+    access_token becomes immediately unusable — even if it was leaked.
+    Without `access_token`, the access_token stays valid until its natural
+    expiry (60 min) — only the refresh_token is revoked.
     """
+    # Optionally revoke the access token's jti (immediate invalidation).
+    if payload.access_token:
+        try:
+            from app.core.security import decode_access_token
+            from app.modules.auth.jti import revoke_jti
+            from jose import JWTError
+
+            token_payload = decode_access_token(payload.access_token)
+            token_jti = token_payload.get("jti")
+            token_exp = token_payload.get("exp")
+            from datetime import datetime, timezone
+            expires_at = (
+                datetime.fromtimestamp(token_exp, tz=timezone.utc)
+                if token_exp
+                else None
+            )
+            revoke_jti(
+                db=db,
+                jti=token_jti,
+                user_id=str(current_user.id),
+                reason="logout",
+                expires_at=expires_at,
+            )
+        except JWTError:
+            # Token might be expired or invalid — nothing to revoke.
+            pass
+        except Exception as e:
+            # Audit-log the failure but don't fail the logout request.
+            import logging
+            logging.getLogger("guineecare.auth").warning(
+                "Failed to revoke jti on logout: %s", e
+            )
+
     if not payload.refresh_token:
         audit_log(
             db=db,

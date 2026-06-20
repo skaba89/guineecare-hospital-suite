@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
     configure_logging(environment=os.environ.get("ENVIRONMENT", "local"))
 
     # Set app_info gauge labels for Prometheus
-    set_app_info(version="0.7.0", environment=os.environ.get("ENVIRONMENT", "local"))
+    set_app_info(version="0.9.0", environment=os.environ.get("ENVIRONMENT", "local"))
 
     # Startup: validate configuration, initialize DB, seed demo data
     try:
@@ -64,18 +64,29 @@ async def lifespan(app: FastAPI):
         logger.error(f"Database init error: {e}")
 
     if os.environ.get("SEED_DEMO_DATA", "false").lower() in {"1", "true", "yes"}:
-        try:
-            from app.db.seed import run_seed
-            run_seed()
-            logger.info("Seed data loaded successfully")
-        except Exception as e:
-            logger.error(f"Seed data error (non-fatal): {e}")
-            # Continue anyway — the app should still work with empty data
+        # SECURITY (A05-002 — v0.9.0): refuse to seed demo data in non-local
+        # environments. Demo seeds use predictable passwords (admin123, etc.)
+        # and would create trivially-guessable accounts in production.
+        if settings.environment not in ("local", "test", "dev"):
+            logger.error(
+                "SEED_DEMO_DATA=true is forbidden in environment=%s. "
+                "Refusing to seed demo data. Set SEED_DEMO_DATA=false or "
+                "use ENVIRONMENT=local/dev/test.",
+                settings.environment,
+            )
+        else:
+            try:
+                from app.db.seed import run_seed
+                run_seed()
+                logger.info("Seed data loaded successfully")
+            except Exception as e:
+                logger.error(f"Seed data error (non-fatal): {e}")
+                # Continue anyway — the app should still work with empty data
 
     yield
 
 
-app = FastAPI(title="GuineeCare API", version="0.7.0", lifespan=lifespan)
+app = FastAPI(title="GuineeCare API", version="0.9.0", lifespan=lifespan)
 
 # --- SlowAPI rate-limiting state & handler ---
 app.state.limiter = limiter
@@ -139,7 +150,7 @@ app.include_router(metrics_router)
 def api_root():
     return {
         "name": "GuineeCare Hospital Suite",
-        "version": "0.7.0",
+        "version": "0.9.0",
         "modules": [
             "auth", "users", "rbac", "facilities", "departments",
             "patients", "admissions", "emergency", "pharmacy", "laboratory",

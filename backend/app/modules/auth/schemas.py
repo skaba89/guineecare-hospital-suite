@@ -33,6 +33,11 @@ class RefreshRequest(BaseModel):
 
 class LogoutRequest(BaseModel):
     refresh_token: str | None = None
+    # SECURITY (A07 — v0.9.0): optional access_token, so logout can also
+    # revoke the (still-valid) access token's jti. If omitted, only the
+    # refresh token is revoked (access token stays valid until its 60-min
+    # natural expiry).
+    access_token: str | None = None
 
 
 class MessageResponse(BaseModel):

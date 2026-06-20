@@ -4,12 +4,12 @@
 [![Frontend build](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/frontend-build.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/frontend-build.yml)
 [![E2E admin pages](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-admin-pages.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-admin-pages.yml)
 [![E2E Playwright](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-playwright.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-playwright.yml)
-[![Version](https://img.shields.io/badge/version-v0.5.0-blue.svg)](https://github.com/skaba89/guineecare-hospital-suite/releases)
+[![Version](https://img.shields.io/badge/version-v0.9.0-blue.svg)](https://github.com/skaba89/guineecare-hospital-suite/releases)
 [![License](https://img.shields.io/badge/license-Private-red.svg)](#licence)
 
 Plateforme hospitalière complète pour la Guinée, inspirée des meilleurs SIH modernes : dossier patient informatisé, maternité, urgences, hospitalisation, pharmacie, laboratoire, imagerie, facturation, bloc opératoire, RH, qualité, reporting national et architecture technique industrielle.
 
-**Version actuelle :** `v0.5.0` — Tests Playwright + CI/CD complet + Vite proxy
+**Version actuelle :** `v0.9.0` — Hardening sécurité complet (OWASP Top 10) + tests de charge Locust
 
 ## Objectif
 
@@ -195,35 +195,71 @@ server: {
 - ✅ v0.6 — Refresh token + audit log + code splitting (sécurité + compliance)
 - ✅ v0.7 — Notifications multicanal + observabilité (Prometheus, health checks, JSON logs)
 - ✅ v0.8 — Audit sécurité OWASP Top 10 + hardening (13/21 findings corrigés, Bandit SAST en CI)
-- 🔜 v0.9 — Tests de charge (Locust) + hardening LOW restant (TRUSTED_PROXIES, METRICS_TOKEN, bootstrap CLI)
+- ✅ v0.9 — Hardening LOW restant + tests de charge Locust (TRUSTED_PROXIES, METRICS_TOKEN, bootstrap CLI, jti blacklist, A06 fail-mode)
 - 🔜 v0.10 — Documentation OpenAPI complète + Postman collection
 - 🎯 v1.0 — Déploiement pilote CHU Donka
 
 ## Sécurité
 
-Le rapport d'audit sécurité complet est disponible dans `docs/security/AUDIT_V0.8.0.md`.
+Le rapport d'audit sécurité complet est disponible dans `docs/security/AUDIT_V0.8.0.md`. La v0.9.0 corrige les 5 findings LOW restants acceptés en v0.8.0 — l'ensemble des 21 findings OWASP Top 10 sont désormais couverts.
 
-### OWASP Top 10 — statut après v0.8.0
+### OWASP Top 10 — statut après v0.9.0
 
 | ID  | Catégorie | Statut |
 |-----|-----------|--------|
-| A01 | Broken Access Control | ✅ CRITICAL + HIGH corrigés |
-| A02 | Cryptographic Failures | ✅ password_hash masqué |
-| A03 | Injection | ✅ SAST Bandit clean |
+| A01 | Broken Access Control | ✅ Tous findings corrigés (CRITICAL + HIGH + LOW) |
+| A02 | Cryptographic Failures | ✅ password_hash masqué ; bcrypt + HS256 OK |
+| A03 | Injection | ✅ Aucune injection SQL (SAST clean) |
 | A04 | Insecure Design | ✅ Lockout + password policy + rate-limit refresh |
-| A05 | Security Misconfiguration | ✅ AUTH_SECRET hard-fail |
-| A06 | Vulnerable Components | ⏳ pip-audit + npm-audit en warn-only (fail en v0.9) |
-| A07 | Auth Failures | ✅ Lockout ; ⏳ jti blacklist en v0.9 |
-| A08 | Data Integrity | ✅ Pas d'eval/exec/pickle |
-| A09 | Logging & Monitoring | ✅ Audit log complet |
-| A10 | SSRF | ✅ Pas de requêtes HTTP basées sur input |
+| A05 | Security Misconfiguration | ✅ AUTH_SECRET hard-fail + TRUSTED_PROXIES + METRICS_TOKEN + bootstrap CLI + SEED_DEMO_DATA guard |
+| A06 | Vulnerable Components | ✅ pip-audit + npm-audit en fail-mode (HIGH+) |
+| A07 | Identification & Auth Failures | ✅ Lockout + jti blacklist pour révocation immédiate |
+| A08 | Software & Data Integrity Failures | ✅ Pas d'eval/exec/pickle/yaml.load |
+| A09 | Security Logging & Monitoring | ✅ Audit log complet |
+| A10 | SSRF | ✅ Pas de requêtes HTTP basées sur input utilisateur |
+
+### Variables d'environnement de sécurité (v0.9.0+)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AUTH_SECRET` | (vide) | Secret JWT. **Obligatoire en non-local** — hard-fail au démarrage si vide. |
+| `TRUSTED_PROXIES` | (vide) | Liste comma-separated d'IPs/CIDRs autorisés à setter `X-Forwarded-For`. Ex: `10.0.0.0/8,172.16.0.0/12`. Vide = aucun proxy trusté (raw `remote_addr` utilisé). |
+| `METRICS_TOKEN` | (vide) | Bearer token requis pour `/metrics`. Vide = endpoint ouvert (dev/local). En prod, set à une valeur aléatoire ≥ 32 chars. |
+| `BOOTSTRAP_TOKEN` | (vide) | Token requis pour `POST /users/bootstrap` en non-local. Vide = endpoint désactivé en non-local (utiliser `python -m app.cli create-superuser`). |
+
+### CLI bootstrap (v0.9.0+)
+
+Pour créer le premier SUPER_ADMIN sur une instance fraîchement déployée (alternativaire à l'HTTP `/users/bootstrap`) :
+
+```bash
+cd backend
+python -m app.cli create-superuser \
+    --email admin@chu-donka.gn \
+    --first_name Admin \
+    --last_name Root \
+    --password 'StrongPass123!'
+# Ou en interactif (password prompt) :
+python -m app.cli create-superuser --email admin@chu-donka.gn --first-name Admin --last-name Root
+```
+
+Le CLI valide la politique de mot de passe (12+ chars, complexité) et refuse la création si la table users est non-vide (sans `--force`).
 
 ### Workflow CI sécurité
 
 `security-scan.yml` tourne à chaque push + schedule hebdomadaire :
 - `bandit-sast` — SAST Python (fail sur HIGH)
-- `pip-audit` — dépendances backend (warn-only en v0.8)
-- `npm-audit` — dépendances frontend (warn-only en v0.8)
+- `pip-audit` — dépendances backend (fail sur HIGH+ — v0.9.0)
+- `npm-audit` — dépendances frontend (fail sur HIGH+ — v0.9.0)
+
+### Tests de charge (v0.9.0+)
+
+`load_tests/locustfile.py` — 2 scénarios Locust :
+- `GuineeCareUser` (default) — login → browse patients → dashboard → notifications → logout (avec révocation jti)
+- `GuineeCareLoginStorm` (`--tags login_storm`) — login fresh à chaque itération
+
+Workflow CI `load-test.yml` : nightly 03:00 UTC, 20 users / 30s, rapport HTML uploadé en artifact.
+
+Voir `load_tests/README.md` pour la doc complète.
 
 ## Organisation documentaire
 

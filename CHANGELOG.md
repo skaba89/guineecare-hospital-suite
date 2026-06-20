@@ -1,5 +1,97 @@
 # Changelog
 
+## [0.9.0] — 2026-06-21
+
+### Added — Hardening LOW restant + tests de charge Locust
+
+Cette release clôt le périmètre OWASP Top 10 (tous les findings LOW acceptés en v0.8 sont désormais corrigés) et ajoute une infrastructure complète de tests de charge.
+
+#### Hardening sécurité (5 findings LOW → 0)
+
+- **A05-001 — `TRUSTED_PROXIES`** (`backend/app/core/config.py`, `core/limiter.py`, `audit/service.py`, `auth/routes.py`) :
+  - Nouvelle fonction `is_ip_trusted(remote_addr, trusted_proxies)` qui valide qu'une IP est dans un CIDR allowlisté avant de trust `X-Forwarded-For`.
+  - `get_client_ip()` n'honore plus `X-Forwarded-For` que si le peer direct est dans `TRUSTED_PROXIES`. En l'absence de proxy configuré, on utilise le raw `remote_addr` — empêche le spoofing IP quand le backend est exposé directement.
+  - Même logique appliquée à `_extract_request_meta()` dans `auth/routes.py` et `audit/service.py` pour cohérence.
+  - Variable d'environnement : `TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12`.
+
+- **A05-005 — `METRICS_TOKEN`** (`backend/app/modules/observability/routes.py`) :
+  - `/metrics` requiert désormais `Authorization: Bearer <METRICS_TOKEN>` quand la variable d'env est set. Si vide (défaut), `/metrics` reste ouvert pour le dev/local.
+  - Comparaison constant-time via `hmac.compare_digest`.
+  - Codes : 401 si header manquant, 403 si token invalide, 200 si OK.
+
+- **A05-004 — CLI bootstrap + `BOOTSTRAP_TOKEN`** (`backend/app/cli.py`, `modules/users/routes.py`) :
+  - Nouveau CLI `python -m app.cli create-superuser --email <e> --first-name <f> --last-name <l> [--password <p>] [--facility-id <uuid>] [--force]`. Password prompt interactif si omis. Validation de la politique de mot de passe (12+ chars, complexité). Refuse la création si la table users est non-vide sans `--force`.
+  - Endpoint HTTP `POST /users/bootstrap` désormais gated par `X-Bootstrap-Token` en non-local. Si `BOOTSTRAP_TOKEN` est vide en non-local, l'endpoint est désactivé (403) — les opérateurs DOIVENT utiliser le CLI.
+  - En local, l'endpoint reste ouvert pour le dev (chicken-and-egg).
+
+- **A05-002 — Refus `SEED_DEMO_DATA` en prod** (`backend/app/main.py`) :
+  - Si `ENVIRONMENT ∉ {local, test, dev}` et `SEED_DEMO_DATA=true`, le seed est skipé et un message ERROR est loggé. Empêche la création accidentelle de comptes `admin123` en production.
+
+- **A07 — jti blacklist pour JWT** (`backend/app/core/security.py`, `modules/auth/models.py`, `modules/auth/jti.py`, `modules/auth/dependencies.py`, `modules/auth/routes.py`, `modules/auth/schemas.py`, migration `0014_jti_blacklist`) :
+  - Chaque access_token JWT inclut désormais un `jti` (UUID unique) en plus de `sub`, `exp`, `iat`.
+  - Nouvelle table `revoked_jtis` (jti PK, user_id, reason, revoked_at, expires_at). Index sur `expires_at` pour le prune.
+  - Service `app.modules.auth.jti` : `revoke_jti()`, `is_jti_revoked()`, `revoke_user_jtis()` (stub), `prune_expired()`.
+  - `get_current_user()` vérifie la blacklist : si le jti est présent → 401 "Jeton révoqué".
+  - `POST /auth/logout` accepte désormais un `access_token` optionnel dans le body. Si fourni, le jti est révoqué immédiatement (invalidation avant l'expiry naturel de 60 min). Sans `access_token`, comportement inchangé (seul le refresh token est révoqué).
+  - Fail-open en cas d'erreur DB sur la blacklist check (pour éviter de locker tous les users si la DB est down) — le token reste valide jusqu'à expiry naturel.
+
+- **A06 — pip-audit + npm-audit fail-mode** (`.github/workflows/security-scan.yml`) :
+  - Les jobs `pip-audit` et `npm-audit` passent de warn-only à fail. Les vulnérabilities HIGH/CRITICAL cassent désormais le build. Les maintainers doivent mettre à jour les packages affectés.
+
+#### Tests de charge Locust
+
+- **Nouveau dossier `load_tests/`** avec :
+  - `locustfile.py` — 2 scénarios : `GuineeCareUser` (browse authentifié, default) et `GuineeCareLoginStorm` (login fresh à chaque itération, `weight=0`).
+  - `README.md` — guide complet : prérequis, scénarios, exemples headless, métriques attendues, interprétation.
+  - Scénario `GuineeCareUser` : login → browse patients (paginated) → détail patient → reporting dashboard → notifications → unread-count → users → audit logs → /auth/me → /health/ready → logout (avec révocation jti). Think time 1.0-3.5s.
+- **Workflow CI `load-test.yml`** (nightly 03:00 UTC + workflow_dispatch) :
+  - Démarre un backend SQLite seeded sur runner GitHub Actions.
+  - Lance Locust headless : 20 users, 5/s spawn, 30s.
+  - Upload le rapport HTML + CSV en artifact (rétention 14 jours).
+  - Publie les stats dans le job summary GitHub.
+
+### Added — Tests
+- **`backend/tests/test_security_v09.py`** : 35 nouveaux tests couvrant tous les hardening ci-dessus.
+  - `TestTrustedProxiesParsing` (4) — parsing de TRUSTED_PROXIES
+  - `TestIsIpTrusted` (5) — validation IP/CIDR
+  - `TestLimiterHonorsTrustedProxies` (3) — get_client_ip behavior
+  - `TestMetricsToken` (5) — /metrics auth
+  - `TestBootstrapToken` (5) — /users/bootstrap gate
+  - `TestCliCreateSuperuser` (3) — CLI create-superuser
+  - `TestSeedDemoDataGuard` (1) — SEED_DEMO_DATA refused in prod
+  - `TestJtiBlacklist` (6) — service revoke_jti/is_jti_revoked/prune_expired
+  - `TestJtiBlacklistIntegration` (3) — end-to-end: revoked jti rejects request, logout revokes jti, logout without access_token keeps jti valid
+- **Total** : 196 tests backend (161 + 35) + 16 tests Playwright (inchangés).
+
+### Added — Migration
+- **Alembic 0014** : table `revoked_jtis` (jti PK, user_id FK, reason, revoked_at, expires_at) avec index sur `expires_at`.
+
+### Added — CLI
+- **`backend/app/cli.py`** : nouveau module CLI avec `create-superuser` command. Utilisable via `python -m app.cli create-superuser`. Documenté dans README.
+
+### Added — Configuration
+- Nouvelles variables d'environnement :
+  - `TRUSTED_PROXIES` — comma-separated list of IPs/CIDRs (default: empty)
+  - `METRICS_TOKEN` — bearer token for /metrics (default: empty = open)
+  - `BOOTSTRAP_TOKEN` — bootstrap token for /users/bootstrap in non-local (default: empty = disabled)
+
+### Updated — Documentation
+- **`README.md`** : roadmap v0.9 marquée ✅, ajout section "Hardening v0.9" avec tableau récapitulatif des variables d'env.
+- **`docs/security/AUDIT_V0.8.0.md`** : note de mise à jour en tête — tous les findings LOW sont désormais corrigés en v0.9.0.
+
+### Statistics
+- 196/196 tests backend pytest (63.5 s)
+- 16/16 tests Playwright (inchangés)
+- 0/0 findings Bandit HIGH+ sur `backend/app/` (inchangé)
+- 21/21 findings OWASP Top 10 corrigés (13 en v0.8 + 5 en v0.9 + 3 acceptés en LOW désormais couverts)
+- 2 nouveaux workflows CI : `security-scan.yml` (mis à jour fail-mode), `load-test.yml` (nightly Locust)
+- 1 nouvelle migration Alembic (0014)
+- 1 nouveau module backend : `auth.jti` (service), `app.cli` (CLI)
+- 1 nouveau dossier `load_tests/` avec locustfile + README
+- Bundle frontend : 253 KB initial (inchangé)
+
+---
+
 ## [0.8.0] — 2026-06-20
 
 ### Added — Audit sécurité OWASP Top 10 + hardening

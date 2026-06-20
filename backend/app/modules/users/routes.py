@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.pagination import PaginationParams, paginate
 from app.core.security import hash_password
 from app.core.tenant import enforce_facility_access
@@ -55,14 +56,34 @@ def list_users(
 def bootstrap_first_user(
     payload: UserCreate,
     request: Request,
+    x_bootstrap_token: str | None = Header(default=None, alias="X-Bootstrap-Token"),
     db: Session = Depends(get_db),
 ):
     """Create the first SUPER_ADMIN. Only works when the users table is empty.
 
-    SECURITY: this endpoint is unauthenticated by design (chicken-and-egg).
-    In production, restrict at the ingress level (loopback only) or use a
-    CLI bootstrap script. See docs/security.md.
+    SECURITY (A05-004 — v0.9.0): in non-local environments, this endpoint
+    requires an `X-Bootstrap-Token` header matching the `BOOTSTRAP_TOKEN`
+    env var. If `BOOTSTRAP_TOKEN` is unset in non-local, the endpoint is
+    disabled entirely — operators MUST use `python -m app.cli create-superuser`
+    instead. In local env, the endpoint is open (chicken-and-egg convenience).
+
+    In all environments, the endpoint refuses to run if the users table is
+    non-empty.
     """
+    import hmac
+
+    # Token gate (skipped in local for dev convenience).
+    if settings.environment != "local":
+        if not settings.bootstrap_token:
+            raise HTTPException(
+                status_code=403,
+                detail="Bootstrap endpoint disabled. Use `python -m app.cli create-superuser` instead.",
+            )
+        if not x_bootstrap_token or not hmac.compare_digest(
+            x_bootstrap_token, settings.bootstrap_token
+        ):
+            raise HTTPException(status_code=403, detail="Bootstrap token invalide ou manquant")
+
     user_count = db.query(User).count()
     if user_count > 0:
         raise HTTPException(status_code=403, detail="Bootstrap déjà effectué")

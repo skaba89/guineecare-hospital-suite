@@ -92,15 +92,13 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Run npm audit (high+ critical only)
+      - name: Run npm audit (fail on HIGH+ CRITICAL — v0.9.0)
         working-directory: frontend
         run: |
-          # Fail only on HIGH or CRITICAL vulnerabilities
-          npm audit --audit-level=high --omit=dev || {
-            echo "::warning::npm audit found vulnerabilities. Run 'npm audit' for details."
-            # Don't fail the build for now — just warn. Tighten to fail in v0.9.
-            exit 0
-          }
+          # SECURITY (A06 — v0.9.0): tightened from warn-only to fail.
+          # If this breaks your build, run `npm audit` locally and upgrade
+          # the affected packages with `npm audit fix`.
+          npm audit --audit-level=high --omit=dev
 
   pip-audit:
     name: pip-audit (backend dependencies)
@@ -116,12 +114,10 @@ jobs:
       - name: Install pip-audit
         run: pip install pip-audit
 
-      - name: Run pip-audit on backend requirements
+      - name: Run pip-audit on backend requirements (fail on HIGH+ — v0.9.0)
         working-directory: backend
         run: |
-          # Fail on HIGH or CRITICAL vulnerabilities
-          pip-audit -r requirements.txt --strict --vulnerability-service osv || {
-            echo "::warning::pip-audit found vulnerabilities. Check the output above."
-            # Don't fail the build for now — just warn. Tighten to fail in v0.9.
-            exit 0
-          }
+          # SECURITY (A06 — v0.9.0): tightened from warn-only to fail.
+          # If this breaks your build, inspect the report above and pin a
+          # fixed version of the affected package in requirements.txt.
+          pip-audit -r requirements.txt --strict --vulnerability-service osv

@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 import hashlib
 import secrets
+from uuid import uuid4
 from app.core.datetime import utcnow
 
 from jose import jwt
@@ -29,9 +30,21 @@ def create_access_token(
     facility_id: str | None = None,
     role: str | None = None,
     expires_delta: timedelta | None = None,
+    jti: str | None = None,
 ) -> str:
+    """Create a signed JWT access token.
+
+    SECURITY (A07 — v0.9.0): every token now includes a unique `jti` (JWT ID)
+    so that it can be revoked before its natural expiry via the `revoked_jtis`
+    blacklist table. If `jti` is not provided, a random UUID is generated.
+    """
     expire = utcnow() + (expires_delta or timedelta(minutes=settings.token_expire_minutes))
-    payload = {"sub": subject, "exp": expire}
+    payload: dict = {
+        "sub": subject,
+        "exp": expire,
+        "jti": jti or str(uuid4()),
+        "iat": utcnow(),
+    }
     if facility_id is not None:
         payload["facility_id"] = facility_id
     if role is not None:

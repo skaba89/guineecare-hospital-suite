@@ -1,4 +1,4 @@
-"""Models for refresh tokens and audit logs (v0.6.0)."""
+"""Models for refresh tokens, audit logs, and JWT jti blacklist."""
 from datetime import datetime
 from uuid import uuid4
 
@@ -63,3 +63,26 @@ class AuditLog(Base):
     user_agent = Column(String(512), nullable=True)
     # JSON-encoded payload (e.g. before/after diff for mutations)
     payload = Column(Text, nullable=True)
+
+
+class RevokedJti(Base):
+    """JWT ID blacklist — tracks access-token jtis that have been explicitly
+    revoked before their natural expiry.
+
+    Use cases (OWASP A07 — v0.9.0):
+        - User clicks "logout": their current access_token's jti is revoked,
+          so even if the token was leaked, it becomes immediately unusable.
+        - Admin disables a user: all their jtis can be bulk-revoked.
+        - Suspected token theft: admin can revoke a specific jti.
+
+    Rows are pruned automatically — the table only holds entries whose
+    associated token has not yet expired (expires_at > now).
+    """
+
+    __tablename__ = "revoked_jtis"
+
+    jti = Column(String(64), primary_key=True, nullable=False)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=True, index=True)
+    reason = Column(String(64), nullable=True)
+    revoked_at = Column(DateTime, default=utcnow, nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
