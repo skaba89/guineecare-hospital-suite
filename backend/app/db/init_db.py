@@ -21,6 +21,7 @@ from app.modules.imaging.models import ImagingOrder, ImagingResult
 from app.modules.surgery.models import OperatingRoom, SurgerySchedule, SurgeryTeamMember, SurgeryReport
 from app.modules.quality.models import QualityIndicator, QualityMeasurement, IncidentReport
 from app.modules.reporting.models import NationalReport, EpidemicAlert, HealthStatistic
+from app.modules.notifications.models import Notification
 
 
 def init_db():
@@ -71,6 +72,7 @@ def init_db():
         NationalReport,
         EpidemicAlert,
         HealthStatistic,
+        Notification,
     ]
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()

@@ -32,6 +32,11 @@ from app.modules.surgery.routes import router as surgery_router
 from app.modules.quality.routes import router as quality_router
 from app.modules.reporting.routes import router as reporting_router
 from app.modules.audit.routes import router as audit_router
+from app.modules.notifications.routes import router as notifications_router
+from app.modules.observability.routes import router as observability_router, metrics_router
+from app.modules.observability.middleware import MetricsMiddleware
+from app.modules.observability.logging import configure_logging
+from app.modules.observability.metrics import set_app_info
 
 logger = logging.getLogger("guineecare")
 
@@ -40,6 +45,12 @@ API_PREFIX = "/api/v1"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Configure structured logging (JSON in prod, pretty in dev)
+    configure_logging(environment=os.environ.get("ENVIRONMENT", "local"))
+
+    # Set app_info gauge labels for Prometheus
+    set_app_info(version="0.7.0", environment=os.environ.get("ENVIRONMENT", "local"))
+
     # Startup: validate configuration, initialize DB, seed demo data
     try:
         validate_settings()
@@ -64,7 +75,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="GuineeCare API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="GuineeCare API", version="0.7.0", lifespan=lifespan)
 
 # --- SlowAPI rate-limiting state & handler ---
 app.state.limiter = limiter
@@ -92,6 +103,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(MetricsMiddleware)
 
 
 app.include_router(auth_router, prefix=API_PREFIX)
@@ -115,17 +127,24 @@ app.include_router(surgery_router, prefix=API_PREFIX)
 app.include_router(quality_router, prefix=API_PREFIX)
 app.include_router(reporting_router, prefix=API_PREFIX)
 app.include_router(audit_router, prefix=API_PREFIX)
+app.include_router(notifications_router, prefix=API_PREFIX)
 
-
-@app.get("/health")
-def health_check():
-    return {"status": "ok", "service": "guineecare-backend"}
+# Observability routes — mounted at root, NOT under /api/v1, so they match
+# Prometheus and Kubernetes conventions (/metrics, /health, /health/live, /health/ready).
+app.include_router(observability_router)
+app.include_router(metrics_router)
 
 
 @app.get(API_PREFIX)
 def api_root():
     return {
         "name": "GuineeCare Hospital Suite",
-        "version": "0.1.0",
-        "modules": ["auth", "users", "rbac", "facilities", "departments", "patients", "admissions", "emergency", "pharmacy", "laboratory", "billing", "hospitalization", "activity", "clinical", "maternity", "personnel", "imaging", "surgery", "quality", "reporting", "audit"],
+        "version": "0.7.0",
+        "modules": [
+            "auth", "users", "rbac", "facilities", "departments",
+            "patients", "admissions", "emergency", "pharmacy", "laboratory",
+            "billing", "hospitalization", "activity", "clinical", "maternity",
+            "personnel", "imaging", "surgery", "quality", "reporting",
+            "audit", "notifications", "observability",
+        ],
     }

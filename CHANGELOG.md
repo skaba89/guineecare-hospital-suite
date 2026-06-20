@@ -1,5 +1,55 @@
 # Changelog
 
+## [0.7.0] — 2026-06-20
+
+### Added — Module notifications (multicanal)
+- **Migration Alembic 0012** : table `notifications` (recipient_id, sender_id, facility_id, category, priority, title, body, action_url, channels CSV, in_app/email/sms delivered flags, read_at, dismissed_at, resource_type, resource_id).
+- **Service `notify()`** (`app/modules/notifications/service.py`) : helper à appeler depuis n'importe quelle route. Jamais bloquant — les échecs d'envoi sont enregistrés sur la ligne mais ne lèvent jamais d'exception.
+- **3 canaux pluggables** : `ConsoleChannel` (toujours actif pour in_app), `EmailChannel` (SMTP — activé quand `SMTP_HOST` est set), `SmsChannel` (Twilio — activé quand `TWILIO_ACCOUNT_SID` est set). Aucune dépendance externe supplémentaire (smtplib + lazy import de twilio).
+- **Routes** :
+  - `GET /notifications` — liste paginée des notifications de l'utilisateur courant (filtres category, unread_only).
+  - `GET /notifications/unread-count` — compteur pour badge d'en-tête.
+  - `PATCH /notifications/{id}/read` — marquer comme lu.
+  - `POST /notifications/mark-all-read` — tout marquer comme lu.
+  - `DELETE /notifications/{id}` — supprimer (soft-delete via `dismissed_at`).
+  - `POST /notifications/send` — admin-only (permission `notification.send`) pour envoyer à un utilisateur spécifique. Audit log automatique.
+- **Permission RBAC** : `notification.send` ajoutée au seed (réservée SUPER_ADMIN/ADMIN via bypass).
+- **Page frontend `/notifications`** : liste paginée avec filtres (catégorie, non lues seulement), badges de priorité colorés, icônes par catégorie, boutons marquer-comme-lu/supprimer, "tout marquer comme lu", infobulles sur l'état de livraison email/SMS.
+- **Sidebar** : entrée "Notifications" ajoutée en haut de la section SOINS (visible pour tous les utilisateurs authentifiés — c'est leur boîte de réception personnelle).
+
+### Added — Observabilité (Prometheus + health checks + logging structuré)
+- **`GET /health/live`** : liveness probe — retourne 200 immédiatement si le process est vivant. Pour Kubernetes livenessProbe.
+- **`GET /health/ready`** : readiness probe — ping DB (`SELECT 1`), retourne 200 si OK ou 503 si DB down. Pour Kubernetes readinessProbe.
+- **`GET /metrics`** : exposition Prometheus text format (v0.0.4). Métriques :
+  - `http_requests_total{method, path, status}` — counter
+  - `http_request_duration_seconds{method, path, status}` — histogram (11 buckets de 5ms à 10s)
+  - `http_requests_in_flight` — gauge
+  - `app_info{version, environment}` — gauge constante
+- **Middleware `MetricsMiddleware`** : instrumente chaque requête HTTP. Utilise le path template (ex. `/patients/{id}`) plutôt que le path brut pour éviter l'explosion de cardinalité des labels.
+- **Logging structuré** : `JsonFormatter` (prod/staging) ou `PrettyFormatter` (dev/test) configuré au démarrage via `configure_logging(environment=...)`. Aucune dépendance externe (pas de structlog ni python-json-logger) — utilise la stdlib `logging` uniquement.
+- **Endpoints sans auth** : `/health`, `/health/live`, `/health/ready`, `/metrics` ne nécessitent pas de JWT — par convention Kubernetes/Prometheus. En production, restreindre `/metrics` au niveau ingress (IP Prometheus uniquement).
+
+### Added — Tests
+- **`backend/tests/test_notifications.py`** : 24 tests (service notify + mark_read + dismiss + mark_all_read + HTTP list/filter/unread-count/mark-read/dismiss + admin send + RBAC + audit).
+- **`backend/tests/test_observability.py`** : 12 tests (health live/ready, 503 on DB failure, metrics format/content/in-flight gauge, no-auth).
+- **`frontend/tests/e2e/guineecare.spec.ts`** : 2 nouveaux tests Playwright (page /notifications accessible SUPER_ADMIN + DOCTOR).
+- **Total** : 135 tests backend (99 + 36) + 16 tests Playwright (14 + 2).
+
+### Fixed
+- **`run_playwright.sh`** : `SEED_DEMO_DATA=false` → `true` (sinon le compte admin@guineecare.com n'existe pas et le check de login échoue).
+- **`main.py`** : version FastAPI app mise à jour 0.1.0 → 0.7.0 (cohérence avec le tag git).
+
+### Statistics
+- 135/135 tests backend pytest (45.9 s)
+- 16/16 tests Playwright UI (60 s, 1 flaky sur retry)
+- 31/31 tests E2E API admin pages (inchangés)
+- Bundle initial : 253 KB (gzip 80 KB) — inchangé (NotificationsPage chunké à 9.78 KB)
+- 3 nouveaux modules backend : `notifications` (models + service + routes + schemas), `observability` (metrics + logging + middleware + routes)
+- 1 nouvelle migration Alembic (0012)
+- 1 nouvelle page frontend (NotificationsPage) + 1 nouvelle permission RBAC (notification.send)
+
+---
+
 ## [0.6.0] — 2026-06-20
 
 ### Added — Refresh token + révocation JWT (sécurité)

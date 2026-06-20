@@ -19,6 +19,7 @@ import {
   Activity,
   Building2,
   BarChart3,
+  Bell,
   LogOut,
   ChevronDown,
   ChevronRight,
@@ -51,6 +52,7 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void | Prom
       title: "SOINS",
       items: [
         { label: "Dashboard", path: "/", icon: LayoutDashboard, visible: navVisibility.canSeeDashboard },
+        { label: "Notifications", path: "/notifications", icon: Bell, visible: true },
         { label: "Patients", path: "/patients", icon: Users, visible: navVisibility.canSeePatients },
         { label: "Admissions", path: "/admissions", icon: ClipboardList, visible: navVisibility.canSeeAdmissions },
       ],

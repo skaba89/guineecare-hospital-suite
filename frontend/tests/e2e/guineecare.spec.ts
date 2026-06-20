@@ -191,3 +191,22 @@ test.describe('Journal d\'audit (v0.6.0)', () => {
     expect(redirected).toBeTruthy();
   });
 });
+
+// ----------------------------------------------------------------------------
+// 7. NOTIFICATIONS (v0.7.0)
+// ----------------------------------------------------------------------------
+test.describe('Notifications (v0.7.0)', () => {
+  test('page /notifications accessible pour SUPER_ADMIN', async ({ page }) => {
+    await login(page, SUPER_ADMIN);
+    await page.goto('/notifications', { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(/notifications/i);
+    await expect(page.locator('h1')).toContainText(/notifications/i, { timeout: 15_000 });
+  });
+
+  test('page /notifications accessible pour DOCTOR (boîte de réception personnelle)', async ({ page }) => {
+    await login(page, DOCTOR);
+    await page.goto('/notifications', { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(/notifications/i);
+    await expect(page.locator('h1')).toContainText(/notifications/i, { timeout: 15_000 });
+  });
+});

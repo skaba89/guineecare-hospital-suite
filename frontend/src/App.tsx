@@ -35,6 +35,7 @@ const RbacPage = lazy(() => import("./pages/RbacPage").then(m => ({ default: m.R
 const FacilitiesPage = lazy(() => import("./pages/FacilitiesPage").then(m => ({ default: m.FacilitiesPage })));
 const DepartmentsPage = lazy(() => import("./pages/DepartmentsPage").then(m => ({ default: m.DepartmentsPage })));
 const AuditPage = lazy(() => import("./pages/AuditPage").then(m => ({ default: m.AuditPage })));
+const NotificationsPage = lazy(() => import("./pages/NotificationsPage").then(m => ({ default: m.NotificationsPage })));
 
 function PageLoader() {
   return (
@@ -87,6 +88,7 @@ function AppInner() {
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<DashboardPage lookups={lookups} />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/patients" element={<ProtectedRoute permission="patient.read"><PatientsPage lookups={lookups} onCreated={refreshAll} /></ProtectedRoute>} />
             <Route path="/patients/:id" element={<ProtectedRoute permission="patient.read"><PatientDetailPage lookups={lookups} /></ProtectedRoute>} />
             <Route path="/admissions" element={<ProtectedRoute permission="admission.read"><AdmissionsPage lookups={lookups} onCreated={refreshAll} /></ProtectedRoute>} />

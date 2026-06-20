@@ -192,10 +192,11 @@ server: {
 - ✅ v0.3 — Multi-tenant RLS + 84 tests backend + 109 tests E2E API
 - ✅ v0.4 — Pages admin (Users, RBAC, Facilities, Departments) + bug fixes
 - ✅ v0.5 — Tests Playwright + CI/CD GitHub Actions (4 workflows) + Vite proxy
-- 🔜 v0.6 — Monitoring Prometheus + Grafana
-- 🔜 v0.7 — Audit sécurité OWASP ZAP
-- 🔜 v0.8 — Tests de charge (Locust)
-- 🔜 v0.9 — Documentation OpenAPI complète + Postman collection
+- ✅ v0.6 — Refresh token + audit log + code splitting (sécurité + compliance)
+- ✅ v0.7 — Notifications multicanal + observabilité (Prometheus, health checks, JSON logs)
+- 🔜 v0.8 — Audit sécurité OWASP ZAP
+- 🔜 v0.9 — Tests de charge (Locust)
+- 🔜 v0.10 — Documentation OpenAPI complète + Postman collection
 - 🎯 v1.0 — Déploiement pilote CHU Donka
 
 ## Organisation documentaire

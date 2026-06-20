@@ -56,6 +56,7 @@ DEFAULT_PERMISSIONS = [
     ("reporting.read", "Voir le reporting", "reporting"),
     ("reporting.manage", "Gerer le reporting", "reporting"),
     ("audit.read", "Consulter le journal d'audit", "audit"),
+    ("notification.send", "Envoyer une notification", "notifications"),
 ]
 
 ROLE_PERMISSION_MAP = {
