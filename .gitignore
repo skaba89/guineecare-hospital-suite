@@ -5,7 +5,6 @@ __pycache__/
 .venv/
 .venv*/
 venv/
-venv*/
 .pytest_cache/
 .coverage
 htmlcov/
@@ -24,3 +23,22 @@ dist-ssr/
 # OS
 .DS_Store
 Thumbs.db
+
+# --- Secrets — NEVER commit these (v1.0.0 hardening) ---
+.env
+.env.local
+.env.production
+.env.*.local
+*.pem
+*.key
+tls/
+certs/
+
+# --- Backups ---
+*.dump
+*.sql.gz
+backups/
+
+# --- Newman / Postman reports ---
+newman-report.html
+newman-*.xml

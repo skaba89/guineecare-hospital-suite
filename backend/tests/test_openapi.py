@@ -45,7 +45,7 @@ def test_openapi_version_is_3_1(spec):
 
 def test_app_version_matches_v0_10(spec):
     assert spec["info"]["version"] == APP_VERSION
-    assert APP_VERSION == "0.10.0"
+    assert APP_VERSION == "1.0.0"
 
 
 def test_app_has_description(spec):

@@ -1,0 +1,184 @@
+# =============================================================================
+# GuinéeCare Hospital Suite — Production docker-compose (CHU Donka pilot)
+# =============================================================================
+#
+# This is the production-grade compose file. Use it with:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# It MUST be paired with a `.env.production` file containing real secrets
+# (see .env.production.template). NEVER commit the actual .env.production.
+#
+# Hardening vs the dev compose:
+#   - Read-only root filesystem for backend / frontend / nginx
+#   - Non-root user (appuser) for backend
+#   - No-new-privileges security option on every service
+#   - Resource limits enforced (memory + cpus)
+#   - Healthchecks required before dependencies start
+#   - Restart policy with backoff
+#   - Logging capped to 50 MB per service
+#   - Postgres + Redis passwords required (no defaults)
+#   - SEED_DEMO_DATA forced off
+#   - ENVIRONMENT=production
+# =============================================================================
+services:
+  nginx:
+    restart: always
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - NET_BIND_SERVICE
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./tls:/etc/nginx/tls:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  backend:
+    environment:
+      - ENVIRONMENT=production
+      - SEED_DEMO_DATA=false
+      - DATABASE_URL=postgresql://guineecare:${DB_PASSWORD}@postgres:5432/guineecare
+      - AUTH_SECRET=${AUTH_SECRET}
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - TOKEN_EXPIRE_MINUTES=${TOKEN_EXPIRE_MINUTES:-60}
+      - TRUSTED_PROXIES=${TRUSTED_PROXIES:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      - METRICS_TOKEN=${METRICS_TOKEN:-}
+      - BOOTSTRAP_TOKEN=${BOOTSTRAP_TOKEN:-}
+    user: "1001:1001"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "2.0"
+        reservations:
+          memory: 256M
+
+  frontend:
+    environment:
+      - VITE_API_BASE_URL=${PUBLIC_URL:-https://chu-donka.guineecare.gn}/api/v1
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - NET_BIND_SERVICE
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  postgres:
+    environment:
+      - POSTGRES_DB=guineecare
+      - POSTGRES_USER=guineecare
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    user: "70:70"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  redis:
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 96M
+          cpus: "0.25"
+
+  db-backup:
+    environment:
+      - PGHOST=postgres
+      - PGUSER=guineecare
+      - PGPASSWORD=${DB_PASSWORD}
+      - PGDATABASE=guineecare
+    entrypoint: >
+      bash -c '
+        set -e
+        echo "[$(date -Is)] Starting daily backup loop (02:00 UTC)…"
+        while true; do
+          # Sleep until next 02:00 UTC
+          now=$$(date +%s)
+          target=$$(date -d "tomorrow 02:00:00 UTC" +%s 2>/dev/null || date -d "tomorrow 02:00:00" +%s)
+          sleep_seconds=$$((target - now))
+          if [ $$sleep_seconds -gt 0 ] && [ $$sleep_seconds -lt 90000 ]; then
+            echo "[$(date -Is)] Next backup in $$sleep_seconds seconds."
+            sleep $$sleep_seconds
+          else
+            sleep 3600
+          fi
+          ts=$$(date +%Y%m%d_%H%M%S)
+          echo "[$(date -Is)] Backup: guineecare_$$ts.dump"
+          pg_dump -Fc > /backups/guineecare_$$ts.dump
+          # Retention: 14 days
+          find /backups -name "*.dump" -mtime +14 -delete
+          ls -lh /backups
+        done
+      '
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: always
+
+volumes:
+  postgres_data:
+  backup_data:

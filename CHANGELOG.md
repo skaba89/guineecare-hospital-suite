@@ -1,5 +1,164 @@
 # Changelog
 
+## [1.0.0] — 2026-06-21
+
+### Added — Déploiement pilote CHU Donka
+
+Cette release marque la mise en production de GuinéeCare Hospital Suite au CHU Donka (Conakry, Guinée). Elle ajoute tout le socle opérationnel nécessaire à un déploiement pilote robuste : fichier docker-compose production durci, configuration nginx TLS + headers de sécurité, scripts de déploiement/backup/restore, runbook complet, et pipeline CI de release automatique.
+
+#### Stack Docker production durcie
+
+- **`docker-compose.prod.yml`** — Override de la stack dev avec hardening :
+  - **Utilisateur non-root** : backend tourne en `user: 1001:1001` (appuser, créé dans le Dockerfile).
+  - **Read-only filesystem** : `read_only: true` sur backend / frontend / nginx, avec tmpfs pour `/tmp` et les caches nginx.
+  - **Capabilities dropped** : `cap_drop: ALL` sur tous les services, avec `cap_add` minimal (CHOWN/SETUID/SETGID/NET_BIND_SERVICE pour nginx/frontend).
+  - **No-new-privileges** : `security_opt: no-new-privileges:true` sur tous les services.
+  - **Resource limits** : memory + cpus limités par service (backend 1G/2CPU, postgres 1G/1CPU, frontend 128M, nginx 256M, redis 96M).
+  - **ENVIRONMENT=production** + **SEED_DEMO_DATA=false** (refusé au démarrage si true).
+  - **Restart always** au lieu de `unless-stopped`.
+  - **TRUSTED_PROXIES** pré-configuré pour les ranges Docker (10.x, 172.16.x, 192.168.x).
+  - **Redis password-protected** avec `--maxmemory 64mb` et politique `allkeys-lru`.
+  - **Backup quotidien** : boucle interne au conteneur `db-backup` à 02:00 UTC, rétention 14 jours, format `pg_dump -Fc`.
+
+- **`backend/Dockerfile`** durci :
+  - Python 3.12-slim (au lieu de 3.11).
+  - Création de l'utilisateur `appuser` (UID 1001).
+  - `COPY --chown=appuser:appuser` pour tous les fichiers applicatifs.
+  - `USER appuser` avant `CMD`.
+  - `HEALTHCHECK` intégré au Dockerfile (en plus de celui du compose).
+  - `uvicorn --workers 2 --proxy-headers` (utilise 2 CPUs et truste X-Forwarded-* de nginx).
+  - Variables d'env `PYTHONUNBUFFERED=1` + `PYTHONDONTWRITEBYTECODE=1`.
+
+#### Configuration nginx production (TLS + headers)
+
+- **`nginx.prod.conf`** — Configuration nginx reverse proxy production :
+  - **TLS 1.2/1.3 uniquement** (Mozilla intermediate, May 2024) — TLS 1.0/1.1 interdits.
+  - **Redirect HTTP → HTTPS** (301 permanent) sur `:80`.
+  - **HSTS** 1 an `includeSubDomains` (preload-ready après soumission manuelle).
+  - **CSP strict** : `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'`.
+  - **Permissions-Policy** : camera/microphone/geolocation/interest-cohort désactivés.
+  - **COOP/CORP** `same-origin` (isolation cross-origin).
+  - **Headers Owasp** : X-Content-Type-Options nosniff, X-Frame-Options DENY, X-XSS-Protection, Referrer-Policy strict-origin-when-cross-origin.
+  - **Rate limiting** : `auth_limit` (5 req/min sur /auth/login), `login_burst` (burst 2), `api_limit` (120 req/min sur /api/).
+  - **`client_max_body_size 10m`** (cap upload).
+  - **IP allowlist** sur `/metrics` (private ranges uniquement), `/docs`, `/redoc`, `/api/v1/openapi.json` (admin office).
+  - **Gzip** + `tcp_nopush` + `tcp_nodelay` + `keepalive 65s`.
+  - **Logging format** custom avec timing (rt, uct, uht, urt).
+  - **Page d'erreur 502/503/504** custom HTML (ne leak pas d'info interne).
+  - **`server_tokens off`** (cache la version nginx).
+
+#### Templates d'environnement
+
+- **`.env.production.template`** — Template complet pour la production :
+  - Toutes les variables requises (ENVIRONMENT, AUTH_SECRET, DB_PASSWORD, CORS_ORIGINS, TRUSTED_PROXIES, METRICS_TOKEN, BOOTSTRAP_TOKEN, REDIS_PASSWORD, PUBLIC_URL, BACKUP_RETENTION_DAYS).
+  - Secrets avec placeholders `CHANGE_ME_openssl_rand_hex_*` (visuellement reconnaissables).
+  - `SEED_DEMO_DATA=false` (hardcoded).
+  - `CORS_ORIGINS=["https://chu-donka.guineecare.gn"]` (strict allowlist).
+  - `TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16` (Docker bridge).
+  - Instructions inline pour générer chaque secret avec `openssl rand`.
+
+- **`.env.example`** — Template pour dev/local (SQLite, AUTH_SECRET warning, CORS permissif, SEED_DEMO_DATA=true).
+
+#### Scripts opérationnels
+
+- **`scripts/deploy.sh`** — Déploiement production complet :
+  - Pre-flight checks : présence `.env.production`, toutes les vars requises, aucune valeur `CHANGE_ME_*` restante, ENVIRONMENT=production, SEED_DEMO_DATA=false, certificats TLS présents, Docker installé, espace disque ≥ 5 GB, RAM disponible.
+  - Mode `--check-only` : dry-run validation seulement.
+  - Mode `--no-build` : réutilisation des images existantes.
+  - Build des images, pull postgres/redis/nginx, start postgres + wait healthy, run Alembic migrations, start remaining services + wait backend healthy.
+  - Bootstrap check : détecte si un SUPER_ADMIN existe déjà, affiche les instructions CLI/HTTP sinon.
+  - Smoke tests HTTPS `/health`.
+  - Affichage du status final + next steps.
+
+- **`scripts/backup.sh`** — Wrapper backup manuel :
+  - `--list` : liste les backups existants.
+  - `--verify` : valide le dernier backup avec `pg_restore --list` + check taille ≥ 1 KB.
+  - mode par défaut : backup immédiat vers `backups/guineecare_<ts>.dump`.
+
+- **`scripts/restore.sh`** — Restauration disaster recovery :
+  - `--latest` : restore le dernier backup du conteneur `db-backup`.
+  - `--host <file>` : restore depuis un fichier sur l'hôte (via stdin).
+  - Confirmation interactive (`CONFIRM`) avant DROP.
+  - `pg_restore --clean --if-exists --no-owner --no-privileges` + Alembic upgrade head + restart backend.
+
+- **`scripts/seed-pilot.sh`** — Création du premier super-admin CHU Donka :
+  - Génère un mot de passe fort aléatoire (16 chars, `openssl rand`).
+  - Idempotent (skip si l'email existe déjà).
+  - Affiche les credentials dans un encadré pour distribution sécurisée.
+
+#### Documentation
+
+- **`docs/deploiement/RUNBOOK_CHU_DONKA.md`** — Runbook opérationnel complet (~600 lignes) :
+  - **Architecture cible** : diagramme ASCII, specs serveur minimales (CPU/RAM/disk/OS).
+  - **Préparation du serveur** : installation Docker + UFW + clone dépôt + DNS + certificats Let's Encrypt (avec cron de renouvellement).
+  - **Configuration des secrets** : génération `openssl rand`, validation `--check-only`.
+  - **Déploiement initial** : `deploy.sh`, bootstrap super-admin (CLI + HTTP), vérification post-déploiement (table de 7 checks).
+  - **Opérations courantes** : status, logs (JSON structured), restart, mise à jour, backup manuel, restore, rotation des secrets (AUTH_SECRET, METRICS_TOKEN).
+  - **Monitoring** : health checks, métriques clés (P95, 5xx, DB conns, disk), config Prometheus scrape, requêtes Loki.
+  - **Procédures d'incident** : P0 site down, P1 dégradation lente, P1 fuite de secret, P2 perte de données.
+  - **Maintenance planifiée** : fenêtres quotidienne/hebdo/mensuelle + communication.
+  - **Contacts** : rôles à renseigner.
+  - **Checklist go-live** : 18 items (DNS, TLS, secrets, deploy, backup test, monitoring, formation, rollback).
+  - **Rollback** : procédure git checkout + redeploy + restore backup.
+
+#### CI/CD — 1 nouveau workflow
+
+- **`.github/workflows/deploy-release.yml`** — Pipeline de release :
+  - Déclenché sur tag `v*` ou `workflow_dispatch`.
+  - Matrix build : `guineecare-backend` + `guineecare-frontend`.
+  - Push vers GHCR (`ghcr.io/skaba89/guineecare-backend:v1.0.0`, `:latest`).
+  - Buildx avec cache GHA (accélération des builds ultérieurs).
+  - Build args `VITE_API_BASE_URL=https://chu-donka.guineecare.gn/api/v1`.
+  - Job `release-notes` : extrait l'entrée CHANGELOG correspondante au tag et crée une GitHub Release (avec `softprops/action-gh-release`), pré-release si tag contient `-rc` ou `-beta`.
+
+#### Tests — 25 nouveaux
+
+- `backend/tests/test_deployment_artifacts.py` :
+  - `test_docker_compose_yml_valid`, `test_docker_compose_prod_yml_valid`, `test_docker_compose_prod_resources_enforced`, `test_docker_compose_prod_nginx_uses_tls_volume` (4 tests compose).
+  - `test_nginx_prod_conf_has_tls`, `test_nginx_prod_conf_has_security_headers`, `test_nginx_prod_conf_http_redirects_to_https`, `test_nginx_prod_conf_metrics_ip_restricted`, `test_nginx_prod_conf_auth_rate_limited`, `test_nginx_prod_conf_client_max_body_size` (6 tests nginx).
+  - `test_env_production_template_has_all_required_vars`, `test_env_production_template_has_placeholders`, `test_env_production_template_forbids_seed_demo_data`, `test_env_example_has_all_required_vars` (4 tests env).
+  - `test_gitignore_excludes_secrets` (1 test gitignore).
+  - `test_scripts_exist_and_are_executable`, `test_deploy_script_has_check_only_mode`, `test_deploy_script_validates_required_env_vars`, `test_backup_script_has_verify_mode`, `test_restore_script_has_confirm_prompt` (5 tests scripts).
+  - `test_runbook_exists`, `test_runbook_has_required_sections`, `test_runbook_has_go_live_checklist` (3 tests runbook).
+  - `test_deploy_release_workflow_exists`, `test_deploy_release_workflow_pushes_to_ghcr` (2 tests CI).
+
+### Changed
+
+- `backend/app/main.py` — `APP_VERSION` 0.10.0 → 1.0.0.
+- `backend/tests/test_openapi.py` — `test_app_version_matches_v0_10` attend désormais `1.0.0`.
+- `docs/api/openapi.json` + `docs/api/guineecare.postman_collection.json` — régénérés avec version 1.0.0.
+- `README.md` — Badge version v1.0.0, roadmap v1.0 ✅ + v1.1 🔜, nouvelle section "Déploiement production (v1.0.0+)" avec commande de déploiement, table hardening dev vs prod (14 lignes), table scripts opérationnels (8 lignes), description CI release, lien runbook.
+- `backend/Dockerfile` — Refonte complète (Python 3.12, appuser non-root, HEALTHCHECK, workers=2, proxy-headers).
+- `.gitignore` — Ajout de `.env`, `.env.local`, `.env.production`, `.env.*.local`, `*.pem`, `*.key`, `tls/`, `certs/`, `*.dump`, `*.sql.gz`, `backups/`, `newman-*.html`, `newman-*.xml`.
+
+### Stats
+
+- **240/240** tests backend pytest passent (215 + 25 nouveaux, 65s).
+- **0** régression sur les tests existants.
+- **1** nouveau fichier docker-compose production (`docker-compose.prod.yml`).
+- **1** nouvelle configuration nginx production (`nginx.prod.conf`).
+- **2** templates d'environnement (`.env.example`, `.env.production.template`).
+- **4** scripts opérationnels (`deploy.sh`, `backup.sh`, `restore.sh`, `seed-pilot.sh`).
+- **1** runbook complet (~600 lignes, 11 sections).
+- **1** nouveau workflow CI (`deploy-release.yml`).
+- **1** Dockerfile backend durci (non-root, healthcheck, workers).
+- Bundle frontend inchangé (253 KB initial).
+
+### Migration
+
+Pour préparer le déploiement CHU Donka :
+
+1. **Préparer le serveur** selon la section 2 du runbook (Ubuntu 22.04+, Docker, UFW, DNS).
+2. **Générer les secrets** : `openssl rand -hex 48` pour AUTH_SECRET, `openssl rand -hex 32` pour les autres.
+3. **Obtenir les certificats TLS** : `certbot certonly --standalone -d chu-donka.guineecare.gn`.
+4. **Créer `.env.production`** à partir de `.env.production.template`.
+5. **Valider** : `bash scripts/deploy.sh --check-only`.
+6. **Déployer** : `bash scripts/deploy.sh`.
+7. **Bootstrap super-admin** : via CLI `python -m app.cli create-superuser` ou HTTP `POST /users/bootstrap`.
+8. **Vérifier** : suivre la checklist go-live (section 10 du runbook).
+
+---
+
 ## [0.10.0] — 2026-06-21
 
 ### Added — Documentation OpenAPI complète + collection Postman

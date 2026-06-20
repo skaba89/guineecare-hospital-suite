@@ -41,7 +41,7 @@ from app.modules.observability.metrics import set_app_info
 logger = logging.getLogger("guineecare")
 
 API_PREFIX = "/api/v1"
-APP_VERSION = "0.10.0"
+APP_VERSION = "1.0.0"
 
 # --- OpenAPI documentation metadata (v0.10.0) ---
 API_DESCRIPTION = """\

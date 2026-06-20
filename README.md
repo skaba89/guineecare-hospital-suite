@@ -5,12 +5,12 @@
 [![E2E admin pages](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-admin-pages.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-admin-pages.yml)
 [![E2E Playwright](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-playwright.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-playwright.yml)
 [![OpenAPI drift](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/openapi-check.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/openapi-check.yml)
-[![Version](https://img.shields.io/badge/version-v0.10.0-blue.svg)](https://github.com/skaba89/guineecare-hospital-suite/releases)
+[![Version](https://img.shields.io/badge/version-v1.0.0-blue.svg)](https://github.com/skaba89/guineecare-hospital-suite/releases)
 [![License](https://img.shields.io/badge/license-Private-red.svg)](#licence)
 
 Plateforme hospitalière complète pour la Guinée, inspirée des meilleurs SIH modernes : dossier patient informatisé, maternité, urgences, hospitalisation, pharmacie, laboratoire, imagerie, facturation, bloc opératoire, RH, qualité, reporting national et architecture technique industrielle.
 
-**Version actuelle :** `v0.10.0` — Documentation OpenAPI 3.1 complète + collection Postman (138 endpoints, 25 tags, Bearer security auto-injecté)
+**Version actuelle :** `v1.0.0` — Déploiement pilote CHU Donka (docker-compose prod hardening, TLS Let's Encrypt, scripts deploy/backup/restore, runbook complet)
 
 ## Objectif
 
@@ -198,7 +198,8 @@ server: {
 - ✅ v0.8 — Audit sécurité OWASP Top 10 + hardening (13/21 findings corrigés, Bandit SAST en CI)
 - ✅ v0.9 — Hardening LOW restant + tests de charge Locust (TRUSTED_PROXIES, METRICS_TOKEN, bootstrap CLI, jti blacklist, A06 fail-mode)
 - ✅ v0.10 — Documentation OpenAPI complète + Postman collection (138 endpoints, 25 tags, Bearer security, drift CI)
-- 🎯 v1.0 — Déploiement pilote CHU Donka
+- ✅ v1.0 — Déploiement pilote CHU Donka (docker-compose prod hardening, TLS, scripts ops, runbook, CI release GHCR)
+- 🔜 v1.1 — Conduite du changement + formation + évolutions post-pilote
 
 ## Sécurité
 
@@ -298,6 +299,78 @@ Le workflow CI `openapi-check.yml` détecte automatiquement tout drift oublié e
 - [`docs/api/POSTMAN_GUIDE.md`](docs/api/POSTMAN_GUIDE.md) — Import Postman, variables d'environnement, authentification automatique, scénarios de démarrage rapide, Newman CLI.
 
 Voir `load_tests/README.md` pour la doc complète des tests de charge.
+
+## Déploiement production (v1.0.0+)
+
+Le déploiement pilote CHU Donka s'appuie sur Docker Compose avec un fichier de production durci (`docker-compose.prod.yml`) qui override la stack dev :
+
+```bash
+# 1. Cloner et préparer les secrets
+git clone https://github.com/skaba89/guineecare-hospital-suite.git
+cd guineecare-hospital-suite && git checkout v1.0.0
+
+cp .env.production.template .env.production
+# éditer .env.production et remplacer tous les CHANGE_ME_* par :
+#   openssl rand -hex 48  # AUTH_SECRET
+#   openssl rand -hex 32  # DB_PASSWORD, METRICS_TOKEN, BOOTSTRAP_TOKEN, REDIS_PASSWORD
+
+# 2. Certificats TLS Let's Encrypt
+sudo certbot certonly --standalone -d chu-donka.guineecare.gn
+sudo mkdir -p tls && sudo cp /etc/letsencrypt/live/chu-donka.guineecare.gn/*.pem tls/
+
+# 3. Validation pré-déploiement
+bash scripts/deploy.sh --check-only
+
+# 4. Déploiement
+bash scripts/deploy.sh
+
+# 5. Bootstrap super-admin
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+    --env-file .env.production exec backend \
+    python -m app.cli create-superuser \
+        --email admin@chu-donka.gn --password '...' \
+        --first-name Admin --last-name Donka
+```
+
+### Hardening production (vs dev)
+
+| Aspect | Dev (`docker-compose.yml`) | Prod (`docker-compose.prod.yml`) |
+|--------|---------------------------|----------------------------------|
+| Utilisateur backend | root | `appuser` (UID 1001) non-root |
+| Filesystem | writable | `read_only: true` + tmpfs `/tmp` |
+| Capabilities | default | `cap_drop: ALL` |
+| Security opt | — | `no-new-privileges:true` |
+| ENVIRONMENT | development | production |
+| SEED_DEMO_DATA | true | false (refusé au démarrage si true) |
+| TLS | — | TLS 1.2/1.3, HSTS 1 an, redirect HTTP→HTTPS |
+| Headers | backend-only | CSP strict + Permissions-Policy + COOP/CORP |
+| Rate limiting | backend (slowapi) | nginx (5 logins/min, 120 API/min) + backend |
+| `/metrics` | ouvert | IP allowlist (private ranges) + token |
+| `/docs` `/redoc` | public | IP allowlist (admin office) |
+| Resources | illimitées | limits mémoire + CPU par service |
+| Backup | — | quotidien 02:00 UTC, rétention 14 jours |
+| Restart | unless-stopped | always |
+
+### Scripts opérationnels
+
+| Script | Usage |
+|--------|-------|
+| `scripts/deploy.sh` | Déploiement complet (build + migrations + start + smoke test) |
+| `scripts/deploy.sh --check-only` | Validation pré-déploiement (secrets, TLS, ressources) |
+| `scripts/backup.sh` | Backup manuel immédiat |
+| `scripts/backup.sh --verify` | Valide le dernier backup (`pg_restore --list`) |
+| `scripts/backup.sh --list` | Liste les backups existants |
+| `scripts/restore.sh --latest` | Restaure le dernier backup (DROP + recreate) |
+| `scripts/restore.sh --host <file>` | Restaure depuis un fichier sur l'hôte |
+| `scripts/seed-pilot.sh` | Crée le premier super-admin CHU Donka |
+
+### CI release
+
+Le workflow `.github/workflows/deploy-release.yml` build et push les images Docker vers GHCR (`ghcr.io/skaba89/guineecare-backend`, `ghcr.io/skaba89/guineecare-frontend`) à chaque tag `v*`. Les releases GitHub sont créées automatiquement avec les notes de changelog.
+
+### Documentation déploiement
+
+- [`docs/deploiement/RUNBOOK_CHU_DONKA.md`](docs/deploiement/RUNBOOK_CHU_DONKA.md) — Runbook complet : architecture, pré-requis serveur, installation, déploiement, opérations courantes, monitoring, procédures d'incident (P0/P1/P2), maintenance planifiée, rollback, checklist go-live.
 
 ## Organisation documentaire
 
