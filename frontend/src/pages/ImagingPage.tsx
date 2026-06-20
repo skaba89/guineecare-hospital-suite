@@ -3,6 +3,7 @@ import { apiRequest } from "../services/api";
 import { LookupData, Row } from "../types";
 import { showToast } from "../components/Toast";
 import { buildOptions, firstValue } from "../utils/options";
+import { PdfButton } from "../components/PdfButton";
 
 type TabKey = "orders" | "results";
 
@@ -347,6 +348,10 @@ function OrdersTab({ lookups }: { lookups: LookupData }) {
                           Compléter
                         </button>
                       )}
+                      <PdfButton
+                        documentPath={`imaging-reports/${order.id}/pdf`}
+                        label="PDF"
+                      />
                     </td>
                   </tr>
                 ))}

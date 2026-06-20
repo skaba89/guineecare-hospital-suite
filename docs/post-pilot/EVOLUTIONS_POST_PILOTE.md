@@ -1,7 +1,7 @@
 # Évolutions post-pilote — Roadmap v1.2 et au-delà
 
 > Public : équipe projet, direction médicale, Ministère de la Santé
-> Dernière mise à jour : 2026-06-21 (v1.1.0)
+> Dernière mise à jour : 2026-06-21 (v1.2.0)
 > Statut : document **dynamique** — alimenté par les retours utilisateurs
 > collectés via la boucle feedback de v1.1.0.
 
@@ -35,11 +35,56 @@ mois.
 
 ---
 
-## v1.2 — Court terme (3 mois)
+## v1.2 — Livré le 2026-06-21 (release v1.2.0)
+
+La release v1.2.0 livre **2 des 5 évolutions court terme** planifiées :
+l'export PDF des documents cliniques (évolution 1) et la recherche
+globale Ctrl+K (évolution 4). Les 3 évolutions restantes (i18n,
+dashboard temps réel, mode hors-ligne PWA) sont reportées en v1.3.
+
+### ✅ Évolution 1 — Impression PDF des documents cliniques (LIVRÉE)
+
+Quatre types de documents PDF générés à la volée via ReportLab 4.2.5
+(bibliothèque pure Python, aucune dépendance système — WeasyPrint
+était initialement prévu mais nécessite cairo/pango partagés,
+incompatible avec l'environnement Docker léger du pilote) :
+
+- **Ordonnance patient** — à partir d'une `ClinicalNote`
+  (`note_type=PRESCRIPTION`).
+- **Compte rendu d'imagerie** — à partir d'une `ImagingOrder` et de
+  son `ImagingResult`.
+- **Résultat de laboratoire** — bandeau d'alerte rouge si
+  l'interprétation contient « CRITIQUE ».
+- **Facture patient** — détail des montants + paiements.
+
+Endpoints : `GET /api/v1/documents/{prescriptions|imaging-reports|lab-results|invoices}/{id}/pdf`.
+Audit trail : table `documents_generated` (SHA-256 du PDF, qui / quand /
+pour quel patient). 19 tests backend.
+
+### ✅ Évolution 4 — Recherche globale Ctrl+K (LIVRÉE)
+
+Endpoint `GET /api/v1/search?q=...` qui recherche en parallèle sur 5
+catégories : patients, factures, demandes laboratoire, demandes
+imagerie, notes cliniques. Recherche par préfixe (PAT-, INV-, LAB-,
+IMG-). Filtrage multi-tenant automatique. Frontend : Command Palette
+accessible via Ctrl+K avec navigation clavier. 21 tests backend.
+
+### ⏭️ Évolutions 2, 3 et 5 — Reportées en v1.3
+
+Les évolutions suivantes étaient planifiées pour v1.2 mais sont
+reportées en v1.3 (budget de développement limite sur le trimestre) :
+
+- **Évolution 2 — Internationalisation EN/FR** (10 j-h).
+- **Évolution 3 — Dashboard temps réel** (12 j-h).
+- **Évolution 5 — Mode hors-ligne PWA** (20 j-h).
+
+---
+
+## v1.2 — Évolutions confirmées (historique de planification)
 
 ### Évolutions confirmées
 
-#### 1. Impression PDF des documents cliniques
+#### 1. Impression PDF des documents cliniques ✅ LIVRÉ v1.2.0
 
 **Problème** : v1.0.0 ne génère pas de PDF natifs. Les utilisateurs
 doivent recourir à Ctrl+P du navigateur, ce qui donne une mise en page
@@ -100,7 +145,7 @@ côté frontend. Refresh automatique configurable (déjà disponible via
 
 **Effort** : 12 jours-homme.
 
-#### 4. Recherche globale (search bar)
+#### 4. Recherche globale (search bar) ✅ LIVRÉ v1.2.0
 
 **Problème** : actuellement, il faut savoir dans quel module chercher
 (patients, labo, imagerie, etc.) pour trouver une ressource. Les

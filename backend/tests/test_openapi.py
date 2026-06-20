@@ -45,7 +45,7 @@ def test_openapi_version_is_3_1(spec):
 
 def test_app_version_matches_v1_1(spec):
     assert spec["info"]["version"] == APP_VERSION
-    assert APP_VERSION == "1.1.0"
+    assert APP_VERSION == "1.2.0"
 
 
 def test_app_has_description(spec):
@@ -85,6 +85,7 @@ def test_app_has_all_27_tags(spec):
         "maternity", "pharmacy", "laboratory", "imaging", "surgery",
         "billing", "personnel", "quality", "reporting", "audit",
         "activity", "notifications", "user-profile", "feedback",
+        "documents", "search",
         "health", "metrics", "system",
     }
     missing = expected - tags

@@ -28,6 +28,7 @@ import { apiRequest } from "../services/api";
 import { LookupData, Row } from "../types";
 import { showToast } from "../components/Toast";
 import { buildOptions, firstValue } from "../utils/options";
+import { PdfButton } from "../components/PdfButton";
 
 type TabKey = "dashboard" | "invoices" | "payments" | "tariffs";
 
@@ -757,12 +758,13 @@ function InvoicesTab({
                   <th style={{ textAlign: "right" }}>Payé</th>
                   <th style={{ textAlign: "right" }}>Solde dû</th>
                   <th>Statut</th>
+                  <th>PDF</th>
                 </tr>
               </thead>
               <tbody>
                 {invoices.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: "center", padding: "24px" }}>
+                    <td colSpan={8} style={{ textAlign: "center", padding: "24px" }}>
                       <span className="muted">Aucune facture enregistrée.</span>
                     </td>
                   </tr>
@@ -807,6 +809,12 @@ function InvoicesTab({
                           <span className={`badge ${statusCfg.badge}`}>
                             {statusCfg.label}
                           </span>
+                        </td>
+                        <td style={{ whiteSpace: "nowrap" }}>
+                          <PdfButton
+                            documentPath={`invoices/${inv.id}/pdf`}
+                            label="PDF"
+                          />
                         </td>
                       </tr>
                     );

@@ -13,7 +13,7 @@
       "name": "Private — Usage réservé CHU Donka / Ministère Santé Guinée",
       "url": "https://github.com/skaba89/guineecare-hospital-suite/blob/main/LICENSE"
     },
-    "version": "1.1.0"
+    "version": "1.2.0"
   },
   "servers": [
     {
@@ -15977,6 +15977,716 @@
         }
       }
     },
+    "/api/v1/documents/prescriptions/{clinical_note_id}/pdf": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Générer le PDF d'une ordonnance",
+        "description": "Génère un PDF d'ordonnance médicale à partir d'une `ClinicalNote` dont le `note_type` est `PRESCRIPTION`. Le PDF est renvoyé en flux (media type `application/pdf`). Par défaut le PDF s'affiche en inline dans le navigateur ; passer `?download=1` force le téléchargement.",
+        "operationId": "generate_prescription_api_v1_documents_prescriptions__clinical_note_id__pdf_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "clinical_note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Clinical Note Id"
+            }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Forcer le téléchargement (attachment)",
+              "default": false,
+              "title": "Download"
+            },
+            "description": "Forcer le téléchargement (attachment)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Not authenticated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Non autorisé — permission RBAC insuffisante ou accès cross-tenant (tentative de lecture d'un établissement non autorisé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Permission insuffisante : patients.write requis"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Too many requests"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur interne (cf. logs structurés JSON).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Internal Server Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/imaging-reports/{imaging_order_id}/pdf": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Générer le PDF d'un compte rendu d'imagerie",
+        "description": "Génère un PDF de compte rendu d'imagerie à partir d'une `ImagingOrder` et de son `ImagingResult` associé. Si aucun résultat n'existe encore, le PDF est généré avec les informations disponibles (demande seule).",
+        "operationId": "generate_imaging_report_api_v1_documents_imaging_reports__imaging_order_id__pdf_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "imaging_order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Imaging Order Id"
+            }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Download"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Not authenticated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Non autorisé — permission RBAC insuffisante ou accès cross-tenant (tentative de lecture d'un établissement non autorisé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Permission insuffisante : patients.write requis"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Too many requests"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur interne (cf. logs structurés JSON).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Internal Server Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/lab-results/{lab_order_id}/pdf": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Générer le PDF d'un résultat de laboratoire",
+        "description": "Génère un PDF de résultat d'analyse de laboratoire à partir d'une `LabOrder` et de son `LabResult` associé. Si le résultat n'est pas encore validé, le PDF mentionne explicitement cette limite (réservé à la décision clinique).",
+        "operationId": "generate_lab_result_api_v1_documents_lab_results__lab_order_id__pdf_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "lab_order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Lab Order Id"
+            }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Download"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Not authenticated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Non autorisé — permission RBAC insuffisante ou accès cross-tenant (tentative de lecture d'un établissement non autorisé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Permission insuffisante : patients.write requis"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Too many requests"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur interne (cf. logs structurés JSON).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Internal Server Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/invoices/{invoice_id}/pdf": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Générer le PDF d'une facture",
+        "description": "Génère un PDF de facture patient à partir d'une `Invoice` et de ses `Payment` associés. Le PDF inclut le détail des montants (net, payé, reste à charge) et la liste des paiements encaissés.",
+        "operationId": "generate_invoice_api_v1_documents_invoices__invoice_id__pdf_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Invoice Id"
+            }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Download"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Not authenticated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Non autorisé — permission RBAC insuffisante ou accès cross-tenant (tentative de lecture d'un établissement non autorisé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Permission insuffisante : patients.write requis"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Too many requests"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur interne (cf. logs structurés JSON).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Internal Server Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/audit": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Lister les documents générés (audit trail)",
+        "description": "Renvoie la liste paginée des PDF générés par l'utilisateur courant (ou par tous les utilisateurs de l'établissement si SUPER_ADMIN/ADMIN). Utile pour répondre à la question « qui a imprimé ce document et quand ? ».",
+        "operationId": "list_documents_audit_api_v1_documents_audit_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "document_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filtre par type de document",
+              "title": "Document Type"
+            },
+            "description": "Filtre par type de document"
+          },
+          {
+            "name": "patient_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filtre par patient",
+              "title": "Patient Id"
+            },
+            "description": "Filtre par patient"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 5,
+              "default": 20,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Not authenticated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Non autorisé — permission RBAC insuffisante ou accès cross-tenant (tentative de lecture d'un établissement non autorisé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Permission insuffisante : patients.write requis"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Too many requests"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur interne (cf. logs structurés JSON).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Internal Server Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/search": {
+      "get": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Recherche globale multi-ressources",
+        "description": "Recherche full-text-like sur 5 catégories de ressources : patients, factures, demandes laboratoire, demandes imagerie, notes cliniques. Les résultats sont groupés par catégorie, avec un maximum de 10 résultats par catégorie et 50 résultats au total. \n\n**Recherche par préfixe** : si la requête commence par `PAT-`, `INV-`, `LAB-` ou `IMG-`, la recherche se limite à la catégorie correspondante et le préfixe est retiré du motif de recherche. Exemple : `?q=PAT-1234` ne cherche que dans les patients avec le motif `1234`.\n\n**Filtrage multi-tenant** : les résultats sont automatiquement restreints à l'établissement de l'utilisateur courant (sauf SUPER_ADMIN qui voit tous les établissements).\n\n**Performance** : la recherche s'appuie sur les indexes déjà en place (`patient_number`, `invoice_number`, etc.). Pour les volumétries >100k lignes par table, une migration vers PostgreSQL tsvector + GIN ou Meilisearch est prévue en v1.3.",
+        "operationId": "search_api_v1_search_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 200,
+              "description": "Terme de recherche (min 2 caractères)",
+              "title": "Q"
+            },
+            "description": "Terme de recherche (min 2 caractères)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "Nombre maximum de résultats par catégorie",
+              "default": 10,
+              "title": "Limit"
+            },
+            "description": "Nombre maximum de résultats par catégorie"
+          },
+          {
+            "name": "max_total",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Nombre total maximum de résultats",
+              "default": 50,
+              "title": "Max Total"
+            },
+            "description": "Nombre total maximum de résultats"
+          },
+          {
+            "name": "categories",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Liste de catégories à rechercher, séparées par virgule. Valeurs possibles : patient, invoice, lab_order, imaging_order, clinical_note. Défaut : toutes les catégories.",
+              "title": "Categories"
+            },
+            "description": "Liste de catégories à rechercher, séparées par virgule. Valeurs possibles : patient, invoice, lab_order, imaging_order, clinical_note. Défaut : toutes les catégories."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Not authenticated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Non autorisé — permission RBAC insuffisante ou accès cross-tenant (tentative de lecture d'un établissement non autorisé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Permission insuffisante : patients.write requis"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Too many requests"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur interne (cf. logs structurés JSON).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Internal Server Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health/live": {
       "get": {
         "tags": [
@@ -20461,6 +21171,14 @@
     {
       "name": "feedback",
       "description": "Retours utilisateurs : bug, suggestion, question, praise (v1.1.0)."
+    },
+    {
+      "name": "documents",
+      "description": "Génération PDF de documents cliniques et administratifs (v1.2.0)."
+    },
+    {
+      "name": "search",
+      "description": "Recherche globale multi-ressources (v1.2.0)."
     },
     {
       "name": "health",

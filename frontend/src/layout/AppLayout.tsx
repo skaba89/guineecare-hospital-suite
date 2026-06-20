@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { ToastContainer } from "../components/Toast";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { CommandPalette } from "../components/CommandPalette";
 import { Sidebar } from "./Sidebar";
 import { CurrentUser } from "../services/authService";
 
@@ -26,6 +27,7 @@ export function AppLayout({
         </ErrorBoundary>
       </main>
       <ToastContainer />
+      <CommandPalette />
     </div>
   );
 }

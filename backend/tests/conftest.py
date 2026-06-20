@@ -40,6 +40,7 @@ from app.modules.quality.models import QualityIndicator, QualityMeasurement, Inc
 from app.modules.reporting.models import NationalReport, EpidemicAlert, HealthStatistic
 from app.modules.notifications.models import Notification
 from app.modules.user_profile.models import UserPreference, UserFeedback, UserRecentItem
+from app.modules.documents.models import DocumentGenerated
 
 # Use SQLite for tests
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_guineecare.db"

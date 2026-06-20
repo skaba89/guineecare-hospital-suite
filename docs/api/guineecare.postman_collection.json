@@ -6221,6 +6221,299 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Documents API",
+      "item": [
+        {
+          "name": "Générer le PDF d'une ordonnance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/documents/prescriptions/{{clinical_note_id}}/pdf",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "documents",
+                "prescriptions",
+                "{{clinical_note_id}}",
+                "pdf"
+              ],
+              "query": [
+                {
+                  "key": "download",
+                  "value": false,
+                  "description": "Forcer le téléchargement (attachment)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Génère un PDF d'ordonnance médicale à partir d'une `ClinicalNote` dont le `note_type` est `PRESCRIPTION`. Le PDF est renvoyé en flux (media type `application/pdf`). Par défaut le PDF s'affiche en inline dans le navigateur ; passer `?download=1` force le téléchargement."
+          },
+          "response": []
+        },
+        {
+          "name": "Générer le PDF d'un compte rendu d'imagerie",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/documents/imaging-reports/{{imaging_order_id}}/pdf",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "documents",
+                "imaging-reports",
+                "{{imaging_order_id}}",
+                "pdf"
+              ],
+              "query": [
+                {
+                  "key": "download",
+                  "value": false,
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Génère un PDF de compte rendu d'imagerie à partir d'une `ImagingOrder` et de son `ImagingResult` associé. Si aucun résultat n'existe encore, le PDF est généré avec les informations disponibles (demande seule)."
+          },
+          "response": []
+        },
+        {
+          "name": "Générer le PDF d'un résultat de laboratoire",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/documents/lab-results/{{lab_order_id}}/pdf",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "documents",
+                "lab-results",
+                "{{lab_order_id}}",
+                "pdf"
+              ],
+              "query": [
+                {
+                  "key": "download",
+                  "value": false,
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Génère un PDF de résultat d'analyse de laboratoire à partir d'une `LabOrder` et de son `LabResult` associé. Si le résultat n'est pas encore validé, le PDF mentionne explicitement cette limite (réservé à la décision clinique)."
+          },
+          "response": []
+        },
+        {
+          "name": "Générer le PDF d'une facture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/documents/invoices/{{invoice_id}}/pdf",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "documents",
+                "invoices",
+                "{{invoice_id}}",
+                "pdf"
+              ],
+              "query": [
+                {
+                  "key": "download",
+                  "value": false,
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Génère un PDF de facture patient à partir d'une `Invoice` et de ses `Payment` associés. Le PDF inclut le détail des montants (net, payé, reste à charge) et la liste des paiements encaissés."
+          },
+          "response": []
+        },
+        {
+          "name": "Lister les documents générés (audit trail)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/documents/audit",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "documents",
+                "audit"
+              ],
+              "query": [
+                {
+                  "key": "document_type",
+                  "value": "",
+                  "description": "Filtre par type de document",
+                  "disabled": true
+                },
+                {
+                  "key": "patient_id",
+                  "value": "",
+                  "description": "Filtre par patient",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "Renvoie la liste paginée des PDF générés par l'utilisateur courant (ou par tous les utilisateurs de l'établissement si SUPER_ADMIN/ADMIN). Utile pour répondre à la question « qui a imprimé ce document et quand ? »."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Search API",
+      "item": [
+        {
+          "name": "Recherche globale multi-ressources",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/search",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "",
+                  "description": "Terme de recherche (min 2 caractères)",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": 10,
+                  "description": "Nombre maximum de résultats par catégorie",
+                  "disabled": true
+                },
+                {
+                  "key": "max_total",
+                  "value": 50,
+                  "description": "Nombre total maximum de résultats",
+                  "disabled": true
+                },
+                {
+                  "key": "categories",
+                  "value": "",
+                  "description": "Liste de catégories à rechercher, séparées par virgule. Valeurs possibles : patient, invoice, lab_order, imaging_order, clinical_note. Défaut : toutes les catégories.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Recherche full-text-like sur 5 catégories de ressources : patients, factures, demandes laboratoire, demandes imagerie, notes cliniques. Les résultats sont groupés par catégorie, avec un maximum de 10 résultats par catégorie et 50 résultats au total. \n\n**Recherche par préfixe** : si la requête commence par `PAT-`, `INV-`, `LAB-` ou `IMG-`, la recherche se limite à la catégorie correspondante et le préfixe est retiré du motif de recherche. Exemple : `?q=PAT-1234` ne cherche que dans les patients avec le motif `1234`.\n\n**Filtrage multi-tenant** : les résultats sont automatiquement restreints à l'établissement de l'utilisateur courant (sauf SUPER_ADMIN qui voit tous les établissements).\n\n**Performance** : la recherche s'appuie sur les indexes déjà en place (`patient_number`, `invoice_number`, etc.). Pour les volumétries >100k lignes par table, une migration vers PostgreSQL tsvector + GIN ou Meilisearch est prévue en v1.3."
+          },
+          "response": []
+        }
+      ]
     }
   ]
 }

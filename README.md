@@ -5,12 +5,12 @@
 [![E2E admin pages](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-admin-pages.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-admin-pages.yml)
 [![E2E Playwright](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-playwright.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-playwright.yml)
 [![OpenAPI drift](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/openapi-check.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/openapi-check.yml)
-[![Version](https://img.shields.io/badge/version-v1.1.0-blue.svg)](https://github.com/skaba89/guineecare-hospital-suite/releases)
+[![Version](https://img.shields.io/badge/version-v1.2.0-blue.svg)](https://github.com/skaba89/guineecare-hospital-suite/releases)
 [![License](https://img.shields.io/badge/license-Private-red.svg)](#licence)
 
 Plateforme hospitalière complète pour la Guinée, inspirée des meilleurs SIH modernes : dossier patient informatisé, maternité, urgences, hospitalisation, pharmacie, laboratoire, imagerie, facturation, bloc opératoire, RH, qualité, reporting national et architecture technique industrielle.
 
-**Version actuelle :** `v1.1.0` — Conduite du changement + formation + évolutions post-pilote (module `user_profile` : préférences / feedback / items récents, 10 fiches rapides par rôle, FAQ, parcours de recette, roadmap v1.2+)
+**Version actuelle :** `v1.2.0` — Export PDF des documents cliniques (ordonnances, comptes rendus d'imagerie, résultats de labo, factures via ReportLab) + recherche globale multi-ressources accessible via Ctrl+K (patients, factures, labo, imagerie, notes cliniques)
 
 ## Objectif
 
@@ -200,7 +200,8 @@ server: {
 - ✅ v0.10 — Documentation OpenAPI complète + Postman collection (138 endpoints, 25 tags, Bearer security, drift CI)
 - ✅ v1.0 — Déploiement pilote CHU Donka (docker-compose prod hardening, TLS, scripts ops, runbook, CI release GHCR)
 - ✅ v1.1 — Conduite du changement + formation + évolutions post-pilote (préférences user, feedback, items récents, 10 fiches rapides, FAQ, roadmap v1.2+)
-- 🔜 v1.2 — Impression PDF + i18n EN/FR + dashboard temps réel + recherche globale + mode hors-ligne PWA
+- ✅ v1.2 — Export PDF (ordonnances, imagerie, labo, factures via ReportLab) + recherche globale Ctrl+K (patients, factures, labo, imagerie, notes cliniques)
+- 🔜 v1.3 — i18n EN/FR complète + dashboard temps réel (WebSocket) + mode hors-ligne PWA + app mobile Android
 
 ## Sécurité
 

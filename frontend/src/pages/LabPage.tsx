@@ -28,6 +28,7 @@ import { apiRequest } from "../services/api";
 import { LookupData, Row } from "../types";
 import { showToast } from "../components/Toast";
 import { buildOptions, firstValue } from "../utils/options";
+import { PdfButton } from "../components/PdfButton";
 
 type TabKey = "dashboard" | "orders" | "results" | "catalog";
 
@@ -666,6 +667,10 @@ function OrdersTab({
                                 <CheckCircle2 size={12} /> Terminer
                               </button>
                             )}
+                            <PdfButton
+                              documentPath={`lab-results/${order.id}/pdf`}
+                              label="PDF"
+                            />
                           </div>
                         </td>
                       </tr>

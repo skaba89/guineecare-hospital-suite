@@ -23,6 +23,7 @@ import {
   LogOut,
   ChevronDown,
   ChevronRight,
+  Search,
 } from "lucide-react";
 import { CurrentUser, getRoleLabel, getUserInitials, getUserDisplayName } from "../services/authService";
 import { useNavVisibility } from "../components/ProtectedRoute";
@@ -158,6 +159,17 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void | Prom
       </div>
 
       {/* Navigation */}
+      {!collapsed && (
+        <button
+          type="button"
+          className="search-trigger"
+          onClick={() => window.dispatchEvent(new Event("guineecare:open-search"))}
+        >
+          <Search size={14} />
+          <span>Rechercher…</span>
+          <kbd>Ctrl K</kbd>
+        </button>
+      )}
       <nav className="sidebar-nav">
         {visibleSections.map((section) => (
           <div key={section.title} className="sidebar-section">

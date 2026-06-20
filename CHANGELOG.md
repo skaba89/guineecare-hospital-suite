@@ -1,5 +1,183 @@
 # Changelog
 
+## [1.2.0] — 2026-06-21
+
+### Added — Export PDF des documents cliniques + recherche globale (Ctrl+K)
+
+Cette release livre les deux premières évolutions prioritaires
+identifiées dans le document post-pilote (EVOLUTIONS_POST_PILOTE.md) :
+**(1) l'impression PDF des documents cliniques** (ordonnances, comptes
+rendus d'imagerie, résultats de laboratoire, factures) et **(4) la
+recherche globale multi-ressources** accessible via Ctrl+K. Ces deux
+fonctionnalités répondent aux deux remontées les plus fréquentes de la
+phase pilote : l'impossibilité d'imprimer proprement les documents
+médicaux (les pharmaciens d'officine exigent une ordonnance papier
+signée), et la frustration de devoir savoir dans quel module chercher
+pour retrouver un dossier.
+
+#### Module backend `documents` (PDF generation via ReportLab)
+
+Quatre nouveaux endpoints, un par type de document, qui génèrent un PDF
+à la volée et le renvoient en flux (`application/pdf`) :
+
+- **`GET /api/v1/documents/prescriptions/{clinical_note_id}/pdf`** —
+  génère une ordonnance PDF à partir d'une `ClinicalNote` dont le
+  `note_type` est `PRESCRIPTION`. Inclut l'en-tête établissement, le
+  bloc d'identification patient, le contenu de la prescription, le bloc
+  signature du médecin prescripteur.
+- **`GET /api/v1/documents/imaging-reports/{imaging_order_id}/pdf`** —
+  génère un compte rendu d'imagerie PDF à partir d'une `ImagingOrder`
+  et de son `ImagingResult` associé. Si aucun résultat n'existe encore,
+  le PDF est généré avec les informations de la demande seule.
+- **`GET /api/v1/documents/lab-results/{lab_order_id}/pdf`** — génère
+  un résultat de laboratoire PDF à partir d'une `LabOrder` et de son
+  `LabResult` associé. Si l'interprétation contient le mot `CRITIQUE`,
+  un bandeau rouge de alerte est ajouté au PDF pour attirer l'attention
+  du médecin prescripteur.
+- **`GET /api/v1/documents/invoices/{invoice_id}/pdf`** — génère une
+  facture patient PDF à partir d'une `Invoice` et de ses `Payment`
+  associés. Inclut le détail des montants (net, payé, reste à charge
+  en rouge si > 0) et la liste des paiements encaissés.
+- **`GET /api/v1/documents/audit`** — liste paginée des PDF générés
+  (audit trail). Filtrable par `document_type`, `patient_id`. SUPER_ADMIN
+  voit tous les établissements ; ADMIN et les autres rôles ne voient
+  que leur établissement.
+
+Tous les endpoints acceptent le paramètre `?download=1` pour forcer le
+téléchargement (Content-Disposition: attachment) au lieu de l'affichage
+inline (par défaut).
+
+**Bibliothèque PDF** : ReportLab 4.2.5 (pure Python, aucune dépendance
+système). Le cahier des charges initial mentionnait WeasyPrint, mais
+WeasyPrint nécessite cairo/pango partagés — incompatible avec
+l'environnement Docker léger du pilote CHU Donka. ReportLab produit des
+PDF équivalents en qualité avec un footprint minimal.
+
+**Audit trail** : chaque génération de PDF est journalisée dans la
+nouvelle table `documents_generated` (migration Alembic 0016) avec le
+SHA-256 du PDF produit, permettant de détecter les régénérations
+identiques sans stocker les octets du PDF (question de rétention PII).
+Une entrée d'audit log (`document.<type>_generated`) est également
+écrite via `audit_log()`, plus une entrée d'activité
+(`document.<type>_generated`).
+
+Modèles (`backend/app/modules/documents/models.py`) :
+
+- **`DocumentGenerated`** — `facility_id`, `document_type` (PRESCRIPTION,
+  IMAGING_REPORT, LAB_RESULT, INVOICE), `source_id` (ID de la ressource
+  source), `patient_id`, `generated_by`, `generated_at`,
+  `file_size_bytes`, `checksum_sha256`, `note`. Index sur `facility_id`,
+  `document_type`, `source_id`, `patient_id`, `generated_at`.
+
+Tests (`backend/tests/test_documents.py`) — 19 tests en 5 classes :
+
+- `TestPrescriptionPDF` (6) — success, download flag, wrong note_type
+  (400), not found (404), cross-tenant (403), audit row written.
+- `TestImagingReportPDF` (3) — with result, without result (demande
+  seule), not found.
+- `TestLabResultPDF` (3) — with result, without result, critical value
+  highlighted.
+- `TestInvoicePDF` (3) — without payments, with payments, not found.
+- `TestDocumentsAudit` (4) — empty list, after generation, filter by
+  document_type, filter by patient_id.
+
+#### Module backend `search` (recherche globale multi-ressources)
+
+Un nouvel endpoint qui recherche en parallèle sur 5 catégories de
+ressources et renvoie les résultats groupés :
+
+- **`GET /api/v1/search?q=...&limit=10&max_total=50&categories=patient,invoice`**
+
+Catégories recherchées (par défaut toutes) :
+
+- **Patients** — `first_name`, `last_name`, `patient_number`, `phone`,
+  `national_id`.
+- **Factures** — `invoice_number`, `description`.
+- **Demandes laboratoire** — `id`, `LabTest.name`, `LabTest.code` (join).
+- **Demandes imagerie** — `id`, `exam_type`, `body_region`,
+  `clinical_info`.
+- **Notes cliniques** — `content` (recherche par mot-clé dans les
+  observations et consultations).
+
+**Recherche par préfixe** : si la requête commence par `PAT-`, `INV-`,
+`LAB-` ou `IMG-`, la recherche se limite à la catégorie correspondante
+et le préfixe est retiré du motif. Exemple : `?q=PAT-1234` ne cherche
+que dans les patients avec le motif `1234`.
+
+**Filtrage multi-tenant** : les résultats sont automatiquement
+restreints à l'établissement de l'utilisateur courant via `tenant_query`
+(sauf SUPER_ADMIN qui voit tous les établissements).
+
+**Performance** : la recherche s'appuie sur les indexes déjà en place
+(`patient_number`, `invoice_number`, etc.). Pour les volumétries >100k
+lignes par table, une migration vers PostgreSQL tsvector + GIN ou
+Meilisearch est prévue en v1.3.
+
+Tests (`backend/tests/test_search.py`) — 21 tests en 6 classes :
+
+- `TestSearchBasics` (3) — too short query (422), no results,
+  unauthenticated (401).
+- `TestPatientSearch` (4) — by last name, first name, patient_number,
+  phone.
+- `TestInvoiceSearch` (2) — by invoice_number, by description.
+- `TestResourceSearch` (4) — lab by test name, lab by test code, imaging
+  by body_region, clinical note by content.
+- `TestPrefixSearch` (2) — PAT- restricts to patients, INV- restricts
+  to invoices.
+- `TestTenantIsolation` (2) — doctor in facility A cannot see facility B
+  patients, SUPER_ADMIN sees all facilities.
+- `TestCategoriesAndCapping` (4) — categories filter restricts search,
+  invalid category (422), limit_per_category caps results, max_total
+  caps all results.
+
+#### Frontend — Command Palette Ctrl+K + bouton PDF
+
+Nouveau composant `CommandPalette` (`frontend/src/components/CommandPalette.tsx`)
+qui s'ouvre avec **Ctrl+K** (ou **Cmd+K** sur macOS) et permet de
+lancer une recherche globale depuis n'importe quelle page. Résultats
+groupés par catégorie (Patients, Factures, Laboratoire, Imagerie, Notes
+cliniques), navigation clavier (↑↓ Enter Esc), debounce 250ms. Un
+bouton « Rechercher… » est ajouté en haut de la sidebar pour les
+utilisateurs qui ne connaissent pas le raccourci clavier.
+
+Nouveau composant `PdfButton` (`frontend/src/components/PdfButton.tsx`)
+réutilisable : appelle l'endpoint `/api/v1/documents/*/{id}/pdf` avec
+le JWT, récupère le blob, l'ouvre dans un nouvel onglet (preview
+navigateur PDF). Trois variantes (ghost, primary, outline), deux
+tailles (sm, md), état de chargement avec spinner.
+
+Intégration du bouton PDF sur trois pages :
+
+- **`FinancePage`** — colonne PDF sur la liste des factures.
+- **`LabPage`** — bouton PDF sur chaque ligne de la liste des demandes
+  laboratoire.
+- **`ImagingPage`** — bouton PDF sur chaque ligne de la liste des
+  demandes d'imagerie.
+
+#### Migration Alembic 0016
+
+`backend/alembic/versions/0016_documents.py` — crée la table
+`documents_generated` avec 5 indexes (facility_id, document_type,
+source_id, patient_id, generated_at).
+
+#### Dépendances
+
+- Ajout de `reportlab==4.2.5` à `backend/requirements.txt`.
+
+#### OpenAPI 3.1 — 29 tags (vs 27 en v1.1.0)
+
+Deux nouveaux tags documentés : `documents` et `search`. La spec
+régénérée (`docs/api/openapi.json`, 608 KB) couvre désormais 152
+endpoints (vs 146 en v1.1.0). Collection Postman régénérée (194 KB, 29
+dossiers).
+
+#### Tests — 316 backend tests (vs 276 en v1.1.0)
+
+40 nouveaux tests (19 documents + 21 search). Toutes les suites
+existentes restent vertes (aucune régression).
+
+---
+
 ## [1.1.0] — 2026-06-21
 
 ### Added — Conduite du changement + formation + évolutions post-pilote
