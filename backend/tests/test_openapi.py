@@ -43,9 +43,9 @@ def test_openapi_version_is_3_1(spec):
     assert spec["openapi"].startswith("3.1"), "OpenAPI 3.1.x expected"
 
 
-def test_app_version_matches_v0_10(spec):
+def test_app_version_matches_v1_1(spec):
     assert spec["info"]["version"] == APP_VERSION
-    assert APP_VERSION == "1.0.0"
+    assert APP_VERSION == "1.1.0"
 
 
 def test_app_has_description(spec):
@@ -77,14 +77,15 @@ def test_app_has_security_scheme(spec):
     assert schemes["HTTPBearer"]["scheme"] == "bearer"
 
 
-def test_app_has_all_25_tags(spec):
+def test_app_has_all_27_tags(spec):
     tags = {t["name"] for t in spec.get("tags", [])}
     expected = {
         "auth", "users", "rbac", "facilities", "departments",
         "patients", "admissions", "emergency", "hospitalization", "clinical",
         "maternity", "pharmacy", "laboratory", "imaging", "surgery",
         "billing", "personnel", "quality", "reporting", "audit",
-        "activity", "notifications", "health", "metrics", "system",
+        "activity", "notifications", "user-profile", "feedback",
+        "health", "metrics", "system",
     }
     missing = expected - tags
     assert not missing, f"Missing tags: {missing}"

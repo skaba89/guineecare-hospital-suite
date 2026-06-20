@@ -5899,6 +5899,328 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "User-Profile API",
+      "item": [
+        {
+          "name": "Get My Preferences",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/me/preferences",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "me",
+                "preferences"
+              ],
+              "query": []
+            },
+            "description": "Return the current user's UI preferences.\n\nReturns defaults (locale=fr, theme=light, page_size=20, refresh=30s)\nif the user has never customized their preferences."
+          },
+          "response": []
+        },
+        {
+          "name": "Update My Preferences",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/me/preferences",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "me",
+                "preferences"
+              ],
+              "query": []
+            },
+            "description": "Update the current user's UI preferences (partial update)."
+          },
+          "response": []
+        },
+        {
+          "name": "List My Recent Items",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/me/recent",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "me",
+                "recent"
+              ],
+              "query": [
+                {
+                  "key": "resource_type",
+                  "value": "",
+                  "description": "Filter by resource type",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": 20,
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Return the current user's most-recently-viewed items (sliding window)."
+          },
+          "response": []
+        },
+        {
+          "name": "Record Recent Item",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/me/recent",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "me",
+                "recent"
+              ],
+              "query": []
+            },
+            "description": "Record that the current user viewed a resource.\n\nRe-visiting the same resource bubbles it to the top (unique constraint\non user_id + resource_type + resource_id → upsert). The sliding window\nis pruned to MAX_RECENT_ITEMS rows per user."
+          },
+          "response": []
+        },
+        {
+          "name": "Clear My Recent Items",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/me/recent",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "me",
+                "recent"
+              ],
+              "query": []
+            },
+            "description": "Clear all recent-item history for the current user."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Feedback API",
+      "item": [
+        {
+          "name": "Submit Feedback",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/feedback",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "feedback"
+              ],
+              "query": []
+            },
+            "description": "Submit a feedback entry (bug, suggestion, question, praise).\n\nAny authenticated user can submit. The user_agent and IP are captured\nautomatically from the request for diagnostic purposes (the IP is\nstored in the audit log, not in the feedback row)."
+          },
+          "response": []
+        },
+        {
+          "name": "List Feedback",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/feedback",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "feedback"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": 1,
+                  "description": "",
+                  "disabled": false
+                },
+                {
+                  "key": "page_size",
+                  "value": 20,
+                  "description": "",
+                  "disabled": false
+                },
+                {
+                  "key": "category",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "facility_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "mine",
+                  "value": false,
+                  "description": "Limit to feedback submitted by the current user",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List feedback entries.\n\n- `mine=true` — any authenticated user can list their own feedback.\n- Otherwise — requires `feedback.read` permission (SUPER_ADMIN / ADMIN bypass).\n  ADMIN is restricted to their facility; SUPER_ADMIN sees all."
+          },
+          "response": []
+        },
+        {
+          "name": "Resolve Feedback",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text",
+                "description": "JWT Bearer token (récupéré via POST /auth/login)"
+              }
+            ],
+            "url": {
+              "raw": "{{{{base_url}}}}/feedback/{{feedback_id}}",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "{{{{base_url}}}}",
+                "feedback",
+                "{{feedback_id}}"
+              ],
+              "query": []
+            },
+            "description": "Triage / resolve a feedback entry (ADMIN+ only).\n\nRequires the `feedback.resolve` permission. ADMIN is scoped to their\nfacility; SUPER_ADMIN can resolve any entry."
+          },
+          "response": []
+        }
+      ]
     }
   ]
 }

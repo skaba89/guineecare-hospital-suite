@@ -57,6 +57,9 @@ DEFAULT_PERMISSIONS = [
     ("reporting.manage", "Gerer le reporting", "reporting"),
     ("audit.read", "Consulter le journal d'audit", "audit"),
     ("notification.send", "Envoyer une notification", "notifications"),
+    # v1.1.0 — change-management feedback loop
+    ("feedback.read", "Consulter les retours utilisateurs", "feedback"),
+    ("feedback.resolve", "Trier et resoudre les retours utilisateurs", "feedback"),
 ]
 
 ROLE_PERMISSION_MAP = {

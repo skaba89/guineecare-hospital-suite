@@ -33,6 +33,7 @@ from app.modules.quality.routes import router as quality_router
 from app.modules.reporting.routes import router as reporting_router
 from app.modules.audit.routes import router as audit_router
 from app.modules.notifications.routes import router as notifications_router
+from app.modules.user_profile.routes import router as user_profile_router, feedback_router
 from app.modules.observability.routes import router as observability_router, metrics_router
 from app.modules.observability.middleware import MetricsMiddleware
 from app.modules.observability.logging import configure_logging
@@ -41,7 +42,7 @@ from app.modules.observability.metrics import set_app_info
 logger = logging.getLogger("guineecare")
 
 API_PREFIX = "/api/v1"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 
 # --- OpenAPI documentation metadata (v0.10.0) ---
 API_DESCRIPTION = """\
@@ -110,6 +111,8 @@ OPENAPI_TAGS = [
     {"name": "audit", "description": "Journal d'audit (consultation, filtres)."},
     {"name": "activity", "description": "Flux d'activité temps réel (timeline)."},
     {"name": "notifications", "description": "Notifications multicanal (console, email, SMS)."},
+    {"name": "user-profile", "description": "Profil utilisateur : préférences UI, items récents (v1.1.0)."},
+    {"name": "feedback", "description": "Retours utilisateurs : bug, suggestion, question, praise (v1.1.0)."},
     {"name": "health", "description": "Health checks (/health, /health/live, /health/ready)."},
     {"name": "metrics", "description": "Métriques Prometheus (/metrics, token-gated)."},
     {"name": "system", "description": "Endpoints racine et utilitaires système."},
@@ -236,6 +239,8 @@ app.include_router(quality_router, prefix=API_PREFIX)
 app.include_router(reporting_router, prefix=API_PREFIX)
 app.include_router(audit_router, prefix=API_PREFIX)
 app.include_router(notifications_router, prefix=API_PREFIX)
+app.include_router(user_profile_router, prefix=API_PREFIX)
+app.include_router(feedback_router, prefix=API_PREFIX)
 
 # Observability routes — mounted at root, NOT under /api/v1, so they match
 # Prometheus and Kubernetes conventions (/metrics, /health, /health/live, /health/ready).
@@ -253,7 +258,7 @@ def api_root():
             "patients", "admissions", "emergency", "pharmacy", "laboratory",
             "billing", "hospitalization", "activity", "clinical", "maternity",
             "personnel", "imaging", "surgery", "quality", "reporting",
-            "audit", "notifications", "observability",
+            "audit", "notifications", "user-profile", "feedback", "observability",
         ],
     }
 

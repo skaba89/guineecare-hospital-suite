@@ -1,5 +1,198 @@
 # Changelog
 
+## [1.1.0] — 2026-06-21
+
+### Added — Conduite du changement + formation + évolutions post-pilote
+
+Cette release ouvre la phase d'exploitation post-déploiement en
+ajoutant (1) un socle d'endpoints orientés "expérience utilisateur" —
+préférences UI, items récents, boucle de feedback — et (2) un corpus
+documentaire complet de conduite du changement et de formation par
+rôle, destiné à être utilisé immédiatement par l'équipe de déploiement
+terrain au CHU Donka.
+
+#### Nouveau module backend `user_profile` (préférences, feedback, items récents)
+
+Trois nouvelles tables, une migration Alembic 0015, et 8 nouveaux
+endpoints :
+
+- **`GET /api/v1/me/preferences`** — retourne les préférences UI de
+  l'utilisateur courant (locale, theme, default_page_size,
+  dashboard_refresh_seconds, extra JSON). Retourne des valeurs par
+  défaut si l'utilisateur n'a jamais personnalisé son espace.
+- **`PUT /api/v1/me/preferences`** — mise à jour partielle des
+  préférences. Toutes les modifications sont journalisées dans
+  l'audit log (`user.preferences.update`).
+- **`POST /api/v1/feedback`** — soumet un retour utilisateur (bug,
+  suggestion, question, praise). L'`user_agent` et la date sont
+  capturés automatiquement. Journalisation audit
+  (`feedback.create`).
+- **`GET /api/v1/feedback`** — liste paginée des feedbacks.
+  Filtrable par `category`, `status`, `facility_id`. Le paramètre
+  `mine=true` restreint aux feedbacks de l'utilisateur courant.
+  Les non-admins ne voient que leurs propres feedbacks ; les ADMIN
+  voient ceux de leur établissement ; SUPER_ADMIN voit tout.
+- **`PATCH /api/v1/feedback/{id}`** — triage / résolution
+  (ADMIN+ uniquement). Trace la résolution avec `admin_response`,
+  `resolved_at`, `resolved_by`. Audit log (`feedback.resolve`).
+- **`GET /api/v1/me/recent`** — liste les derniers items
+  consultés par l'utilisateur (patients, demandes labo, imagerie,
+  etc.). Filtrable par `resource_type`, limit configurable (max 50).
+- **`POST /api/v1/me/recent`** — enregistre une consultation
+  (upsert : re-visite d'un item le fait remonter en tête). Pruning
+  automatique à 50 items par utilisateur (sliding window).
+- **`DELETE /api/v1/me/recent`** — vide l'historique.
+
+Modèles (`backend/app/modules/user_profile/models.py`) :
+
+- **`UserPreference`** (1:1 avec `users`) — `locale` (fr|en),
+  `theme` (light|dark|auto), `default_page_size` (5-200),
+  `dashboard_refresh_seconds` (0-600), `extra` (JSON libre).
+- **`UserFeedback`** — append-only. Catégorie (bug/suggestion/
+  question/praise), priorité (low/normal/high/urgent), statut
+  (open/triaged/resolved/wontfix), `admin_response`, `resolved_at`,
+  `resolved_by`. Index sur `created_at`, `user_id`, `facility_id`,
+  `category`, `status`.
+- **`UserRecentItem`** — contrainte unique sur
+  `(user_id, resource_type, resource_id)` pour l'upsert.
+
+Migration Alembic `0015_user_profile` (3 tables, 8 index, 1 contrainte
+unique). RBAC : 2 nouvelles permissions seedées
+(`feedback.read`, `feedback.resolve`) — SUPER_ADMIN et ADMIN bypass.
+
+Pydantic v2 : `ConfigDict(from_attributes=True)`, `Literal` pour les
+enums strictes (Locale, Theme, FeedbackCategory, FeedbackPriority,
+FeedbackStatus, ResourceType).
+
+Tests (`backend/tests/test_user_profile.py`) — 36 nouveaux tests en
+3 classes :
+
+- `TestPreferences` (10) — defaults, partial update, validation
+  (locale, theme, page_size, refresh bounds), audit log trail.
+- `TestFeedback` (13) — submit, minimal, invalid category,
+  message too long, audit log, list mine / admin / super-admin,
+  filter by category, resolve flow, cross-facility forbidden,
+  non-admin forbidden, not found, audit log.
+- `TestRecentItems` (13) — record, bubble-to-top, order, filter,
+  limit, prune at MAX_RECENT_ITEMS, clear, isolation per user,
+  invalid resource type, auth required.
+
+Configuration tests (`backend/tests/conftest.py`) :
+`TestingSessionLocal` passe à `expire_on_commit=False` pour éviter
+les `DetachedInstanceError` quand les tests accèdent à `user.id`
+après une requête.
+
+#### OpenAPI 3.1 — 27 tags (vs 25 en v1.0.0)
+
+Deux nouveaux tags documentés : `user-profile` (préférences + items
+récents) et `feedback`. La spec régénérée (`docs/api/openapi.json`,
+584 KB) couvre désormais 146 endpoints (vs 138 en v1.0.0). Collection
+Postman régénérée (183 KB, 27 dossiers).
+
+#### Documentation conduite du changement (étendue de 33 → 280 lignes)
+
+`docs/formation/conduite-du-changement.md` — réécriture complète
+structurée en 10 sections : objectifs (5 cibles chiffrées), publics
+(10 profils avec durée formation), dispositif (5 formats : salle,
+cas pratiques, fiches rapides, assistance, support continu),
+calendrier 4 phases sur 12 semaines, gestion de la résistance
+(culturelle / organisationnelle / technique), boucle feedback v1.1,
+métriques d'adoption (5 KPI hebdo avec cibles S4 et S12), rôles et
+responsabilités, risques et mitigation, suite logique.
+
+#### Documentation formation (4 nouveaux documents)
+
+- **`docs/formation/quickstart-utilisateur.md`** — Guide de prise en
+  main en 10 minutes, structuré en 10 sections : pré-requis,
+  connexion, navigation, première action par rôle (4 cas : admission,
+  médecin, infirmier, pharmacien), personnalisation, items récents,
+  feedback, problèmes courants, règles d'or, aller plus loin.
+
+- **`docs/formation/faq-utilisateurs.md`** — 27 Q/R organisées en 7
+  thèmes : connexion et compte, patients et DPI, saisie et données,
+  permissions et RBAC, performance et disponibilité, sécurité et
+  confidentialité, boucle feedback v1.1.
+
+- **`docs/formation/parcours-recette-par-role.md`** — Check-list de
+  validation des compétences par rôle. 10 parcours (un par rôle),
+  13-21 actions chacun, avec critère de réussite et temps estimé.
+  Total : ~170 actions à valider. Inclut un template de fiche de
+  signature formateur + utilisateur.
+
+- **`docs/formation/fiches-rapides/`** — 10 fiches A4 (107-139 lignes
+  chacune, 1146 lignes total), une par rôle :
+  `fiche-admission.md`, `fiche-medecin.md`, `fiche-infirmier.md`,
+  `fiche-sage-femme.md`, `fiche-pharmacien.md`, `fiche-laboratoire.md`,
+  `fiche-radiologie.md`, `fiche-caissier.md`, `fiche-direction.md`,
+  `fiche-administrateur.md`. Structure uniforme : connexion, 10
+  actions essentielles, raccourcis clavier, problèmes/solutions,
+  contacts utiles. Noms guinéens réalistes (Diallo, Camara,
+  Bangoura, Cissé, Touré, Sylla, Condé) et terminologie médicale
+  contextualisée (paracétamol, arteméther, CPoN, APGAR, NFS,
+  sérologie VIH).
+
+#### Documentation post-pilote (1 nouveau document)
+
+- **`docs/post-pilot/EVOLUTIONS_POST_PILOTE.md`** — Roadmap dynamique
+  v1.2+ alimentée par la boucle feedback. Méthodologie de
+  priorisation (5 critères pondérés). 15 évolutions candidates
+  organisées en 3 temps :
+  - **v1.2** (3 mois) : impression PDF, i18n EN/FR, dashboard
+    temps réel, recherche globale, mode hors-ligne PWA.
+  - **v1.3** (6 mois) : app mobile Android, interopérabilité FHIR,
+    planning RH v2, dashboard qualité avancé, notifications
+    multicanal étendues.
+  - **v2.0** (12+ mois) : data warehouse national, télémédecine,
+    IA aide au diagnostic, stock multi-entrepôts, migration
+    Kubernetes.
+  - Backlog additionnel : 9 idées en attente (mode sombre complet,
+    export CSV universel, recherche phonétique, calendrier hégirien,
+    signature électronique, banque de sang, stérilisation, déchets
+    médicaux, intégration DMP).
+
+### Changed
+
+- **`APP_VERSION`** : `1.0.0` → `1.1.0` dans `backend/app/main.py`.
+- **OpenAPI tags** : 25 → 27 (ajout `user-profile`, `feedback`).
+- **`backend/tests/test_openapi.py`** : `test_app_version_matches_v1_1`,
+  `test_app_has_all_27_tags`.
+- **`backend/tests/conftest.py`** : `expire_on_commit=False` sur
+  `TestingSessionLocal` pour éviter les `DetachedInstanceError` dans
+  les tests qui accèdent à un attribut après une requête.
+- **`backend/app/modules/rbac/seed.py`** : 2 nouvelles permissions
+  (`feedback.read`, `feedback.resolve`), module `feedback`.
+- **README.md** : badge version v1.0.0 → v1.1.0, roadmap ✅ v1.1,
+  🔜 v1.2, nouvelle section "Conduite du changement et formation".
+- **`docs/api/openapi.json`** régénéré (545 KB → 584 KB).
+- **`docs/api/guineecare.postman_collection.json`** régénéré
+  (173 KB → 183 KB, 25 → 27 dossiers).
+
+### Stats
+
+- 276/276 tests backend pytest passent (240 + 36 nouveaux, 78s).
+- 0 régression (tous les tests v1.0.0 toujours verts).
+- Frontend build inchangé (253 KB initial bundle).
+- OpenAPI spec : 146 endpoints, 102 paths, 27 tags, 145 routes
+  protégées avec auto-injection 401/403/429/500 + HTTPBearer.
+- Documentation : 16 nouveaux fichiers Markdown dans
+  `docs/formation/` et `docs/post-pilot/` (~2300 lignes au total).
+
+### Migration
+
+Aucun breaking change. La migration Alembic `0015_user_profile` crée
+3 nouvelles tables — exécutable sans interruption de service via :
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+Les anciens endpoints sont inchangés. Les nouvelles permissions
+(`feedback.read`, `feedback.resolve`) sont seedées automatiquement
+au prochain démarrage de l'application.
+
+---
+
 ## [1.0.0] — 2026-06-21
 
 ### Added — Déploiement pilote CHU Donka

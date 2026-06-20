@@ -13,7 +13,7 @@
       "name": "Private — Usage réservé CHU Donka / Ministère Santé Guinée",
       "url": "https://github.com/skaba89/guineecare-hospital-suite/blob/main/LICENSE"
     },
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "servers": [
     {
@@ -15132,6 +15132,851 @@
         ]
       }
     },
+    "/api/v1/me/preferences": {
+      "get": {
+        "tags": [
+          "user-profile"
+        ],
+        "summary": "Get My Preferences",
+        "description": "Return the current user's UI preferences.\n\nReturns defaults (locale=fr, theme=light, page_size=20, refresh=30s)\nif the user has never customized their preferences.",
+        "operationId": "get_my_preferences_api_v1_me_preferences_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPreferencesRead"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Not authenticated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Non autorisé — permission RBAC insuffisante ou accès cross-tenant (tentative de lecture d'un établissement non autorisé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Permission insuffisante : patients.write requis"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Too many requests"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur interne (cf. logs structurés JSON).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Internal Server Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "user-profile"
+        ],
+        "summary": "Update My Preferences",
+        "description": "Update the current user's UI preferences (partial update).",
+        "operationId": "update_my_preferences_api_v1_me_preferences_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPreferencesUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPreferencesRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Not authenticated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Non autorisé — permission RBAC insuffisante ou accès cross-tenant (tentative de lecture d'un établissement non autorisé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Permission insuffisante : patients.write requis"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Too many requests"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur interne (cf. logs structurés JSON).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Internal Server Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me/recent": {
+      "get": {
+        "tags": [
+          "user-profile"
+        ],
+        "summary": "List My Recent Items",
+        "description": "Return the current user's most-recently-viewed items (sliding window).",
+        "operationId": "list_my_recent_items_api_v1_me_recent_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "resource_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by resource type",
+              "title": "Resource Type"
+            },
+            "description": "Filter by resource type"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecentItemListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Not authenticated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Non autorisé — permission RBAC insuffisante ou accès cross-tenant (tentative de lecture d'un établissement non autorisé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Permission insuffisante : patients.write requis"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Too many requests"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur interne (cf. logs structurés JSON).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Internal Server Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "user-profile"
+        ],
+        "summary": "Record Recent Item",
+        "description": "Record that the current user viewed a resource.\n\nRe-visiting the same resource bubbles it to the top (unique constraint\non user_id + resource_type + resource_id → upsert). The sliding window\nis pruned to MAX_RECENT_ITEMS rows per user.",
+        "operationId": "record_recent_item_api_v1_me_recent_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecentItemCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecentItemRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Not authenticated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Non autorisé — permission RBAC insuffisante ou accès cross-tenant (tentative de lecture d'un établissement non autorisé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Permission insuffisante : patients.write requis"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Too many requests"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur interne (cf. logs structurés JSON).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Internal Server Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "user-profile"
+        ],
+        "summary": "Clear My Recent Items",
+        "description": "Clear all recent-item history for the current user.",
+        "operationId": "clear_my_recent_items_api_v1_me_recent_delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Not authenticated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Non autorisé — permission RBAC insuffisante ou accès cross-tenant (tentative de lecture d'un établissement non autorisé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Permission insuffisante : patients.write requis"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Too many requests"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur interne (cf. logs structurés JSON).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Internal Server Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/feedback": {
+      "post": {
+        "tags": [
+          "feedback"
+        ],
+        "summary": "Submit Feedback",
+        "description": "Submit a feedback entry (bug, suggestion, question, praise).\n\nAny authenticated user can submit. The user_agent and IP are captured\nautomatically from the request for diagnostic purposes (the IP is\nstored in the audit log, not in the feedback row).",
+        "operationId": "submit_feedback_api_v1_feedback_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Not authenticated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Non autorisé — permission RBAC insuffisante ou accès cross-tenant (tentative de lecture d'un établissement non autorisé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Permission insuffisante : patients.write requis"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Too many requests"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur interne (cf. logs structurés JSON).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Internal Server Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "feedback"
+        ],
+        "summary": "List Feedback",
+        "description": "List feedback entries.\n\n- `mine=true` — any authenticated user can list their own feedback.\n- Otherwise — requires `feedback.read` permission (SUPER_ADMIN / ADMIN bypass).\n  ADMIN is restricted to their facility; SUPER_ADMIN sees all.",
+        "operationId": "list_feedback_api_v1_feedback_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 20,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "facility_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Facility Id"
+            }
+          },
+          {
+            "name": "mine",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Limit to feedback submitted by the current user",
+              "default": false,
+              "title": "Mine"
+            },
+            "description": "Limit to feedback submitted by the current user"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Not authenticated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Non autorisé — permission RBAC insuffisante ou accès cross-tenant (tentative de lecture d'un établissement non autorisé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Permission insuffisante : patients.write requis"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Too many requests"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur interne (cf. logs structurés JSON).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Internal Server Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/feedback/{feedback_id}": {
+      "patch": {
+        "tags": [
+          "feedback"
+        ],
+        "summary": "Resolve Feedback",
+        "description": "Triage / resolve a feedback entry (ADMIN+ only).\n\nRequires the `feedback.resolve` permission. ADMIN is scoped to their\nfacility; SUPER_ADMIN can resolve any entry.",
+        "operationId": "resolve_feedback_api_v1_feedback__feedback_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "feedback_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Feedback Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackResolve"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Not authenticated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Non autorisé — permission RBAC insuffisante ou accès cross-tenant (tentative de lecture d'un établissement non autorisé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Permission insuffisante : patients.write requis"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Too many requests"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur interne (cf. logs structurés JSON).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Internal Server Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health/live": {
       "get": {
         "tags": [
@@ -16087,6 +16932,276 @@
         },
         "type": "object",
         "title": "FacilityUpdate"
+      },
+      "FeedbackCreate": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "bug",
+              "suggestion",
+              "question",
+              "praise"
+            ],
+            "title": "Category"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "urgent"
+            ],
+            "title": "Priority",
+            "default": "normal"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Message"
+          },
+          "page_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "message"
+        ],
+        "title": "FeedbackCreate"
+      },
+      "FeedbackListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/FeedbackRead"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "FeedbackListResponse"
+      },
+      "FeedbackRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "facility_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Facility Id"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "bug",
+              "suggestion",
+              "question",
+              "praise"
+            ],
+            "title": "Category"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "urgent"
+            ],
+            "title": "Priority"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "triaged",
+              "resolved",
+              "wontfix"
+            ],
+            "title": "Status"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "page_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Url"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
+          },
+          "admin_response": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin Response"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "resolved_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "category",
+          "priority",
+          "status",
+          "message"
+        ],
+        "title": "FeedbackRead"
+      },
+      "FeedbackResolve": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "triaged",
+              "resolved",
+              "wontfix"
+            ],
+            "title": "Status"
+          },
+          "admin_response": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin Response"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "FeedbackResolve",
+        "description": "Admin payload to triage / resolve a feedback entry."
       },
       "HTTPValidationError": {
         "properties": {
@@ -18020,6 +19135,122 @@
         ],
         "title": "QualityMeasurementCreate"
       },
+      "RecentItemCreate": {
+        "properties": {
+          "resource_type": {
+            "type": "string",
+            "enum": [
+              "patient",
+              "admission",
+              "emergency_visit",
+              "hospital_stay",
+              "lab_order",
+              "imaging_order",
+              "surgery",
+              "invoice",
+              "incident",
+              "staff"
+            ],
+            "title": "Resource Type"
+          },
+          "resource_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Resource Id"
+          },
+          "resource_label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resource_type",
+          "resource_id"
+        ],
+        "title": "RecentItemCreate"
+      },
+      "RecentItemListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/RecentItemRead"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "total"
+        ],
+        "title": "RecentItemListResponse"
+      },
+      "RecentItemRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "resource_type": {
+            "type": "string",
+            "title": "Resource Type"
+          },
+          "resource_id": {
+            "type": "string",
+            "title": "Resource Id"
+          },
+          "resource_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Label"
+          },
+          "viewed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Viewed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "resource_type",
+          "resource_id"
+        ],
+        "title": "RecentItemRead"
+      },
       "RefreshRequest": {
         "properties": {
           "refresh_token": {
@@ -18872,6 +20103,138 @@
         "title": "UserInfo",
         "description": "Subset of User returned in login/refresh responses."
       },
+      "UserPreferencesRead": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "fr",
+              "en"
+            ],
+            "title": "Locale",
+            "default": "fr"
+          },
+          "theme": {
+            "type": "string",
+            "enum": [
+              "light",
+              "dark",
+              "auto"
+            ],
+            "title": "Theme",
+            "default": "light"
+          },
+          "default_page_size": {
+            "type": "integer",
+            "title": "Default Page Size",
+            "default": 20
+          },
+          "dashboard_refresh_seconds": {
+            "type": "integer",
+            "title": "Dashboard Refresh Seconds",
+            "default": 30
+          },
+          "extra": {
+            "type": "object",
+            "title": "Extra"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "UserPreferencesRead"
+      },
+      "UserPreferencesUpdate": {
+        "properties": {
+          "locale": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "fr",
+                  "en"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locale"
+          },
+          "theme": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "light",
+                  "dark",
+                  "auto"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Theme"
+          },
+          "default_page_size": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 200.0,
+                "minimum": 5.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Page Size"
+          },
+          "dashboard_refresh_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 600.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dashboard Refresh Seconds"
+          },
+          "extra": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra"
+          }
+        },
+        "type": "object",
+        "title": "UserPreferencesUpdate"
+      },
       "UserUpdate": {
         "properties": {
           "email": {
@@ -19090,6 +20453,14 @@
     {
       "name": "notifications",
       "description": "Notifications multicanal (console, email, SMS)."
+    },
+    {
+      "name": "user-profile",
+      "description": "Profil utilisateur : préférences UI, items récents (v1.1.0)."
+    },
+    {
+      "name": "feedback",
+      "description": "Retours utilisateurs : bug, suggestion, question, praise (v1.1.0)."
     },
     {
       "name": "health",

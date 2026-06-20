@@ -39,6 +39,7 @@ from app.modules.surgery.models import OperatingRoom, SurgerySchedule, SurgeryTe
 from app.modules.quality.models import QualityIndicator, QualityMeasurement, IncidentReport
 from app.modules.reporting.models import NationalReport, EpidemicAlert, HealthStatistic
 from app.modules.notifications.models import Notification
+from app.modules.user_profile.models import UserPreference, UserFeedback, UserRecentItem
 
 # Use SQLite for tests
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_guineecare.db"
@@ -47,7 +48,14 @@ engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
     connect_args={"check_same_thread": False},
 )
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+TestingSessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+    expire_on_commit=False,  # v1.1.0: keep attributes populated after commit so
+                             # tests can access user.id after a request without
+                             # DetachedInstanceError.
+)
 
 
 @pytest.fixture(scope="function", autouse=True)

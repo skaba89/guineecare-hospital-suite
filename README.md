@@ -5,12 +5,12 @@
 [![E2E admin pages](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-admin-pages.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-admin-pages.yml)
 [![E2E Playwright](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-playwright.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-playwright.yml)
 [![OpenAPI drift](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/openapi-check.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/openapi-check.yml)
-[![Version](https://img.shields.io/badge/version-v1.0.0-blue.svg)](https://github.com/skaba89/guineecare-hospital-suite/releases)
+[![Version](https://img.shields.io/badge/version-v1.1.0-blue.svg)](https://github.com/skaba89/guineecare-hospital-suite/releases)
 [![License](https://img.shields.io/badge/license-Private-red.svg)](#licence)
 
 Plateforme hospitalière complète pour la Guinée, inspirée des meilleurs SIH modernes : dossier patient informatisé, maternité, urgences, hospitalisation, pharmacie, laboratoire, imagerie, facturation, bloc opératoire, RH, qualité, reporting national et architecture technique industrielle.
 
-**Version actuelle :** `v1.0.0` — Déploiement pilote CHU Donka (docker-compose prod hardening, TLS Let's Encrypt, scripts deploy/backup/restore, runbook complet)
+**Version actuelle :** `v1.1.0` — Conduite du changement + formation + évolutions post-pilote (module `user_profile` : préférences / feedback / items récents, 10 fiches rapides par rôle, FAQ, parcours de recette, roadmap v1.2+)
 
 ## Objectif
 
@@ -199,7 +199,8 @@ server: {
 - ✅ v0.9 — Hardening LOW restant + tests de charge Locust (TRUSTED_PROXIES, METRICS_TOKEN, bootstrap CLI, jti blacklist, A06 fail-mode)
 - ✅ v0.10 — Documentation OpenAPI complète + Postman collection (138 endpoints, 25 tags, Bearer security, drift CI)
 - ✅ v1.0 — Déploiement pilote CHU Donka (docker-compose prod hardening, TLS, scripts ops, runbook, CI release GHCR)
-- 🔜 v1.1 — Conduite du changement + formation + évolutions post-pilote
+- ✅ v1.1 — Conduite du changement + formation + évolutions post-pilote (préférences user, feedback, items récents, 10 fiches rapides, FAQ, roadmap v1.2+)
+- 🔜 v1.2 — Impression PDF + i18n EN/FR + dashboard temps réel + recherche globale + mode hors-ligne PWA
 
 ## Sécurité
 
@@ -299,6 +300,37 @@ Le workflow CI `openapi-check.yml` détecte automatiquement tout drift oublié e
 - [`docs/api/POSTMAN_GUIDE.md`](docs/api/POSTMAN_GUIDE.md) — Import Postman, variables d'environnement, authentification automatique, scénarios de démarrage rapide, Newman CLI.
 
 Voir `load_tests/README.md` pour la doc complète des tests de charge.
+
+## Conduite du changement et formation (v1.1.0+)
+
+La version v1.1.0 introduit un socle d'endpoints orientés "expérience utilisateur" et un corpus documentaire complet pour la conduite du changement au CHU Donka.
+
+### Nouveaux endpoints `/me` et `/feedback`
+
+| Endpoint | Méthode | Description |
+|----------|---------|-------------|
+| `/api/v1/me/preferences` | GET | Préférences UI de l'utilisateur courant (locale, theme, page_size, refresh) |
+| `/api/v1/me/preferences` | PUT | Mise à jour partielle des préférences (audit log) |
+| `/api/v1/me/recent` | GET | Items récemment consultés (patients, labo, imagerie…) |
+| `/api/v1/me/recent` | POST | Enregistrer une consultation (upsert + pruning 50 items) |
+| `/api/v1/me/recent` | DELETE | Vider l'historique |
+| `/api/v1/feedback` | POST | Soumettre un retour (bug/suggestion/question/praise) |
+| `/api/v1/feedback` | GET | Lister les feedbacks (filtrable, RBAC par établissement) |
+| `/api/v1/feedback/{id}` | PATCH | Triage / résolution (ADMIN+ uniquement) |
+
+Toutes les mutations sont journalisées dans l'audit log (`user.preferences.update`, `feedback.create`, `feedback.resolve`). Deux nouvelles permissions RBAC seedées : `feedback.read` et `feedback.resolve`.
+
+### Documentation de conduite du changement
+
+- [`docs/formation/conduite-du-changement.md`](docs/formation/conduite-du-changement.md) — Plan complet : objectifs chiffrés, 10 publics, 5 formats de formation, calendrier 12 semaines, gestion de la résistance, métriques d'adoption.
+- [`docs/formation/quickstart-utilisateur.md`](docs/formation/quickstart-utilisateur.md) — Prise en main en 10 minutes, 4 cas pratiques par rôle.
+- [`docs/formation/faq-utilisateurs.md`](docs/formation/faq-utilisateurs.md) — 27 Q/R en 7 thèmes (connexion, DPI, saisie, RBAC, performance, sécurité, feedback).
+- [`docs/formation/parcours-recette-par-role.md`](docs/formation/parcours-recette-par-role.md) — Check-list de validation des compétences par rôle (~170 actions).
+- [`docs/formation/fiches-rapides/`](docs/formation/fiches-rapides/) — 10 fiches A4 (une par rôle) à imprimer et distribuer.
+
+### Roadmap post-pilote
+
+- [`docs/post-pilot/EVOLUTIONS_POST_PILOTE.md`](docs/post-pilot/EVOLUTIONS_POST_PILOTE.md) — 15 évolutions candidates (v1.2 / v1.3 / v2.0) priorisées sur 5 critères, alimentées par la boucle feedback.
 
 ## Déploiement production (v1.0.0+)
 
