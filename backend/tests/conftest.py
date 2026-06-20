@@ -90,7 +90,7 @@ def auth_headers(client, db):
     """
     user = User(
         email="test@admin.com",
-        password_hash=hash_password("testpassword123"),
+        password_hash=hash_password("TestPassword1!xx"),
         first_name="Test",
         last_name="Admin",
         role="SUPER_ADMIN",
@@ -113,7 +113,7 @@ def admin_headers(client, db):
     """SUPER_ADMIN with valid JWT including facility_id and role."""
     user = User(
         email="admin@test.com",
-        password_hash=hash_password("testpassword123"),
+        password_hash=hash_password("TestPassword1!xx"),
         first_name="Admin",
         last_name="Admin",
         role="SUPER_ADMIN",

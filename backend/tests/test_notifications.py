@@ -14,7 +14,7 @@ from app.modules.users.models import User
 def admin_user(db):
     user = User(
         email="admin@notif.test",
-        password_hash=hash_password("testpassword123"),
+        password_hash=hash_password("TestPassword1!xx"),
         first_name="Admin",
         last_name="Notif",
         role="SUPER_ADMIN",
@@ -30,7 +30,7 @@ def admin_user(db):
 def recipient_user(db):
     user = User(
         email="recipient@notif.test",
-        password_hash=hash_password("testpassword123"),
+        password_hash=hash_password("TestPassword1!xx"),
         first_name="Recip",
         last_name="Notif",
         role="DOCTOR",
@@ -46,7 +46,7 @@ def recipient_user(db):
 def another_user(db):
     user = User(
         email="other@notif.test",
-        password_hash=hash_password("testpassword123"),
+        password_hash=hash_password("TestPassword1!xx"),
         first_name="Other",
         last_name="User",
         role="NURSE",
@@ -201,7 +201,7 @@ class TestNotificationsHTTP:
     def test_list_returns_empty_for_new_user(self, client, db):
         user = User(
             email="empty@notif.test",
-            password_hash=hash_password("testpassword123"),
+            password_hash=hash_password("TestPassword1!xx"),
             first_name="Empty",
             last_name="List",
             role="DOCTOR",

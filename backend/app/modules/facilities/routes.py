@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.core.pagination import PaginationParams, paginate
 from app.core.tenant import enforce_facility_access, tenant_query
 from app.db.session import get_db
+from app.modules.audit.service import audit_log
 from app.modules.rbac.dependencies import require_permission
 from app.modules.users.models import User
 from app.modules.facilities.models import Facility
@@ -38,6 +39,7 @@ def list_facilities(
 @router.post("")
 def create_facility(
     payload: FacilityCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("facility.manage")),
 ):
@@ -45,7 +47,30 @@ def create_facility(
     db.add(facility)
     db.commit()
     db.refresh(facility)
-    return {"data": facility, "message": "Établissement créé"}
+    # Capture response data BEFORE audit_log — audit_log does its own commit
+    # which expires the facility object in the session.
+    facility_data = {
+        "id": str(facility.id),
+        "code": facility.code,
+        "name": facility.name,
+        "category": facility.category,
+        "region": facility.region,
+        "prefecture": facility.prefecture,
+        "status": facility.status,
+        "created_at": facility.created_at.isoformat() if facility.created_at else None,
+    }
+
+    audit_log(
+        db=db,
+        user=current_user,
+        action="facility.create",
+        resource_type="facility",
+        resource_id=str(facility.id),
+        request=request,
+        status_code=201,
+        payload={"name": facility.name, "code": facility.code, "category": facility.category},
+    )
+    return {"data": facility_data, "message": "Établissement créé"}
 
 
 @router.get("/{facility_id}")
@@ -65,6 +90,7 @@ def get_facility(
 def update_facility(
     facility_id: str,
     payload: FacilityUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("facility.manage")),
 ):
@@ -78,4 +104,26 @@ def update_facility(
         setattr(facility, key, value)
     db.commit()
     db.refresh(facility)
-    return {"data": facility, "message": "Établissement mis à jour"}
+    # Capture response data BEFORE audit_log
+    facility_data = {
+        "id": str(facility.id),
+        "code": facility.code,
+        "name": facility.name,
+        "category": facility.category,
+        "region": facility.region,
+        "prefecture": facility.prefecture,
+        "status": facility.status,
+        "created_at": facility.created_at.isoformat() if facility.created_at else None,
+    }
+
+    audit_log(
+        db=db,
+        user=current_user,
+        action="facility.update",
+        resource_type="facility",
+        resource_id=str(facility.id),
+        request=request,
+        status_code=200,
+        payload=update_data,
+    )
+    return {"data": facility_data, "message": "Établissement mis à jour"}

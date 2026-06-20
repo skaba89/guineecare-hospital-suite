@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.pagination import PaginationParams, paginate
-from app.core.tenant import enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.models import ActivityEntry
 from app.modules.rbac.dependencies import require_role
@@ -15,7 +14,10 @@ router = APIRouter(prefix="/activity", tags=["activity"])
 def list_activity(
     pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("SUPER_ADMIN", "ADMIN")),
+    # SECURITY (A01-002): ActivityEntry has no facility_id column, so the
+    # table is global. We restrict to SUPER_ADMIN only. Facility-scoped
+    # ADMINs cannot read cross-tenant activity.
+    current_user: User = Depends(require_role("SUPER_ADMIN")),
 ):
     query = db.query(ActivityEntry).order_by(ActivityEntry.created_at.desc())
     if pagination.search:

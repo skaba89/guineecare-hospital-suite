@@ -36,6 +36,20 @@ _LOGIN_LIMIT = (
     else (lambda f: f)  # no-op decorator
 )
 
+# Refresh rate-limit — 30/minute per IP. Even though refresh tokens are
+# 32-byte random secrets (impractical to brute-force), rate-limiting prevents
+# audit-log flooding and DoS via repeated 401 responses.
+_REFRESH_LIMIT = (
+    limiter.limit("30/minute")
+    if settings.environment not in ("local", "test", "dev")
+    else (lambda f: f)  # no-op decorator
+)
+
+
+# Account lockout configuration (A04-001)
+MAX_FAILED_LOGIN_ATTEMPTS = 5
+LOCKOUT_DURATION_MINUTES = 15
+
 
 def _extract_request_meta(request: Request) -> tuple[str | None, str | None]:
     """Extract client IP and User-Agent from request."""
@@ -93,10 +107,56 @@ def _issue_token_pair(db: Session, user: User, request: Request) -> TokenRespons
     )
 
 
+def _is_locked(user: User) -> bool:
+    """Check if the user account is currently locked due to failed logins."""
+    if user.locked_until is None:
+        return False
+    now = utcnow()
+    locked_until = user.locked_until
+    if locked_until.tzinfo is None:
+        now = now.replace(tzinfo=None)
+    return locked_until > now
+
+
+def _register_failed_login(db: Session, user: User) -> None:
+    """Increment failed_login_count; lock the account after MAX_FAILED_LOGIN_ATTEMPTS."""
+    user.failed_login_count = (user.failed_login_count or 0) + 1
+    if user.failed_login_count >= MAX_FAILED_LOGIN_ATTEMPTS:
+        from datetime import timedelta
+        user.locked_until = utcnow() + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
+    db.commit()
+
+
+def _reset_failed_logins(db: Session, user: User) -> None:
+    """Reset the failed-login counter after a successful login."""
+    if user.failed_login_count or user.locked_until:
+        user.failed_login_count = 0
+        user.locked_until = None
+        db.commit()
+
+
 @router.post("/login", response_model=TokenResponse)
 @_LOGIN_LIMIT
 def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
+
+    # If user exists and is locked, refuse early
+    if user and _is_locked(user):
+        audit_log(
+            db=db,
+            user=user,
+            action="auth.login_locked",
+            resource_type="user",
+            resource_id=str(user.id),
+            request=request,
+            status_code=423,
+            payload={"email": payload.email},
+        )
+        raise HTTPException(
+            status_code=423,
+            detail=f"Compte verrouillé après {MAX_FAILED_LOGIN_ATTEMPTS} tentatives échouées. Réessayez dans {LOCKOUT_DURATION_MINUTES} minutes.",
+        )
+
     if not user or not verify_password(payload.password, user.password_hash):
         # Audit failed login attempt (user may be None — log email as resource_id)
         audit_log(
@@ -108,18 +168,25 @@ def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)
             status_code=401,
             payload={"email": payload.email},
         )
+        # Increment failed login count if user exists
+        if user:
+            _register_failed_login(db, user)
         raise HTTPException(status_code=401, detail="Identifiants invalides")
+
     if not user.is_active:
         audit_log(
             db=db,
-            action="auth.login_inactive",
             user=user,
+            action="auth.login_inactive",
             resource_type="user",
             resource_id=str(user.id),
             request=request,
             status_code=403,
         )
         raise HTTPException(status_code=403, detail="Utilisateur inactif")
+
+    # Successful login — reset failed-login counter
+    _reset_failed_logins(db, user)
 
     response = _issue_token_pair(db, user, request)
     audit_log(
@@ -135,6 +202,7 @@ def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)
 
 
 @router.post("/refresh", response_model=TokenResponse)
+@_REFRESH_LIMIT
 def refresh(payload: RefreshRequest, request: Request, db: Session = Depends(get_db)):
     """Exchange a valid refresh token for a new access + refresh token pair.
 
@@ -153,9 +221,26 @@ def refresh(payload: RefreshRequest, request: Request, db: Session = Depends(get
 
     # Possible token reuse or unknown token
     if not record:
+        audit_log(
+            db=db,
+            action="auth.refresh_failed",
+            resource_type="refresh_token",
+            request=request,
+            status_code=401,
+            payload={"reason": "unknown_token"},
+        )
         raise HTTPException(status_code=401, detail="Refresh token invalide ou révoqué")
 
     if record.revoked_at is not None:
+        audit_log(
+            db=db,
+            action="auth.refresh_failed",
+            resource_type="refresh_token",
+            resource_id=str(record.id),
+            request=request,
+            status_code=401,
+            payload={"reason": "revoked", "user_id": str(record.user_id)},
+        )
         raise HTTPException(status_code=401, detail="Refresh token invalide ou révoqué")
 
     # Handle both tz-aware (PostgreSQL) and tz-naive (SQLite) datetimes
@@ -168,6 +253,15 @@ def refresh(payload: RefreshRequest, request: Request, db: Session = Depends(get
     if expires_at <= now:
         record.revoked_at = utcnow()
         db.commit()
+        audit_log(
+            db=db,
+            action="auth.refresh_failed",
+            resource_type="refresh_token",
+            resource_id=str(record.id),
+            request=request,
+            status_code=401,
+            payload={"reason": "expired", "user_id": str(record.user_id)},
+        )
         raise HTTPException(status_code=401, detail="Refresh token expiré")
 
     # Load the user (refresh only works for active users)
@@ -175,6 +269,15 @@ def refresh(payload: RefreshRequest, request: Request, db: Session = Depends(get
     if not user or not user.is_active:
         record.revoked_at = utcnow()
         db.commit()
+        audit_log(
+            db=db,
+            action="auth.refresh_failed",
+            resource_type="refresh_token",
+            resource_id=str(record.id),
+            request=request,
+            status_code=401,
+            payload={"reason": "user_inactive", "user_id": str(record.user_id)},
+        )
         raise HTTPException(status_code=401, detail="Utilisateur inactif ou inconnu")
 
     # Rotate: revoke the current refresh token

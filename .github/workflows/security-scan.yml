@@ -1,0 +1,127 @@
+name: security-scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run weekly on Sundays at 02:00 UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bandit-sast:
+    name: Bandit SAST (Python static analysis)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install bandit
+        run: pip install bandit==1.9.4
+
+      - name: Run bandit (medium+ severity only)
+        working-directory: backend
+        run: bandit -r app -ll -f json -o bandit-report.json || true
+
+      - name: Show bandit summary
+        working-directory: backend
+        run: |
+          echo "## Bandit SAST Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          python -c "
+          import json
+          with open('bandit-report.json') as f:
+              d = json.load(f)
+          h = len([r for r in d['results'] if r['issue_severity']=='HIGH'])
+          m = len([r for r in d['results'] if r['issue_severity']=='MEDIUM'])
+          l = len([r for r in d['results'] if r['issue_severity']=='LOW'])
+          print(f'| Severity | Count |')
+          print(f'|----------|-------|')
+          print(f'| HIGH     | {h}    |')
+          print(f'| MEDIUM   | {m}    |')
+          print(f'| LOW      | {l}    |')
+          print(f'| **Total**| {h+m+l}    |')
+          " >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail if HIGH severity findings
+        working-directory: backend
+        run: |
+          HIGH_COUNT=$(python -c "
+          import json
+          with open('bandit-report.json') as f:
+              d = json.load(f)
+          print(len([r for r in d['results'] if r['issue_severity']=='HIGH']))
+          ")
+          if [ "$HIGH_COUNT" -gt "0" ]; then
+            echo "::error::Bandit found $HIGH_COUNT HIGH severity findings"
+            exit 1
+          fi
+
+      - name: Upload bandit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: backend/bandit-report.json
+          retention-days: 30
+
+  npm-audit:
+    name: npm audit (frontend dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run npm audit (high+ critical only)
+        working-directory: frontend
+        run: |
+          # Fail only on HIGH or CRITICAL vulnerabilities
+          npm audit --audit-level=high --omit=dev || {
+            echo "::warning::npm audit found vulnerabilities. Run 'npm audit' for details."
+            # Don't fail the build for now — just warn. Tighten to fail in v0.9.
+            exit 0
+          }
+
+  pip-audit:
+    name: pip-audit (backend dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit on backend requirements
+        working-directory: backend
+        run: |
+          # Fail on HIGH or CRITICAL vulnerabilities
+          pip-audit -r requirements.txt --strict --vulnerability-service osv || {
+            echo "::warning::pip-audit found vulnerabilities. Check the output above."
+            # Don't fail the build for now — just warn. Tighten to fail in v0.9.
+            exit 0
+          }

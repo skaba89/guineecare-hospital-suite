@@ -194,10 +194,36 @@ server: {
 - ✅ v0.5 — Tests Playwright + CI/CD GitHub Actions (4 workflows) + Vite proxy
 - ✅ v0.6 — Refresh token + audit log + code splitting (sécurité + compliance)
 - ✅ v0.7 — Notifications multicanal + observabilité (Prometheus, health checks, JSON logs)
-- 🔜 v0.8 — Audit sécurité OWASP ZAP
-- 🔜 v0.9 — Tests de charge (Locust)
+- ✅ v0.8 — Audit sécurité OWASP Top 10 + hardening (13/21 findings corrigés, Bandit SAST en CI)
+- 🔜 v0.9 — Tests de charge (Locust) + hardening LOW restant (TRUSTED_PROXIES, METRICS_TOKEN, bootstrap CLI)
 - 🔜 v0.10 — Documentation OpenAPI complète + Postman collection
 - 🎯 v1.0 — Déploiement pilote CHU Donka
+
+## Sécurité
+
+Le rapport d'audit sécurité complet est disponible dans `docs/security/AUDIT_V0.8.0.md`.
+
+### OWASP Top 10 — statut après v0.8.0
+
+| ID  | Catégorie | Statut |
+|-----|-----------|--------|
+| A01 | Broken Access Control | ✅ CRITICAL + HIGH corrigés |
+| A02 | Cryptographic Failures | ✅ password_hash masqué |
+| A03 | Injection | ✅ SAST Bandit clean |
+| A04 | Insecure Design | ✅ Lockout + password policy + rate-limit refresh |
+| A05 | Security Misconfiguration | ✅ AUTH_SECRET hard-fail |
+| A06 | Vulnerable Components | ⏳ pip-audit + npm-audit en warn-only (fail en v0.9) |
+| A07 | Auth Failures | ✅ Lockout ; ⏳ jti blacklist en v0.9 |
+| A08 | Data Integrity | ✅ Pas d'eval/exec/pickle |
+| A09 | Logging & Monitoring | ✅ Audit log complet |
+| A10 | SSRF | ✅ Pas de requêtes HTTP basées sur input |
+
+### Workflow CI sécurité
+
+`security-scan.yml` tourne à chaque push + schedule hebdomadaire :
+- `bandit-sast` — SAST Python (fail sur HIGH)
+- `pip-audit` — dépendances backend (warn-only en v0.8)
+- `npm-audit` — dépendances frontend (warn-only en v0.8)
 
 ## Organisation documentaire
 

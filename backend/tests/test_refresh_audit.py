@@ -13,7 +13,7 @@ def seeded_user(db):
     """
     user = User(
         email="refresh@test.com",
-        password_hash=hash_password("testpassword123"),
+        password_hash=hash_password("TestPassword1!xx"),
         first_name="Refresh",
         last_name="Test",
         role="SUPER_ADMIN",
@@ -36,7 +36,7 @@ class TestRefreshTokenFlow:
         """POST /auth/login should return access_token + refresh_token."""
         response = client.post(
             "/api/v1/auth/login",
-            json={"email": "refresh@test.com", "password": "testpassword123"},
+            json={"email": "refresh@test.com", "password": "TestPassword1!xx"},
         )
         assert response.status_code == 200
         data = response.json()
@@ -52,7 +52,7 @@ class TestRefreshTokenFlow:
         # Login to get initial tokens
         login_resp = client.post(
             "/api/v1/auth/login",
-            json={"email": "refresh@test.com", "password": "testpassword123"},
+            json={"email": "refresh@test.com", "password": "TestPassword1!xx"},
         )
         old_refresh = login_resp.json()["refresh_token"]
 
@@ -76,7 +76,7 @@ class TestRefreshTokenFlow:
         """After refresh, the old refresh token is revoked and cannot be reused."""
         login_resp = client.post(
             "/api/v1/auth/login",
-            json={"email": "refresh@test.com", "password": "testpassword123"},
+            json={"email": "refresh@test.com", "password": "TestPassword1!xx"},
         )
         old_refresh = login_resp.json()["refresh_token"]
 
@@ -109,7 +109,7 @@ class TestRefreshTokenFlow:
         # Login → get refresh token
         login_resp = client.post(
             "/api/v1/auth/login",
-            json={"email": "refresh@test.com", "password": "testpassword123"},
+            json={"email": "refresh@test.com", "password": "TestPassword1!xx"},
         )
         refresh = login_resp.json()["refresh_token"]
         access = login_resp.json()["access_token"]
@@ -131,7 +131,7 @@ class TestRefreshTokenFlow:
         """POST /auth/logout without a refresh_token still returns 200."""
         login_resp = client.post(
             "/api/v1/auth/login",
-            json={"email": "refresh@test.com", "password": "testpassword123"},
+            json={"email": "refresh@test.com", "password": "TestPassword1!xx"},
         )
         access = login_resp.json()["access_token"]
 
@@ -146,7 +146,7 @@ class TestRefreshTokenFlow:
         """The refresh token stored in DB is hashed, not the raw token."""
         login_resp = client.post(
             "/api/v1/auth/login",
-            json={"email": "refresh@test.com", "password": "testpassword123"},
+            json={"email": "refresh@test.com", "password": "TestPassword1!xx"},
         )
         raw_refresh = login_resp.json()["refresh_token"]
 
@@ -171,7 +171,7 @@ class TestAuditLog:
         """A successful login creates an audit log entry with action='auth.login'."""
         client.post(
             "/api/v1/auth/login",
-            json={"email": "refresh@test.com", "password": "testpassword123"},
+            json={"email": "refresh@test.com", "password": "TestPassword1!xx"},
         )
         logs = db.query(AuditLog).filter(AuditLog.action == "auth.login").all()
         assert len(logs) == 1
@@ -199,7 +199,7 @@ class TestAuditLog:
         """A logout creates an audit log entry with action='auth.logout'."""
         login_resp = client.post(
             "/api/v1/auth/login",
-            json={"email": "refresh@test.com", "password": "testpassword123"},
+            json={"email": "refresh@test.com", "password": "TestPassword1!xx"},
         )
         access = login_resp.json()["access_token"]
         refresh = login_resp.json()["refresh_token"]
@@ -224,7 +224,7 @@ class TestAuditLog:
         # Generate some audit log entries by logging in
         client.post(
             "/api/v1/auth/login",
-            json={"email": "refresh@test.com", "password": "testpassword123"},
+            json={"email": "refresh@test.com", "password": "TestPassword1!xx"},
         )
 
         response = client.get("/api/v1/audit/logs", headers=auth_headers)
@@ -241,7 +241,7 @@ class TestAuditLog:
         # Generate entries
         client.post(
             "/api/v1/auth/login",
-            json={"email": "refresh@test.com", "password": "testpassword123"},
+            json={"email": "refresh@test.com", "password": "TestPassword1!xx"},
         )
 
         response = client.get(
@@ -260,7 +260,7 @@ class TestAuditLog:
         for _ in range(5):
             client.post(
                 "/api/v1/auth/login",
-                json={"email": "refresh@test.com", "password": "testpassword123"},
+                json={"email": "refresh@test.com", "password": "TestPassword1!xx"},
             )
 
         response = client.get(

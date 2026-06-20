@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.core.pagination import PaginationParams, paginate
 from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
+from app.modules.audit.service import audit_log
 from app.modules.rbac.dependencies import require_permission
 from app.modules.users.models import User
 from app.modules.departments.models import Department
@@ -30,6 +31,7 @@ def list_departments(
 @router.post("")
 def create_department(
     payload: DepartmentCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("department.manage")),
 ):
@@ -41,4 +43,23 @@ def create_department(
     db.add(row)
     db.commit()
     db.refresh(row)
-    return {"data": row, "message": "department created"}
+    # Capture response data BEFORE audit_log (audit_log does its own commit
+    # which expires the row object).
+    row_data = {
+        "id": str(row.id),
+        "code": getattr(row, "code", None),
+        "name": row.name,
+        "facility_id": str(row.facility_id) if row.facility_id else None,
+    }
+
+    audit_log(
+        db=db,
+        user=current_user,
+        action="department.create",
+        resource_type="department",
+        resource_id=str(row.id),
+        request=request,
+        status_code=201,
+        payload={"name": row.name, "code": getattr(row, "code", None), "facility_id": str(row.facility_id) if row.facility_id else None},
+    )
+    return {"data": row_data, "message": "department created"}

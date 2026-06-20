@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from app.core.tenant import tenant_query
+from app.core.tenant import enforce_facility_access, tenant_query
 from app.db.session import get_db
 from app.modules.audit.service import audit_log
 from app.modules.auth.dependencies import get_current_user
@@ -133,10 +133,15 @@ def admin_send_notification(
     """Admin-only: send a notification to a specific user.
 
     Requires the `notification.send` permission (SUPER_ADMIN/ADMIN bypass).
+    SECURITY (A01-003): facility-scoped ADMINs can only send to users in
+    their own facility. SUPER_ADMIN can send to anyone.
     """
     recipient = db.query(User).filter(User.id == payload.recipient_id).first()
     if recipient is None:
         raise HTTPException(status_code=404, detail="Destinataire introuvable")
+
+    # Enforce tenant access on the recipient — prevents cross-facility phishing
+    enforce_facility_access(current_user, recipient.facility_id)
 
     notif = notify(
         db=db,

@@ -1,15 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.core.pagination import PaginationParams, paginate
 from app.core.security import hash_password
 from app.core.tenant import enforce_facility_access
 from app.db.session import get_db
+from app.modules.audit.service import audit_log
 from app.modules.rbac.dependencies import require_role
 from app.modules.users.models import User
-from app.modules.users.schemas import UserCreate, UserUpdate
+from app.modules.users.schemas import UserCreate, UserRead, UserUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+def _safe_user_dict(row: User) -> dict:
+    """Return a User dict safe for API response (never exposes password_hash)."""
+    return row.to_read_dict()
 
 
 @router.get("")
@@ -37,11 +43,26 @@ def list_users(
             | (User.last_name.ilike(f"%{pagination.search}%"))
             | (User.email.ilike(f"%{pagination.search}%"))
         )
-    return paginate(query, pagination)
+    # Use paginate but transform each row to safe dict
+    result = paginate(query, pagination)
+    # Replace password-hash-containing rows with safe dicts
+    if isinstance(result, dict) and "data" in result:
+        result["data"] = [_safe_user_dict(r) for r in result["data"]]
+    return result
 
 
 @router.post("/bootstrap")
-def bootstrap_first_user(payload: UserCreate, db: Session = Depends(get_db)):
+def bootstrap_first_user(
+    payload: UserCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Create the first SUPER_ADMIN. Only works when the users table is empty.
+
+    SECURITY: this endpoint is unauthenticated by design (chicken-and-egg).
+    In production, restrict at the ingress level (loopback only) or use a
+    CLI bootstrap script. See docs/security.md.
+    """
     user_count = db.query(User).count()
     if user_count > 0:
         raise HTTPException(status_code=403, detail="Bootstrap déjà effectué")
@@ -61,12 +82,26 @@ def bootstrap_first_user(payload: UserCreate, db: Session = Depends(get_db)):
     db.add(row)
     db.commit()
     db.refresh(row)
-    return {"data": row, "message": "Super administrateur créé"}
+
+    # Audit log (no current_user since this is unauthenticated bootstrap)
+    audit_log(
+        db=db,
+        user=None,
+        action="user.bootstrap",
+        resource_type="user",
+        resource_id=str(row.id),
+        request=request,
+        status_code=201,
+        payload={"email": row.email, "role": row.role},
+    )
+
+    return {"data": _safe_user_dict(row), "message": "Super administrateur créé"}
 
 
 @router.post("")
 def create_user(
     payload: UserCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("SUPER_ADMIN", "ADMIN")),
 ):
@@ -96,26 +131,31 @@ def create_user(
     db.add(row)
     db.commit()
     db.refresh(row)
-    return {"data": row, "message": "Utilisateur créé"}
+
+    audit_log(
+        db=db,
+        user=current_user,
+        action="user.create",
+        resource_type="user",
+        resource_id=str(row.id),
+        request=request,
+        status_code=201,
+        payload={"email": row.email, "role": row.role, "facility_id": row.facility_id},
+    )
+
+    return {"data": _safe_user_dict(row), "message": "Utilisateur créé"}
 
 
 @router.get("/me")
 def get_current_user_info(current_user: User = Depends(require_role("SUPER_ADMIN", "ADMIN", "DOCTOR", "NURSE", "PHARMACIST", "LAB_TECH", "CASHIER", "MIDWIFE"))):
-    return {
-        "id": current_user.id,
-        "email": current_user.email,
-        "first_name": current_user.first_name,
-        "last_name": current_user.last_name,
-        "role": current_user.role,
-        "facility_id": current_user.facility_id,
-        "is_active": current_user.is_active,
-    }
+    return _safe_user_dict(current_user)
 
 
 @router.put("/{user_id}")
 def update_user(
     user_id: str,
     payload: UserUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("SUPER_ADMIN", "ADMIN")),
 ):
@@ -133,12 +173,28 @@ def update_user(
     if update_data.get("role") == "SUPER_ADMIN" and current_user.role != "SUPER_ADMIN":
         raise HTTPException(status_code=403, detail="Impossible de promouvoir au rang de super administrateur")
 
+    # Build a redacted audit payload (never log the raw password)
+    audit_payload: dict = {}
     for key, value in update_data.items():
         if key == "password" and value:
             row.password_hash = hash_password(value)
+            audit_payload["password"] = "[REDACTED]"
         else:
             setattr(row, key, value)
+            audit_payload[key] = value
 
     db.commit()
     db.refresh(row)
-    return {"data": row, "message": "Utilisateur mis à jour"}
+
+    audit_log(
+        db=db,
+        user=current_user,
+        action="user.update",
+        resource_type="user",
+        resource_id=str(row.id),
+        request=request,
+        status_code=200,
+        payload=audit_payload,
+    )
+
+    return {"data": _safe_user_dict(row), "message": "Utilisateur mis à jour"}

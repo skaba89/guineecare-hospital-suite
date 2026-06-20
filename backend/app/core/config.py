@@ -26,12 +26,31 @@ class Settings(BaseModel):
 
 
 def validate_settings() -> None:
-    """Validate critical settings at startup."""
-    if not settings.auth_secret and settings.environment != "local":
-        raise RuntimeError(
-            "AUTH_SECRET must be set when ENVIRONMENT is not 'local'. "
-            "Refusing to start without a proper secret in production/staging."
-        )
+    """Validate critical settings at startup.
+
+    SECURITY (A05-003): in non-local environments, missing AUTH_SECRET is a
+    hard failure that must terminate the process. main.py catches RuntimeError
+    but continues, so we sys.exit() directly here for non-local envs.
+    """
+    if not settings.auth_secret:
+        if settings.environment == "local":
+            # Dev convenience: allow empty secret in local, but warn loudly
+            import warnings
+            warnings.warn(
+                "AUTH_SECRET is empty in local environment. "
+                "JWTs are signed with an empty string and trivially forgeable. "
+                "Set AUTH_SECRET for any non-loopback access.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        else:
+            import sys
+            print(
+                "FATAL: AUTH_SECRET must be set when ENVIRONMENT is not 'local'. "
+                "Refusing to start. Set the AUTH_SECRET environment variable.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
 
 settings = Settings()

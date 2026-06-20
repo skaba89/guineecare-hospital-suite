@@ -7,7 +7,7 @@ def test_bootstrap_creates_first_admin(client):
         "/api/v1/users/bootstrap",
         json={
             "email": "admin@hospital.com",
-            "password": "securepassword",
+            "password": "SecurePassword1!xx",
             "first_name": "Admin",
             "last_name": "User",
         },
@@ -25,7 +25,7 @@ def test_bootstrap_fails_if_users_exist(client):
         "/api/v1/users/bootstrap",
         json={
             "email": "first@admin.com",
-            "password": "password123",
+            "password": "SecurePassword1!xx",
             "first_name": "First",
             "last_name": "Admin",
         },
@@ -35,7 +35,7 @@ def test_bootstrap_fails_if_users_exist(client):
         "/api/v1/users/bootstrap",
         json={
             "email": "second@admin.com",
-            "password": "password123",
+            "password": "SecurePassword1!xx",
             "first_name": "Second",
             "last_name": "Admin",
         },
@@ -49,14 +49,14 @@ def test_login_success(client):
         "/api/v1/users/bootstrap",
         json={
             "email": "login@test.com",
-            "password": "mypassword",
+            "password": "MyPassword1!xx",
             "first_name": "Login",
             "last_name": "Test",
         },
     )
     response = client.post(
         "/api/v1/auth/login",
-        json={"email": "login@test.com", "password": "mypassword"},
+        json={"email": "login@test.com", "password": "MyPassword1!xx"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -71,14 +71,14 @@ def test_login_wrong_password(client):
         "/api/v1/users/bootstrap",
         json={
             "email": "wrong@test.com",
-            "password": "correctpassword",
+            "password": "CorrectPassword1!xx",
             "first_name": "Wrong",
             "last_name": "Test",
         },
     )
     response = client.post(
         "/api/v1/auth/login",
-        json={"email": "wrong@test.com", "password": "badpassword"},
+        json={"email": "wrong@test.com", "password": "BadPassword1!xx"},
     )
     assert response.status_code == 401
 
@@ -87,7 +87,7 @@ def test_login_nonexistent_user(client):
     """Login with a non-existent email should return 401."""
     response = client.post(
         "/api/v1/auth/login",
-        json={"email": "nobody@test.com", "password": "anything"},
+        json={"email": "nobody@test.com", "password": "Anything1!xx"},
     )
     assert response.status_code == 401
 

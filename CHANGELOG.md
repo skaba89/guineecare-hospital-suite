@@ -1,5 +1,94 @@
 # Changelog
 
+## [0.8.0] — 2026-06-20
+
+### Added — Audit sécurité OWASP Top 10 + hardening
+- **Rapport d'audit complet** : `docs/security/AUDIT_V0.8.0.md` — 21 findings OWASP Top 10 (2 CRITICAL, 2 HIGH, 9 MEDIUM, 8 LOW), 13 corrigés en v0.8.0, 5 acceptés avec plan de mitigation.
+- **SAST Bandit** intégré au venv (0 findings sur `backend/app/`).
+- **Workflow CI security-scan.yml** (3 jobs) :
+  - `bandit-sast` — SAST Python, fail sur HIGH severity
+  - `pip-audit` — scan dépendances backend contre OSV (warn-only en v0.8, fail en v0.9)
+  - `npm-audit` — scan dépendances frontend (warn-only en v0.8, fail en v0.9)
+
+### Fixed — CRITICAL (2 findings)
+
+#### A02-001 — Fuite de `password_hash` via /users endpoints
+- **Avant** : `GET /users`, `POST /users`, `PUT /users/{id}`, `POST /users/bootstrap` retournaient l'objet User ORM brut, exposant `password_hash` (bcrypt). Un ADMIN pouvait moissonner tous les hashes de sa facility.
+- **Après** : Ajout de `User.to_read_dict()` qui exclut `password_hash`. Tous les endpoints /users retournent ce dict sécurisé.
+- **Tests** : `TestPasswordHashNotExposed` (4 tests).
+
+#### A01-001 — ADMIN facility-scoped pouvait muter le RBAC global
+- **Avant** : `POST /rbac/roles`, `POST /rbac/permissions`, `POST /rbac/role-permissions` étaient accessibles à ADMIN (facility-scoped). Un ADMIN de facility A pouvait créer des rôles/permissions globaux affectant toutes les facilities.
+- **Après** : Restriction à `require_role("SUPER_ADMIN")` uniquement pour les 3 endpoints de mutation. Les endpoints GET restent accessibles à ADMIN.
+- **Tests** : `TestRBACSuperAdminOnly` (4 tests).
+
+### Fixed — HIGH (2 findings)
+
+#### A01-002 — /activity leakait l'activité cross-facility à ADMIN
+- **Avant** : `GET /activity` était accessible à ADMIN mais `ActivityEntry` n'a pas de `facility_id` — la table est globale.
+- **Après** : Restriction à `require_role("SUPER_ADMIN")` uniquement.
+
+#### A09-001/002/003 — Mutations users/facilities/departments/RBAC non auditées
+- **Avant** : Un ADMIN pouvait changer le mot de passe de n'importe quel utilisateur de sa facility sans laisser de trace forensic.
+- **Après** : `audit_log()` appelé sur toutes les mutations :
+  - `user.create`, `user.update`, `user.bootstrap`
+  - `facility.create`, `facility.update`
+  - `department.create`
+  - `rbac.role.create`, `rbac.permission.create`, `rbac.role_permission.assign`
+  - Pour les changements de mot de passe : payload `{"password": "[REDACTED]"}` — jamais le plaintext.
+- **Tests** : `TestAuditLogOnMutations` (6 tests).
+
+### Fixed — MEDIUM (9 findings)
+
+#### A01-003 — /notifications/send sans contrôle tenant sur le destinataire
+- **Avant** : ADMIN facility-scoped pouvait envoyer une notification (in_app + email si SMTP configuré) à n'importe quel utilisateur cross-facility → phishing.
+- **Après** : `enforce_facility_access(current_user, recipient.facility_id)` après fetch du destinataire.
+
+#### A04-001 — Account lockout après échecs de login
+- **Avant** : Aucun verrouillage par compte — brute force possible en changeant d'IP.
+- **Après** : Migration 0013 — colonnes `users.failed_login_count` + `users.locked_until`. Après 5 échecs, verrouillage 15 min. Réponse 423 Locked. Compteur reset sur login réussi.
+- **Tests** : `TestAccountLockout` (2 tests).
+
+#### A04-002 — Politique de mot de passe trop faible
+- **Avant** : `min_length=8` seulement. Seeds avec `admin123`, `doctor123`.
+- **Après** : Validation Pydantic exigeant ≥12 chars, ≥1 majuscule, ≥1 minuscule, ≥1 chiffre, ≥1 caractère spécial.
+- **Tests** : `TestPasswordPolicy` (5 tests).
+
+#### A04-003 — /auth/refresh non rate-limité
+- **Avant** : Seul `/auth/login` était rate-limité. `/auth/refresh` ouvert → DoS + audit-log flooding.
+- **Après** : `@_REFRESH_LIMIT = limiter.limit("30/minute")` en prod/staging. Audit log ajouté sur tous les échecs de refresh (unknown_token, revoked, expired, user_inactive).
+
+#### A05-003 — `AUTH_SECRET` vide accepté en non-local
+- **Avant** : `validate_settings()` levait `RuntimeError` mais `main.py` catchait et continuait → JWTs signés avec secret vide en prod.
+- **Après** : `validate_settings()` appelle `sys.exit(1)` en non-local si `AUTH_SECRET` est vide. Hard-fail, pas de continuité.
+- **Tests** : `TestAuthSecretValidation` (3 tests).
+
+### Risques acceptés (LOW — reportés en v0.9)
+- **A05-001** — `X-Forwarded-For` trusted sans validation → plan : `TRUSTED_PROXIES` en v0.9
+- **A05-002** — Seeds avec mots de passe faibles → plan : refuser seed en prod en v0.9
+- **A05-004** — `POST /users/bootstrap` non authentifié → plan : script CLI en v0.9
+- **A05-005** — `/metrics` non authentifié → plan : `METRICS_TOKEN` en v0.9
+- **A01-004/005** — Pattern fetch-then-check (404 vs 403 oracle) → plan : `tenant_query` uniforme en v0.9
+
+### Added — Tests
+- **`backend/tests/test_security_hardening.py`** : 26 nouveaux tests couvrant tous les fixes ci-dessus.
+- **Total** : 161 tests backend (135 + 26) + 16 tests Playwright (inchangés).
+
+### Added — Migration
+- **Alembic 0013** : `users.failed_login_count` (int, default 0) + `users.locked_until` (datetime, nullable).
+
+### Statistics
+- 161/161 tests backend pytest (59.1 s)
+- 16/16 tests Playwright (inchangés)
+- 0/0 findings Bandit HIGH+ sur `backend/app/`
+- 13/21 findings OWASP corrigés (2 CRITICAL + 2 HIGH + 9 MEDIUM)
+- 5/21 findings OWASP acceptés en LOW (plan de mitigation documenté)
+- 1 nouveau workflow CI : `security-scan.yml` (3 jobs : Bandit SAST + pip-audit + npm-audit)
+- 1 nouvelle migration Alembic (0013)
+- 1 nouveau rapport d'audit : `docs/security/AUDIT_V0.8.0.md`
+
+---
+
 ## [0.7.0] — 2026-06-20
 
 ### Added — Module notifications (multicanal)

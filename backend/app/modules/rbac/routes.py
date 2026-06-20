@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.core.pagination import PaginationParams, paginate
 from app.db.session import get_db
+from app.modules.audit.service import audit_log
 from app.modules.rbac.dependencies import require_role
 from app.modules.rbac.models import Permission, Role, RolePermission
 from app.modules.rbac.schemas import PermissionCreate, RoleCreate, RolePermissionCreate
@@ -29,8 +30,11 @@ def list_roles(
 @router.post("/roles")
 def create_role(
     payload: RoleCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("SUPER_ADMIN", "ADMIN")),
+    # SECURITY (A01-001): Role/Permission/RolePermission are GLOBAL objects —
+    # a facility-scoped ADMIN must not be able to mutate them. SUPER_ADMIN only.
+    current_user: User = Depends(require_role("SUPER_ADMIN")),
 ):
     existing = db.query(Role).filter(Role.code == payload.code).first()
     if existing:
@@ -39,6 +43,17 @@ def create_role(
     db.add(row)
     db.commit()
     db.refresh(row)
+
+    audit_log(
+        db=db,
+        user=current_user,
+        action="rbac.role.create",
+        resource_type="role",
+        resource_id=str(row.id),
+        request=request,
+        status_code=201,
+        payload={"code": row.code, "name": row.name},
+    )
     return {"data": row, "message": "role created"}
 
 
@@ -61,8 +76,9 @@ def list_permissions(
 @router.post("/permissions")
 def create_permission(
     payload: PermissionCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("SUPER_ADMIN", "ADMIN")),
+    current_user: User = Depends(require_role("SUPER_ADMIN")),
 ):
     existing = db.query(Permission).filter(Permission.code == payload.code).first()
     if existing:
@@ -71,14 +87,26 @@ def create_permission(
     db.add(row)
     db.commit()
     db.refresh(row)
+
+    audit_log(
+        db=db,
+        user=current_user,
+        action="rbac.permission.create",
+        resource_type="permission",
+        resource_id=str(row.id),
+        request=request,
+        status_code=201,
+        payload={"code": row.code, "name": row.name, "module": row.module},
+    )
     return {"data": row, "message": "permission created"}
 
 
 @router.post("/role-permissions")
 def assign_permission_to_role(
     payload: RolePermissionCreate,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("SUPER_ADMIN", "ADMIN")),
+    current_user: User = Depends(require_role("SUPER_ADMIN")),
 ):
     existing = (
         db.query(RolePermission)
@@ -92,4 +120,15 @@ def assign_permission_to_role(
     db.add(row)
     db.commit()
     db.refresh(row)
+
+    audit_log(
+        db=db,
+        user=current_user,
+        action="rbac.role_permission.assign",
+        resource_type="role_permission",
+        resource_id=str(row.id),
+        request=request,
+        status_code=201,
+        payload={"role_code": row.role_code, "permission_code": row.permission_code},
+    )
     return {"data": row, "message": "permission assigned"}
