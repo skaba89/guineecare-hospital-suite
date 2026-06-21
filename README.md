@@ -5,12 +5,12 @@
 [![E2E admin pages](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-admin-pages.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-admin-pages.yml)
 [![E2E Playwright](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-playwright.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-playwright.yml)
 [![OpenAPI drift](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/openapi-check.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/openapi-check.yml)
-[![Version](https://img.shields.io/badge/version-v1.4.0-blue.svg)](https://github.com/skaba89/guineecare-hospital-suite/releases)
+[![Version](https://img.shields.io/badge/version-v1.6.0-blue.svg)](https://github.com/skaba89/guineecare-hospital-suite/releases)
 [![License](https://img.shields.io/badge/license-Private-red.svg)](#licence)
 
 Plateforme hospitalière complète pour la Guinée, inspirée des meilleurs SIH modernes : dossier patient informatisé, maternité, urgences, hospitalisation, pharmacie, laboratoire, imagerie, facturation, bloc opératoire, RH, qualité, reporting national et architecture technique industrielle.
 
-**Version actuelle :** `v1.4.0` — Notifications SMS réelles via opérateurs locaux guinéens (Orange / MTN / Moov / Mock) avec règles de routage par catégorie (`lab_critical` → SMS urgent, `quality_alert` → SMS+email à la direction, etc.) et journalisation complète (`sms_messages` : statut, coût GNF, opérateur, tentatives) + tableau de bord qualité avancé (10 indicateurs OMS/HAS prédéfinis, seuils d'alerte automatiques avec cooldown, lifecycle OPEN → ACKNOWLEDGED → RESOLVED → CLOSED, notifications multi-canal déclenchées sur franchissement de seuil)
+**Version actuelle :** `v1.6.0` — Interopérabilité HL7 FHIR R4 (5 ressources : Patient, Encounter, Observation, MedicationRequest, DiagnosticReport) avec conversions automatiques depuis les modèles internes, recherche RESTful conforme FHIR, CapabilityStatement, OperationOutcome — complète les évolutions v1.5 (RH v2) et v1.4 (SMS réel + dashboard qualité OMS/HAS)
 
 ## Objectif
 

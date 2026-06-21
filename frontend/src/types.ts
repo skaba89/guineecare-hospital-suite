@@ -26,6 +26,7 @@ export type LookupData = {
   maternityRecords: Row[];
   staff: Row[];
   indicators: Row[];
+  shifts: Row[];
 };
 
 export const emptyLookups: LookupData = {
@@ -40,4 +41,5 @@ export const emptyLookups: LookupData = {
   maternityRecords: [],
   staff: [],
   indicators: [],
+  shifts: [],
 };

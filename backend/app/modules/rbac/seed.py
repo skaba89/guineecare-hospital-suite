@@ -63,6 +63,12 @@ DEFAULT_PERMISSIONS = [
     # v1.4.0 — SMS + quality dashboard advanced
     ("notification.manage", "Configurer providers SMS et regles de routage", "notifications"),
     ("quality.dashboard", "Consulter le dashboard qualite avance", "quality"),
+    # v1.5.0 — RH v2 (plannings/gardes/congés/astreintes/remplacements)
+    ("personnel.planning", "Consulter et gerer le planning hebdo", "personnel"),
+    ("personnel.leave_approve", "Approuver les demandes de conge", "personnel"),
+    # v1.6.0 — FHIR R4 interopérabilité
+    ("fhir.read", "Consulter les ressources FHIR (Patient, Observation, etc.)", "fhir"),
+    ("fhir.write", "Créer des ressources FHIR", "fhir"),
 ]
 
 ROLE_PERMISSION_MAP = {
@@ -95,6 +101,8 @@ ROLE_PERMISSION_MAP = {
         "quality.read",
         "quality.dashboard",
         "reporting.read",
+        "personnel.planning",
+        "fhir.read",
     ],
     "NURSE": [
         "facility.read",
@@ -108,6 +116,7 @@ ROLE_PERMISSION_MAP = {
         "clinical.write",
         "hospitalization.read",
         "personnel.read",
+        "personnel.planning",
         "maternity.read",
         "imaging.read",
         "quality.read",

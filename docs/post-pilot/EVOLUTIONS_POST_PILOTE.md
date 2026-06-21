@@ -1,7 +1,7 @@
 # Évolutions post-pilote — Roadmap v1.3 et au-delà
 
 > Public : équipe projet, direction médicale, Ministère de la Santé
-> Dernière mise à jour : 2026-06-21 (v1.4.0)
+> Dernière mise à jour : 2026-06-21 (v1.6.0)
 > Statut : document **dynamique** — alimenté par les retours utilisateurs
 > collectés via la boucle feedback de v1.1.0.
 
@@ -10,7 +10,7 @@ Hospital Suite après le pilote CHU Donka. Il ne s'agit pas d'un
 engagement formel : chaque évolution sera priorisée en fonction des
 retours terrain, des contraintes budgétaires et des arbitrages
 stratégiques. Le backlog est organisé en trois temps : **court terme**
-(v1.2-v1.3 — 6 mois), **moyen terme** (v1.4-v1.5 — 9 mois) et **long terme**
+(v1.2-v1.3 — 6 mois), **moyen terme** (v1.4-v1.7 — 9 mois) et **long terme**
 (v2.0 — 12+ mois).
 
 ---
@@ -32,6 +32,69 @@ décroissant. Seules les évolutions à score ≥ 60 entrent dans la
 roadmap suivante. Le comité de pilotage (équipe projet + direction
 médicale + représentant Ministère) révise les priorités tous les
 mois.
+
+---
+
+## v1.6 — Livré le 2026-06-21 (release v1.6.0)
+
+La release v1.6.0 livre la **4ᵉ évolution moyen terme** : l'**interopérabilité
+HL7 FHIR R4** (évolution 7). L'application mobile Android (React Native)
+reste la dernière évolution moyen terme, reportée à v1.7.
+
+### ✅ Évolution 7 — Interopérabilité HL7 FHIR R4 (LIVRÉ)
+
+Module backend `fhir` exposant les ressources principales de GuinéeCare via
+une API RESTful conforme à la spécification HL7 FHIR R4 (4.0.1).
+
+**5 ressources FHIR supportées** : Patient, Encounter, Observation,
+MedicationRequest, DiagnosticReport — générées à la volée depuis les modèles
+internes (Patient, Admission, PatientMeasurement + LabResult, ClinicalNote
+PRESCRIPTION, ImagingResult).
+
+**Conversions** : mapping complet avec codes LOINC pour les observations
+(HEART_RATE → 8867-4, etc.), codes v3-ActCode pour Encounter.class (AMB/EMER/
+SURG/MAT), codes v3-ObservationInterpretation pour les interpretations labo
+(CRITIQUE → HX, HIGH → H, LOW → L). Statuts mappés vers les codes FHIR
+(active/finished/preliminary/final/...).
+
+**Routes** (12 endpoints sous `/api/v1/fhir/*`) : metadata (CapabilityStatement),
+search + read pour chaque ressource, create Patient. Réponses au format Bundle
+searchset pour les listes, OperationOutcome pour les erreurs.
+
+**Conventions** : IDs FHIR = IDs internes, meta.tag GUINEECARE pour traçabilité,
+pagination via `_count` (max 200), authentification JWT standard (SMART on FHIR
+prévu en v1.7). 25 tests backend.
+
+### ⏭️ Évolutions moyen terme — Statut
+
+Avec v1.6.0, 4 des 5 évolutions moyen terme sont livrées :
+
+- ✅ Évolution 7 — Interopérabilité HL7 FHIR R4 (v1.6.0)
+- ✅ Évolution 8 — Module RH v2 (v1.5.0)
+- ✅ Évolution 9 — Tableau de bord qualité avancé (v1.4.0)
+- ✅ Évolution 10 — Notifications SMS réelles (v1.4.0)
+- ⏭️ Évolution 6 — Application mobile Android (React Native) — reportée v1.7
+
+---
+
+## v1.5 — Livré le 2026-06-21 (release v1.5.0)
+
+La release v1.5.0 livre la **3ᵉ évolution moyen terme** : le **module de
+planification des ressources (RH v2)** (évolution 8).
+
+### ✅ Évolution 8 — Module de planification des ressources (RH v2) (LIVRÉ)
+
+Module backend `personnel/rh_v2` avec 5 nouvelles tables (migration Alembic
+`0019_rh_v2`) : shifts (templates récurrents), shift_assignments, leave_balances,
+on_call_duties (astreintes), shift_swaps (workflow de remplacement).
+
+Service complet : génération en masse d'affectations, auto-sélection de staff
+éligible, détection de conflits, recalcul des soldes de congés, workflow complet
+des swaps (REQUESTED → ACCEPTED → APPROVED → COMPLETED) avec transfert automatique
+de l'affectation. 27 endpoints sous `/api/v1/personnel/*`.
+
+Frontend : 2 nouvelles pages (PersonnelPlanningPage avec 5 onglets incluant vue
+calendrier hebdo, LeaveManagementPage avec approbation et soldes). 30 tests backend.
 
 ---
 

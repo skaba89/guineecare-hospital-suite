@@ -43,6 +43,13 @@ from app.modules.notifications.sms_models import SmsProvider, SmsMessage, SmsRou
 from app.modules.user_profile.models import UserPreference, UserFeedback, UserRecentItem
 from app.modules.documents.models import DocumentGenerated
 from app.modules.quality.dashboard_models import QualityThreshold, QualityAlert
+from app.modules.personnel.rh_v2_models import (
+    Shift,
+    ShiftAssignment,
+    LeaveBalance,
+    OnCallDuty,
+    ShiftSwap,
+)
 
 # Use SQLite for tests
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_guineecare.db"

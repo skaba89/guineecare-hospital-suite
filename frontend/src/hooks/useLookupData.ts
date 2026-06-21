@@ -25,6 +25,7 @@ export function useLookupData(enabled: boolean, version: number): LookupData {
         apiRequest<any>(`/maternity/records${ALL}`),
         apiRequest<any>(`/personnel/staff${ALL}`),
         apiRequest<any>(`/quality/indicators${ALL}`),
+        apiRequest<any>(`/personnel/shifts${ALL}`),
       ]);
 
       if (!mounted) return;
@@ -44,6 +45,7 @@ export function useLookupData(enabled: boolean, version: number): LookupData {
         maternityRecords: data[8],
         staff: data[9],
         indicators: data[10],
+        shifts: data[11],
       });
     }
 

@@ -1,5 +1,143 @@
 # Changelog
 
+## [1.6.0] — 2026-06-21
+
+### Added — Interopérabilité HL7 FHIR R4
+
+Cette release livre la **4ᵉ évolution moyen terme** : l'**interopérabilité
+HL7 FHIR R4** (évolution 7). L'application mobile Android (React Native)
+reste la dernière évolution moyen terme, reportée à v1.7.
+
+Le module FHIR R4 expose les ressources principales de GuinéeCare via une
+API RESTful conforme à la spécification HL7 FHIR R4 (4.0.1), permettant
+l'interopérabilité avec d'autres SIH (systèmes d'information hospitaliers),
+des laboratoires d'analyse externes, et des applications médicales tierces.
+
+#### Module backend `fhir` — conversions + endpoints RESTful
+
+**Approche** : les ressources FHIR sont générées à la volée à partir des
+modèles internes existants (Patient, Admission, ClinicalNote,
+PatientMeasurement, LabResult, ImagingResult). Aucune table de cache —
+chaque requête FHIR interroge directement les tables applicatives.
+
+**5 ressources FHIR supportées** :
+
+| Ressource FHIR       | Source interne                                    |
+|----------------------|---------------------------------------------------|
+| `Patient`            | `app.modules.patients.models.Patient`             |
+| `Encounter`          | `app.modules.admissions.models.Admission`         |
+| `Observation`        | `PatientMeasurement` (vital-signs) + `LabResult` (laboratory) |
+| `MedicationRequest`  | `ClinicalNote` (note_type=PRESCRIPTION)           |
+| `DiagnosticReport`   | `app.modules.imaging.models.ImagingResult`        |
+
+**Conversions** (`backend/app/modules/fhir/conversions.py`) :
+
+- `patient_to_fhir()` — mapping complet : name, gender (M/F/O → male/female/other),
+  birthDate, telecom, address, identifier (patient_number + national_id),
+  contact d'urgence, insurance_number.
+- `admission_to_fhir()` — statuts (OPEN/CLOSED/ACTIVE/DISCHARGED/SCHEDULED/
+  CANCELLED → in-progress/finished/planned/cancelled), class (ROUTINE/EMERGENCY/
+  SURGERY/MATERNITY → AMB/EMER/SURG/MAT), period (start/end).
+- `measurement_to_fhir()` — constantes vitales avec mapping LOINC
+  (HEART_RATE → 8867-4, BLOOD_PRESSURE_SYSTOLIC → 8480-6, TEMPERATURE → 8310-5,
+  etc.), category=vital-signs, valueQuantity numérique.
+- `lab_result_to_fhir()` — category=laboratory, statuts (PENDING/VALIDATED/
+  CANCELLED/DRAFT → preliminary/final/cancelled/preliminary), interpretation
+  (CRITIQUE → HX, HAUT/HIGH → H, BAS/LOW → L).
+- `prescription_to_fhir()` — intent=order, status (ACTIVE/COMPLETED/CANCELLED/
+  DRAFT → active/completed/cancelled/draft), medicationCodeableConcept (texte
+  libre — parsing structuré prévu en v1.7).
+- `imaging_result_to_fhir()` — statuts (DRAFT/VALIDATED/CANCELLED → preliminary/
+  final/cancelled), code LOINC 18748-4 (Diagnostic imaging report), conclusion
+  (findings + conclusion concaténés).
+- `bundle()` — construction Bundle searchset avec fullUrl relative.
+- `operation_outcome()` — construction OperationOutcome pour erreurs.
+
+**Routes** (`/api/v1/fhir/*` — tag OpenAPI `fhir-r4`) :
+
+- `GET /fhir/metadata` — CapabilityStatement (FHIR 4.0.1, ressources
+  supportées + searchParams).
+- `GET /fhir/Patient` — recherche (_id, identifier, name, family, given,
+  birthdate, _count).
+- `GET /fhir/Patient/{id}` — lecture.
+- `POST /fhir/Patient` — création (mapping inverse → table patients).
+- `GET /fhir/Encounter` — recherche (patient, status).
+- `GET /fhir/Encounter/{id}` — lecture.
+- `GET /fhir/Observation` — recherche (patient, category, code).
+- `GET /fhir/Observation/{id}` — lecture.
+- `GET /fhir/MedicationRequest` — recherche (patient, status).
+- `GET /fhir/MedicationRequest/{id}` — lecture.
+- `GET /fhir/DiagnosticReport` — recherche (patient, status).
+- `GET /fhir/DiagnosticReport/{id}` — lecture.
+
+**Conventions FHIR respectées** :
+
+- IDs FHIR = IDs internes (UUIDs).
+- `meta.lastUpdated` = `created_at` / `admitted_at` / `recorded_at` / `entered_at`
+  de l'entité interne.
+- `meta.tag` contient `GUINEECARE` pour traçabilité.
+- `identifier` avec systems distincts : patient-number, national-id, insurance.
+- `subject` : référence Patient relative (`Patient/{id}`).
+- Codes LOINC pour les observations (vital-signs + laboratory).
+- Codes v3-ActCode pour Encounter.class.
+- Codes v3-ObservationInterpretation pour les interpretations labo.
+- Pagination via `_count` (défaut 50, max 200).
+- Format réponse : Bundle searchset pour les listes, ressource simple pour
+  GET/{id}, OperationOutcome pour les erreurs (404, 400).
+
+**Permissions RBAC** (2 nouvelles) :
+
+- `fhir.read` — consulter les ressources FHIR (SUPER_ADMIN/ADMIN/DOCTOR).
+- `fhir.write` — créer des ressources FHIR (SUPER_ADMIN/ADMIN).
+
+Tests (`backend/tests/test_fhir.py`) — **25 tests** : conversions unitaires
+(Patient/Encounter/Observation vital-signs/Observation laboratory/
+MedicationRequest/DiagnosticReport), bundle/operation_outcome, endpoints HTTP
+(metadata CapabilityStatement, search Patient/Encounter/Observation/
+MedicationRequest/DiagnosticReport, read by id, create Patient, 404, 400,
+auth required).
+
+#### Configuration
+
+- **`backend/app/main.py`** — version bump 1.5.0 → 1.6.0, nouveau router
+  `fhir_router`, nouveau tag OpenAPI `fhir-r4`.
+- **`backend/alembic/versions/0020_fhir_r4.py`** — migration vide (les
+  ressources FHIR sont générées à la volée, aucune table de cache en v1.6).
+- **`backend/app/modules/rbac/seed.py`** — 2 nouvelles permissions
+  (`fhir.read`, `fhir.write`) + `fhir.read` ajoutée à DOCTOR.
+- **`backend/tests/conftest.py`** — import des modèles rh_v2 (rattrapage v1.5).
+
+#### Points d'attention
+
+1. **SMART on FHIR** : v1.6 utilise l'authentification JWT standard GuinéeCare.
+   SMART on FHIR (OAuth2 avec scopes `patient/*.read`) est prévu pour v1.7.
+2. **Aucune nouvelle table** : les ressources FHIR sont générées à la volée.
+   En cas de besoin de cache (volumétrie élevée), une table `fhir_subscriptions`
+   et `fhir_resource_cache` pourraient être ajoutées en v1.7.
+3. **Recherche full-text limitée** : `name` utilise `ILIKE %...%` (slow sur gros
+   volumes). Pour la production, indexer avec PostgreSQL `tsvector` + GIN.
+4. **Création Patient** : `POST /fhir/Patient` génère un `patient_number`
+   automatiquement (format PAT-YYYYMMDDHHMMSS) car ce champ est obligatoire
+   en interne mais pas en FHIR. La facility_id est héritée du user courant.
+5. **Pas de FHIR Subscription** : les notifications push FHIR
+   (Subscription/SubscriptionTopic) ne sont pas implémentées en v1.6.
+
+---
+
+## [1.5.0] — 2026-06-21
+
+### Added — Module RH v2 (plannings, gardes, congés, astreintes, remplacements)
+
+Cette release livre la **3ᵉ évolution moyen terme** : le **module de
+planification des ressources (RH v2)** (évolution 8).
+
+Voir le détail complet dans la release v1.5.0 originale (commit 3836672).
+Inclus dans cette branche v1.6 par cherry-pick des fichiers backend
+(rh_v2_models, rh_v2_schemas, rh_v2_service, rh_v2_routes, migration 0019,
+test_rh_v2) et frontend (PersonnelPlanningPage, LeaveManagementPage).
+
+---
+
 ## [1.4.0] — 2026-06-21
 
 ### Added — Notifications SMS réelles (Orange/MTN/Moov) + tableau de bord qualité avancé
