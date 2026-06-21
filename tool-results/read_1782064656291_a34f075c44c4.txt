@@ -1,0 +1,1321 @@
+     1→import { useCallback, useEffect, useMemo, useState } from "react";
+     2→import { apiRequest } from "../services/api";
+     3→import { LookupData, Row } from "../types";
+     4→import { showToast } from "../components/Toast";
+     5→import { buildOptions, firstValue } from "../utils/options";
+     6→import {
+     7→  Activity,
+     8→  CalendarCheck,
+     9→  BedDouble,
+    10→  LogOut,
+    11→  Plus,
+    12→  Search,
+    13→  Eye,
+    14→  ClipboardCheck,
+    15→  Clock,
+    16→  UserCircle,
+    17→  Building2,
+    18→  Stethoscope,
+    19→  AlertTriangle,
+    20→  X,
+    21→  RefreshCw,
+    22→} from "lucide-react";
+    23→
+    24→/* ═══════════════════════════════════════════════════════════════════
+    25→   Types & Constants
+    26→   ═══════════════════════════════════════════════════════════════════ */
+    27→
+    28→type TabKey = "tableau" | "nouvelle" | "historique";
+    29→
+    30→const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
+    31→  { key: "tableau", label: "Tableau", icon: <Activity size={16} /> },
+    32→  { key: "nouvelle", label: "Nouvelle admission", icon: <Plus size={16} /> },
+    33→  { key: "historique", label: "Historique", icon: <Clock size={16} /> },
+    34→];
+    35→
+    36→const ADMISSION_TYPE_OPTIONS = [
+    37→  { value: "CONSULTATION", label: "Consultation" },
+    38→  { value: "HOSPITALIZATION", label: "Hospitalisation" },
+    39→  { value: "EMERGENCY", label: "Urgence" },
+    40→  { value: "DAY_HOSPITAL", label: "Hôpital de jour" },
+    41→  { value: "AMBULATORY", label: "Ambulatoire" },
+    42→];
+    43→
+    44→const PRIORITY_OPTIONS = [
+    45→  { value: "ROUTINE", label: "Routine" },
+    46→  { value: "URGENT", label: "Urgent" },
+    47→  { value: "EMERGENCY", label: "Extrême urgence" },
+    48→];
+    49→
+    50→const STATUS_MAP: Record<string, { label: string; badge: string }> = {
+    51→  OPEN: { label: "Active", badge: "badge-green" },
+    52→  ACTIVE: { label: "Active", badge: "badge-green" },
+    53→  CLOSED: { label: "Sorti", badge: "badge-gray" },
+    54→  DISCHARGED: { label: "Sorti", badge: "badge-gray" },
+    55→};
+    56→
+    57→const TYPE_LABELS: Record<string, string> = {
+    58→  CONSULTATION: "Consultation",
+    59→  HOSPITALIZATION: "Hospitalisation",
+    60→  EMERGENCY: "Urgence",
+    61→  DAY_HOSPITAL: "Hôpital de jour",
+    62→  AMBULATORY: "Ambulatoire",
+    63→};
+    64→
+    65→/* ═══════════════════════════════════════════════════════════════════
+    66→   Main Component
+    67→   ═══════════════════════════════════════════════════════════════════ */
+    68→
+    69→export function AdmissionsPage({
+    70→  lookups,
+    71→  onCreated,
+    72→}: {
+    73→  lookups: LookupData;
+    74→  onCreated: () => void;
+    75→}) {
+    76→  const [activeTab, setActiveTab] = useState<TabKey>("tableau");
+    77→
+    78→  return (
+    79→    <section>
+    80→      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "4px" }}>
+    81→        <h1 style={{ margin: 0 }}>Admissions</h1>
+    82→      </div>
+    83→      <p className="muted" style={{ marginBottom: "16px" }}>
+    84→        Gestion des admissions, hospitalisations et sorties des patients.
+    85→      </p>
+    86→
+    87→      <div
+    88→        style={{
+    89→          display: "flex",
+    90→          gap: "4px",
+    91→          background: "var(--border-light)",
+    92→          padding: "4px",
+    93→          borderRadius: "var(--radius-lg)",
+    94→          marginBottom: "20px",
+    95→        }}
+    96→      >
+    97→        {TABS.map((tab) => (
+    98→          <button
+    99→            key={tab.key}
+   100→            onClick={() => setActiveTab(tab.key)}
+   101→            style={{
+   102→              display: "flex",
+   103→              alignItems: "center",
+   104→              gap: "8px",
+   105→              padding: "10px 20px",
+   106→              borderRadius: "var(--radius-md)",
+   107→              border: "none",
+   108→              cursor: "pointer",
+   109→              fontWeight: activeTab === tab.key ? 700 : 400,
+   110→              fontSize: "14px",
+   111→              fontFamily: "inherit",
+   112→              background: activeTab === tab.key ? "var(--card)" : "transparent",
+   113→              color: activeTab === tab.key ? "var(--primary)" : "var(--muted)",
+   114→              boxShadow: activeTab === tab.key ? "var(--shadow-sm)" : "none",
+   115→              transition: "all 0.2s ease",
+   116→            }}
+   117→          >
+   118→            {tab.icon}
+   119→            {tab.label}
+   120→          </button>
+   121→        ))}
+   122→      </div>
+   123→
+   124→      <div>
+   125→        {activeTab === "tableau" && (
+   126→          <TableauTab lookups={lookups} onCreated={onCreated} />
+   127→        )}
+   128→        {activeTab === "nouvelle" && (
+   129→          <NouvelleAdmissionTab lookups={lookups} onCreated={onCreated} />
+   130→        )}
+   131→        {activeTab === "historique" && (
+   132→          <HistoriqueTab lookups={lookups} />
+   133→        )}
+   134→      </div>
+   135→    </section>
+   136→  );
+   137→}
+   138→
+   139→/* ═══════════════════════════════════════════════════════════════════
+   140→   Tab 1 — Tableau (Dashboard)
+   141→   ═══════════════════════════════════════════════════════════════════ */
+   142→
+   143→function TableauTab({
+   144→  lookups,
+   145→  onCreated,
+   146→}: {
+   147→  lookups: LookupData;
+   148→  onCreated: () => void;
+   149→}) {
+   150→  const [admissions, setAdmissions] = useState<Row[]>([]);
+   151→  const [loading, setLoading] = useState(true);
+   152→  const [statusFilter, setStatusFilter] = useState("OPEN");
+   153→  const [deptFilter, setDeptFilter] = useState("");
+   154→  const [dateFrom, setDateFrom] = useState("");
+   155→  const [dateTo, setDateTo] = useState("");
+   156→  const [refreshKey, setRefreshKey] = useState(0);
+   157→
+   158→  const options = buildOptions(lookups);
+   159→
+   160→  const loadAdmissions = useCallback(async () => {
+   161→    setLoading(true);
+   162→    try {
+   163→      const params = new URLSearchParams();
+   164→      if (statusFilter) params.set("search", statusFilter);
+   165→      const qs = params.toString();
+   166→      const payload = await apiRequest<any>(`/admissions${qs ? `?${qs}&page_size=1000` : "?page_size=1000"}`);
+   167→      const data: Row[] = Array.isArray(payload.data) ? payload.data : [];
+   168→      setAdmissions(data);
+   169→    } catch {
+   170→      /* silent */
+   171→    } finally {
+   172→      setLoading(false);
+   173→    }
+   174→  }, [statusFilter]);
+   175→
+   176→  useEffect(() => {
+   177→    loadAdmissions();
+   178→  }, [loadAdmissions, refreshKey]);
+   179→
+   180→  useEffect(() => {
+   181→    const handler = () => setRefreshKey((k) => k + 1);
+   182→    window.addEventListener("refresh-resource", handler);
+   183→    return () => window.removeEventListener("refresh-resource", handler);
+   184→  }, []);
+   185→
+   186→  function handleRefresh() {
+   187→    setRefreshKey((k) => k + 1);
+   188→    onCreated();
+   189→  }
+   190→
+   191→  /* ── Resolve names ─────────────────────────────── */
+   192→  function getPatientName(patientId: string): string {
+   193→    const p = lookups.patients.find((x) => x.id === patientId);
+   194→    if (!p) return "Inconnu";
+   195→    return `${p.first_name || ""} ${p.last_name || ""}`.trim() || p.patient_number || "N/A";
+   196→  }
+   197→
+   198→  function getDeptName(deptId: string | null): string {
+   199→    if (!deptId) return "—";
+   200→    const d = lookups.departments.find((x) => x.id === deptId);
+   201→    return d ? `${d.code || ""} - ${d.name || d.id}`.trim() : "—";
+   202→  }
+   203→
+   204→  function getFacilityName(facilityId: string): string {
+   205→    const f = lookups.facilities.find((x) => x.id === facilityId);
+   206→    return f ? f.name || f.id : "—";
+   207→  }
+   208→
+   209→  /* ── Compute KPIs ──────────────────────────────── */
+   210→  const now = new Date();
+   211→  const todayStr = now.toDateString();
+   212→
+   213→  const kpis = useMemo(() => {
+   214→    const active = admissions.filter(
+   215→      (a) => a.status === "OPEN" || a.status === "ACTIVE"
+   216→    );
+   217→    const todayAdmissions = admissions.filter((a) => {
+   218→      if (!a.admitted_at) return false;
+   219→      return new Date(a.admitted_at).toDateString() === todayStr;
+   220→    });
+   221→    const hospitalized = admissions.filter(
+   222→      (a) =>
+   223→        (a.status === "OPEN" || a.status === "ACTIVE") &&
+   224→        a.admission_type === "HOSPITALIZATION"
+   225→    );
+   226→    const plannedDischarges = admissions.filter(
+   227→      (a) => a.status === "CLOSED" || a.status === "DISCHARGED"
+   228→    );
+   229→    return {
+   230→      activeCount: active.length,
+   231→      todayCount: todayAdmissions.length,
+   232→      hospCount: hospitalized.length,
+   233→      dischargeCount: plannedDischarges.length,
+   234→    };
+   235→  }, [admissions, todayStr]);
+   236→
+   237→  /* ── Apply filters ─────────────────────────────── */
+   238→  const filtered = useMemo(() => {
+   239→    let rows = admissions.filter(
+   240→      (a) => a.status === "OPEN" || a.status === "ACTIVE"
+   241→    );
+   242→    if (statusFilter === "ALL") {
+   243→      rows = admissions;
+   244→    } else if (statusFilter === "CLOSED") {
+   245→      rows = admissions.filter(
+   246→        (a) => a.status === "CLOSED" || a.status === "DISCHARGED"
+   247→      );
+   248→    }
+   249→    if (deptFilter) {
+   250→      rows = rows.filter((a) => a.department_id === deptFilter);
+   251→    }
+   252→    if (dateFrom) {
+   253→      rows = rows.filter(
+   254→        (a) => a.admitted_at && new Date(a.admitted_at) >= new Date(dateFrom)
+   255→      );
+   256→    }
+   257→    if (dateTo) {
+   258→      const to = new Date(dateTo);
+   259→      to.setHours(23, 59, 59, 999);
+   260→      rows = rows.filter(
+   261→        (a) => a.admitted_at && new Date(a.admitted_at) <= to
+   262→      );
+   263→    }
+   264→    return rows;
+   265→  }, [admissions, statusFilter, deptFilter, dateFrom, dateTo]);
+   266→
+   267→  /* ── Color coding helpers ──────────────────────── */
+   268→  function getStayIndicator(admission: Row): React.ReactNode {
+   269→    if (!admission.admitted_at) return null;
+   270→    const admittedDate = new Date(admission.admitted_at);
+   271→    const diffHours = (now.getTime() - admittedDate.getTime()) / (1000 * 60 * 60);
+   272→    if (diffHours < 24) {
+   273→      return (
+   274→        <span
+   275→          style={{
+   276→            display: "inline-block",
+   277→            width: "8px",
+   278→            height: "8px",
+   279→            borderRadius: "50%",
+   280→            background: "#16a34a",
+   281→            marginRight: "6px",
+   282→            flexShrink: 0,
+   283→          }}
+   284→          title="Admission récente (< 24h)"
+   285→        />
+   286→      );
+   287→    }
+   288→    const diffDays = diffHours / 24;
+   289→    if (diffDays > 7) {
+   290→      return (
+   291→        <span
+   292→          style={{
+   293→            display: "inline-block",
+   294→            width: "8px",
+   295→            height: "8px",
+   296→            borderRadius: "50%",
+   297→            background: "#f59e0b",
+   298→            marginRight: "6px",
+   299→            flexShrink: 0,
+   300→          }}
+   301→          title="Séjour long (> 7 jours)"
+   302→        />
+   303→      );
+   304→    }
+   305→    return null;
+   306→  }
+   307→
+   308→  async function handleDischarge(admissionId: string) {
+   309→    if (!confirm("Confirmer la sortie de ce patient ?")) return;
+   310→    try {
+   311→      await apiRequest(`/admissions/${admissionId}/close`, { method: "POST" });
+   312→      showToast("Sortie enregistrée avec succès.", "success");
+   313→      handleRefresh();
+   314→    } catch {
+   315→      showToast("Erreur lors de l'enregistrement de la sortie.", "error");
+   316→    }
+   317→  }
+   318→
+   319→  return (
+   320→    <>
+   321→      {/* ── KPI Cards ──────────────────────────────────── */}
+   322→      <div
+   323→        style={{
+   324→          display: "grid",
+   325→          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+   326→          gap: "12px",
+   327→          marginBottom: "20px",
+   328→        }}
+   329→      >
+   330→        <KpiCard
+   331→          icon={<Activity size={20} />}
+   332→          label="Admissions actives"
+   333→          value={kpis.activeCount}
+   334→          color="var(--primary)"
+   335→          bgColor="var(--primary-light)"
+   336→        />
+   337→        <KpiCard
+   338→          icon={<CalendarCheck size={20} />}
+   339→          label="Prévues aujourd'hui"
+   340→          value={kpis.todayCount}
+   341→          color="#2563eb"
+   342→          bgColor="#eff6ff"
+   343→        />
+   344→        <KpiCard
+   345→          icon={<BedDouble size={20} />}
+   346→          label="En hospitalisation"
+   347→          value={kpis.hospCount}
+   348→          color="#7c3aed"
+   349→          bgColor="#f5f3ff"
+   350→        />
+   351→        <KpiCard
+   352→          icon={<LogOut size={20} />}
+   353→          label="Sorties prévues"
+   354→          value={kpis.dischargeCount}
+   355→          color="#b45309"
+   356→          bgColor="#fef3c7"
+   357→        />
+   358→      </div>
+   359→
+   360→      {/* ── Filters ────────────────────────────────────── */}
+   361→      <div
+   362→        className="card"
+   363→        style={{
+   364→          marginBottom: "16px",
+   365→          display: "flex",
+   366→          gap: "12px",
+   367→          flexWrap: "wrap",
+   368→          alignItems: "end",
+   369→          padding: "16px",
+   370→        }}
+   371→      >
+   372→        <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
+   373→          <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Statut</span>
+   374→          <select
+   375→            value={statusFilter}
+   376→            onChange={(e) => setStatusFilter(e.target.value)}
+   377→            style={{ minWidth: "160px", fontSize: "13px" }}
+   378→          >
+   379→            <option value="OPEN">Actives</option>
+   380→            <option value="CLOSED">Sortis</option>
+   381→            <option value="ALL">Tous</option>
+   382→          </select>
+   383→        </div>
+   384→        <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
+   385→          <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Service</span>
+   386→          <select
+   387→            value={deptFilter}
+   388→            onChange={(e) => setDeptFilter(e.target.value)}
+   389→            style={{ minWidth: "180px", fontSize: "13px" }}
+   390→          >
+   391→            <option value="">Tous les services</option>
+   392→            {options.departments.map((o) => (
+   393→              <option key={o.value} value={o.value}>
+   394→                {o.label}
+   395→              </option>
+   396→            ))}
+   397→          </select>
+   398→        </div>
+   399→        <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
+   400→          <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Date début</span>
+   401→          <input
+   402→            type="date"
+   403→            value={dateFrom}
+   404→            onChange={(e) => setDateFrom(e.target.value)}
+   405→            style={{ fontSize: "13px" }}
+   406→          />
+   407→        </div>
+   408→        <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
+   409→          <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Date fin</span>
+   410→          <input
+   411→            type="date"
+   412→            value={dateTo}
+   413→            onChange={(e) => setDateTo(e.target.value)}
+   414→            style={{ fontSize: "13px" }}
+   415→          />
+   416→        </div>
+   417→        <button
+   418→          className="btn btn-outline btn-sm"
+   419→          onClick={() => {
+   420→            setStatusFilter("OPEN");
+   421→            setDeptFilter("");
+   422→            setDateFrom("");
+   423→            setDateTo("");
+   424→          }}
+   425→          style={{ height: "38px" }}
+   426→        >
+   427→          <X size={14} />
+   428→          Réinitialiser
+   429→        </button>
+   430→        <button
+   431→          className="btn btn-outline btn-sm"
+   432→          onClick={handleRefresh}
+   433→          style={{ height: "38px" }}
+   434→        >
+   435→          <RefreshCw size={14} />
+   436→          Actualiser
+   437→        </button>
+   438→      </div>
+   439→
+   440→      {/* ── Admissions Table ───────────────────────────── */}
+   441→      {loading ? (
+   442→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   443→          <div className="spinner" />
+   444→          <p className="muted" style={{ marginTop: "12px" }}>
+   445→            Chargement des admissions...
+   446→          </p>
+   447→        </div>
+   448→      ) : filtered.length === 0 ? (
+   449→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   450→          <p className="muted">Aucune admission trouvée.</p>
+   451→        </div>
+   452→      ) : (
+   453→        <div className="card" style={{ padding: "0" }}>
+   454→          <div className="table-wrapper" style={{ maxHeight: "520px", overflowY: "auto" }}>
+   455→            <table className="data-table">
+   456→              <thead>
+   457→                <tr>
+   458→                  <th>Patient</th>
+   459→                  <th>Date d'admission</th>
+   460→                  <th>Motif / Type</th>
+   461→                  <th>Service</th>
+   462→                  <th>Statut</th>
+   463→                  <th>Établissement</th>
+   464→                  <th>Actions</th>
+   465→                </tr>
+   466→              </thead>
+   467→              <tbody>
+   468→                {filtered.map((adm) => {
+   469→                  const statusInfo = STATUS_MAP[adm.status] || {
+   470→                    label: adm.status,
+   471→                    badge: "badge-gray",
+   472→                  };
+   473→                  const isActive =
+   474→                    adm.status === "OPEN" || adm.status === "ACTIVE";
+   475→                  return (
+   476→                    <tr key={adm.id}>
+   477→                      <td>
+   478→                        <div style={{ display: "flex", alignItems: "center" }}>
+   479→                          {getStayIndicator(adm)}
+   480→                          <span style={{ fontWeight: 600 }}>
+   481→                            {getPatientName(adm.patient_id)}
+   482→                          </span>
+   483→                        </div>
+   484→                      </td>
+   485→                      <td style={{ whiteSpace: "nowrap", fontSize: "13px" }}>
+   486→                        {adm.admitted_at
+   487→                          ? new Date(adm.admitted_at).toLocaleString("fr-FR", {
+   488→                              day: "2-digit",
+   489→                              month: "2-digit",
+   490→                              year: "numeric",
+   491→                              hour: "2-digit",
+   492→                              minute: "2-digit",
+   493→                            })
+   494→                          : "—"}
+   495→                      </td>
+   496→                      <td>
+   497→                        <span style={{ fontWeight: 500 }}>
+   498→                          {TYPE_LABELS[adm.admission_type] ||
+   499→                            adm.admission_type ||
+   500→                            "—"}
+   501→                        </span>
+   502→                      </td>
+   503→                      <td style={{ fontSize: "13px" }}>
+   504→                        {getDeptName(adm.department_id)}
+   505→                      </td>
+   506→                      <td>
+   507→                        <span className={`badge ${statusInfo.badge}`}>
+   508→                          {statusInfo.label}
+   509→                        </span>
+   510→                      </td>
+   511→                      <td style={{ fontSize: "13px" }}>
+   512→                        {getFacilityName(adm.facility_id)}
+   513→                      </td>
+   514→                      <td>
+   515→                        <div style={{ display: "flex", gap: "6px" }}>
+   516→                          <button
+   517→                            className="btn btn-outline btn-sm"
+   518→                            title="Voir dossier"
+   519→                          >
+   520→                            <Eye size={13} />
+   521→                            Dossier
+   522→                          </button>
+   523→                          {isActive && (
+   524→                            <button
+   525→                              className="btn btn-sm"
+   526→                              style={{
+   527→                                background: "#fef3c7",
+   528→                                color: "#92400e",
+   529→                                border: "1px solid #fcd34d",
+   530→                              }}
+   531→                              onClick={() => handleDischarge(adm.id)}
+   532→                              title="Programmer sortie"
+   533→                            >
+   534→                              <ClipboardCheck size={13} />
+   535→                              Sortie
+   536→                            </button>
+   537→                          )}
+   538→                        </div>
+   539→                      </td>
+   540→                    </tr>
+   541→                  );
+   542→                })}
+   543→              </tbody>
+   544→            </table>
+   545→          </div>
+   546→          <div
+   547→            style={{
+   548→              padding: "12px 16px",
+   549→              borderTop: "1px solid var(--border-light)",
+   550→              fontSize: "13px",
+   551→              color: "var(--muted)",
+   552→              fontWeight: 600,
+   553→            }}
+   554→          >
+   555→            {filtered.length} admission{filtered.length > 1 ? "s" : ""} affichée
+   556→            {filtered.length > 1 ? "s" : ""}
+   557→          </div>
+   558→        </div>
+   559→      )}
+   560→    </>
+   561→  );
+   562→}
+   563→
+   564→/* ═══════════════════════════════════════════════════════════════════
+   565→   Tab 2 — Nouvelle Admission
+   566→   ═══════════════════════════════════════════════════════════════════ */
+   567→
+   568→function NouvelleAdmissionTab({
+   569→  lookups,
+   570→  onCreated,
+   571→}: {
+   572→  lookups: LookupData;
+   573→  onCreated: () => void;
+   574→}) {
+   575→  const options = buildOptions(lookups);
+   576→  const doctors = lookups.staff.filter(
+   577→    (s) => s.role === "DOCTOR" || s.role === "PHYSICIAN"
+   578→  );
+   579→
+   580→  const [facilityId, setFacilityId] = useState(firstValue(options.facilities));
+   581→  const [patientId, setPatientId] = useState("");
+   582→  const [patientSearch, setPatientSearch] = useState("");
+   583→  const [departmentId, setDepartmentId] = useState("");
+   584→  const [admissionType, setAdmissionType] = useState("CONSULTATION");
+   585→  const [motif, setMotif] = useState("");
+   586→  const [doctorId, setDoctorId] = useState("");
+   587→  const [admissionDate, setAdmissionDate] = useState(
+   588→    new Date().toISOString().slice(0, 16)
+   589→  );
+   590→  const [priority, setPriority] = useState("ROUTINE");
+   591→  const [notes, setNotes] = useState("");
+   592→  const [submitting, setSubmitting] = useState(false);
+   593→  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+   594→
+   595→  const filteredPatients = useMemo(() => {
+   596→    if (!patientSearch.trim()) return lookups.patients.slice(0, 20);
+   597→    const q = patientSearch.toLowerCase();
+   598→    return lookups.patients
+   599→      .filter(
+   600→        (p) =>
+   601→          (p.first_name || "").toLowerCase().includes(q) ||
+   602→          (p.last_name || "").toLowerCase().includes(q) ||
+   603→          (p.patient_number || "").toLowerCase().includes(q)
+   604→      )
+   605→      .slice(0, 20);
+   606→  }, [lookups.patients, patientSearch]);
+   607→
+   608→  function selectPatient(p: Row) {
+   609→    setPatientId(p.id);
+   610→    setPatientSearch(
+   611→      `${p.first_name || ""} ${p.last_name || ""}`.trim() ||
+   612→        p.patient_number ||
+   613→        ""
+   614→    );
+   615→    setShowPatientDropdown(false);
+   616→  }
+   617→
+   618→  function clearPatient() {
+   619→    setPatientId("");
+   620→    setPatientSearch("");
+   621→  }
+   622→
+   623→  async function handleSubmit(e: React.FormEvent) {
+   624→    e.preventDefault();
+   625→    if (!patientId || !facilityId) {
+   626→      showToast("Veuillez sélectionner un patient et un établissement.", "error");
+   627→      return;
+   628→    }
+   629→    setSubmitting(true);
+   630→    try {
+   631→      await apiRequest("/admissions", {
+   632→        method: "POST",
+   633→        body: JSON.stringify({
+   634→          facility_id: facilityId,
+   635→          patient_id: patientId,
+   636→          department_id: departmentId || undefined,
+   637→          admission_type: admissionType,
+   638→          status: "OPEN",
+   639→        }),
+   640→      });
+   641→      showToast("Admission enregistrée avec succès.", "success");
+   642→      onCreated();
+   643→      // Reset form
+   644→      setPatientId("");
+   645→      setPatientSearch("");
+   646→      setDepartmentId("");
+   647→      setAdmissionType("CONSULTATION");
+   648→      setMotif("");
+   649→      setDoctorId("");
+   650→      setAdmissionDate(new Date().toISOString().slice(0, 16));
+   651→      setPriority("ROUTINE");
+   652→      setNotes("");
+   653→    } catch {
+   654→      showToast("Erreur lors de l'enregistrement de l'admission.", "error");
+   655→    } finally {
+   656→      setSubmitting(false);
+   657→    }
+   658→  }
+   659→
+   660→  const priorityColors: Record<string, { bg: string; text: string; border: string }> = {
+   661→    ROUTINE: { bg: "#f0fdf4", text: "#047857", border: "#86efac" },
+   662→    URGENT: { bg: "#fffbeb", text: "#92400e", border: "#fcd34d" },
+   663→    EMERGENCY: { bg: "#fef2f2", text: "#b91c1c", border: "#fca5a5" },
+   664→  };
+   665→
+   666→  return (
+   667→    <div className="card" style={{ maxWidth: "900px" }}>
+   668→      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+   669→        <div
+   670→          style={{
+   671→            width: "36px",
+   672→            height: "36px",
+   673→            borderRadius: "var(--radius-md)",
+   674→            background: "var(--primary-light)",
+   675→            color: "var(--primary)",
+   676→            display: "grid",
+   677→            placeItems: "center",
+   678→          }}
+   679→        >
+   680→          <Plus size={18} />
+   681→        </div>
+   682→        <div>
+   683→          <h2 style={{ fontSize: "18px", margin: 0 }}>Nouvelle admission</h2>
+   684→          <p className="muted" style={{ fontSize: "13px" }}>
+   685→            Enregistrer une nouvelle admission de patient
+   686→          </p>
+   687→        </div>
+   688→      </div>
+   689→
+   690→      <form onSubmit={handleSubmit}>
+   691→        {/* ── Section: Patient ──────────────────────── */}
+   692→        <fieldset
+   693→          style={{
+   694→            border: "1px solid var(--border-light)",
+   695→            borderRadius: "var(--radius-lg)",
+   696→            padding: "16px",
+   697→            marginBottom: "20px",
+   698→          }}
+   699→        >
+   700→          <legend
+   701→            style={{
+   702→              fontSize: "13px",
+   703→              fontWeight: 700,
+   704→              color: "var(--primary)",
+   705→              padding: "0 8px",
+   706→              textTransform: "uppercase",
+   707→              letterSpacing: "0.5px",
+   708→            }}
+   709→          >
+   710→            <UserCircle size={14} style={{ verticalAlign: "middle", marginRight: "4px" }} />
+   711→            Patient
+   712→          </legend>
+   713→          <div style={{ position: "relative" }}>
+   714→            <div style={{ position: "relative" }}>
+   715→              <Search
+   716→                size={16}
+   717→                style={{
+   718→                  position: "absolute",
+   719→                  left: "10px",
+   720→                  top: "50%",
+   721→                  transform: "translateY(-50%)",
+   722→                  color: "var(--muted)",
+   723→                }}
+   724→              />
+   725→              <input
+   726→                type="text"
+   727→                placeholder="Rechercher un patient (nom, prénom, numéro)..."
+   728→                value={patientSearch}
+   729→                onChange={(e) => {
+   730→                  setPatientSearch(e.target.value);
+   731→                  setShowPatientDropdown(true);
+   732→                  setPatientId("");
+   733→                }}
+   734→                onFocus={() => setShowPatientDropdown(true)}
+   735→                style={{ paddingLeft: "34px", paddingRight: patientId ? "32px" : "12px" }}
+   736→                required={!patientId}
+   737→              />
+   738→              {patientId && (
+   739→                <button
+   740→                  type="button"
+   741→                  onClick={clearPatient}
+   742→                  style={{
+   743→                    position: "absolute",
+   744→                    right: "8px",
+   745→                    top: "50%",
+   746→                    transform: "translateY(-50%)",
+   747→                    background: "none",
+   748→                    border: "none",
+   749→                    color: "var(--muted)",
+   750→                    cursor: "pointer",
+   751→                    padding: "2px",
+   752→                  }}
+   753→                >
+   754→                  <X size={16} />
+   755→                </button>
+   756→              )}
+   757→            </div>
+   758→            {showPatientDropdown && !patientId && (
+   759→              <div
+   760→                style={{
+   761→                  position: "absolute",
+   762→                  top: "100%",
+   763→                  left: 0,
+   764→                  right: 0,
+   765→                  background: "var(--card)",
+   766→                  border: "1px solid var(--border)",
+   767→                  borderRadius: "var(--radius-md)",
+   768→                  maxHeight: "220px",
+   769→                  overflowY: "auto",
+   770→                  zIndex: 100,
+   771→                  boxShadow: "var(--shadow-md)",
+   772→                }}
+   773→              >
+   774→                {filteredPatients.length === 0 ? (
+   775→                  <div style={{ padding: "12px", color: "var(--muted)", fontSize: "13px" }}>
+   776→                    Aucun patient trouvé
+   777→                  </div>
+   778→                ) : (
+   779→                  filteredPatients.map((p) => (
+   780→                    <button
+   781→                      key={p.id}
+   782→                      type="button"
+   783→                      onClick={() => selectPatient(p)}
+   784→                      style={{
+   785→                        display: "block",
+   786→                        width: "100%",
+   787→                        textAlign: "left",
+   788→                        padding: "10px 14px",
+   789→                        border: "none",
+   790→                        background: "transparent",
+   791→                        cursor: "pointer",
+   792→                        fontSize: "13px",
+   793→                        fontFamily: "inherit",
+   794→                        borderBottom: "1px solid var(--border-light)",
+   795→                      }}
+   796→                      onMouseEnter={(e) =>
+   797→                        (e.currentTarget.style.background = "var(--primary-light)")
+   798→                      }
+   799→                      onMouseLeave={(e) =>
+   800→                        (e.currentTarget.style.background = "transparent")
+   801→                      }
+   802→                    >
+   803→                      <span style={{ fontWeight: 600 }}>
+   804→                        {p.first_name || ""} {p.last_name || ""}
+   805→                      </span>
+   806→                      {p.patient_number && (
+   807→                        <span className="muted" style={{ marginLeft: "8px", fontSize: "12px" }}>
+   808→                          ({p.patient_number})
+   809→                        </span>
+   810→                      )}
+   811→                    </button>
+   812→                  ))
+   813→                )}
+   814→              </div>
+   815→            )}
+   816→            {patientId && (
+   817→              <div
+   818→                style={{
+   819→                  marginTop: "8px",
+   820→                  padding: "6px 12px",
+   821→                  background: "var(--primary-light)",
+   822→                  borderRadius: "var(--radius-md)",
+   823→                  fontSize: "13px",
+   824→                  color: "var(--primary)",
+   825→                  fontWeight: 600,
+   826→                }}
+   827→              >
+   828→                ✓ Patient sélectionné : {patientSearch}
+   829→              </div>
+   830→            )}
+   831→          </div>
+   832→        </fieldset>
+   833→
+   834→        {/* ── Section: Organisation ─────────────────── */}
+   835→        <fieldset
+   836→          style={{
+   837→            border: "1px solid var(--border-light)",
+   838→            borderRadius: "var(--radius-lg)",
+   839→            padding: "16px",
+   840→            marginBottom: "20px",
+   841→          }}
+   842→        >
+   843→          <legend
+   844→            style={{
+   845→              fontSize: "13px",
+   846→              fontWeight: 700,
+   847→              color: "var(--primary)",
+   848→              padding: "0 8px",
+   849→              textTransform: "uppercase",
+   850→              letterSpacing: "0.5px",
+   851→            }}
+   852→          >
+   853→            <Building2 size={14} style={{ verticalAlign: "middle", marginRight: "4px" }} />
+   854→            Organisation
+   855→          </legend>
+   856→          <div className="form-grid">
+   857→            <label className="form-control">
+   858→              Établissement *
+   859→              <select
+   860→                value={facilityId}
+   861→                onChange={(e) => setFacilityId(e.target.value)}
+   862→                required
+   863→              >
+   864→                <option value="">-- Choisir --</option>
+   865→                {options.facilities.map((o) => (
+   866→                  <option key={o.value} value={o.value}>
+   867→                    {o.label}
+   868→                  </option>
+   869→                ))}
+   870→              </select>
+   871→            </label>
+   872→            <label className="form-control">
+   873→              Service
+   874→              <select
+   875→                value={departmentId}
+   876→                onChange={(e) => setDepartmentId(e.target.value)}
+   877→              >
+   878→                <option value="">-- Choisir --</option>
+   879→                {options.departments.map((o) => (
+   880→                  <option key={o.value} value={o.value}>
+   881→                    {o.label}
+   882→                  </option>
+   883→                ))}
+   884→              </select>
+   885→            </label>
+   886→            <label className="form-control">
+   887→              Médecin traitant
+   888→              <select
+   889→                value={doctorId}
+   890→                onChange={(e) => setDoctorId(e.target.value)}
+   891→              >
+   892→                <option value="">-- Choisir --</option>
+   893→                {doctors.map((d) => (
+   894→                  <option key={d.id} value={d.id}>
+   895→                    Dr. {d.last_name || ""} {d.first_name || ""}
+   896→                  </option>
+   897→                ))}
+   898→              </select>
+   899→            </label>
+   900→          </div>
+   901→        </fieldset>
+   902→
+   903→        {/* ── Section: Admission ────────────────────── */}
+   904→        <fieldset
+   905→          style={{
+   906→            border: "1px solid var(--border-light)",
+   907→            borderRadius: "var(--radius-lg)",
+   908→            padding: "16px",
+   909→            marginBottom: "20px",
+   910→          }}
+   911→        >
+   912→          <legend
+   913→            style={{
+   914→              fontSize: "13px",
+   915→              fontWeight: 700,
+   916→              color: "var(--primary)",
+   917→              padding: "0 8px",
+   918→              textTransform: "uppercase",
+   919→              letterSpacing: "0.5px",
+   920→            }}
+   921→          >
+   922→            <Stethoscope size={14} style={{ verticalAlign: "middle", marginRight: "4px" }} />
+   923→            Détails de l'admission
+   924→          </legend>
+   925→          <div className="form-grid">
+   926→            <label className="form-control">
+   927→              Type d'admission *
+   928→              <select
+   929→                value={admissionType}
+   930→                onChange={(e) => setAdmissionType(e.target.value)}
+   931→                required
+   932→              >
+   933→                {ADMISSION_TYPE_OPTIONS.map((o) => (
+   934→                  <option key={o.value} value={o.value}>
+   935→                    {o.label}
+   936→                  </option>
+   937→                ))}
+   938→              </select>
+   939→            </label>
+   940→            <label className="form-control">
+   941→              Date/heure d'admission
+   942→              <input
+   943→                type="datetime-local"
+   944→                value={admissionDate}
+   945→                onChange={(e) => setAdmissionDate(e.target.value)}
+   946→              />
+   947→            </label>
+   948→            <label className="form-control">
+   949→              Priorité *
+   950→              <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+   951→                {PRIORITY_OPTIONS.map((opt) => {
+   952→                  const colors = priorityColors[opt.value];
+   953→                  const isSelected = priority === opt.value;
+   954→                  return (
+   955→                    <button
+   956→                      key={opt.value}
+   957→                      type="button"
+   958→                      onClick={() => setPriority(opt.value)}
+   959→                      style={{
+   960→                        padding: "6px 14px",
+   961→                        borderRadius: "var(--radius-md)",
+   962→                        border: `2px solid ${isSelected ? colors.text : colors.border}`,
+   963→                        background: isSelected ? colors.bg : "white",
+   964→                        color: isSelected ? colors.text : "var(--muted)",
+   965→                        fontWeight: isSelected ? 700 : 500,
+   966→                        fontSize: "13px",
+   967→                        fontFamily: "inherit",
+   968→                        cursor: "pointer",
+   969→                        transition: "all 0.15s ease",
+   970→                        display: "flex",
+   971→                        alignItems: "center",
+   972→                        gap: "4px",
+   973→                      }}
+   974→                    >
+   975→                      {opt.value === "EMERGENCY" && <AlertTriangle size={13} />}
+   976→                      {opt.label}
+   977→                    </button>
+   978→                  );
+   979→                })}
+   980→              </div>
+   981→            </label>
+   982→          </div>
+   983→          <label className="form-control" style={{ marginTop: "8px" }}>
+   984→            Motif d'admission
+   985→            <textarea
+   986→              value={motif}
+   987→              onChange={(e) => setMotif(e.target.value)}
+   988→              placeholder="Décrivez le motif de l'admission..."
+   989→              rows={3}
+   990→              style={{
+   991→                width: "100%",
+   992→                border: "1px solid var(--border)",
+   993→                borderRadius: "var(--radius-sm)",
+   994→                padding: "10px 12px",
+   995→                font: "inherit",
+   996→                resize: "vertical",
+   997→                minHeight: "72px",
+   998→              }}
+   999→            />
+  1000→          </label>
+  1001→          <label className="form-control">
+  1002→            Notes complémentaires
+  1003→            <textarea
+  1004→              value={notes}
+  1005→              onChange={(e) => setNotes(e.target.value)}
+  1006→              placeholder="Notes additionnelles..."
+  1007→              rows={2}
+  1008→              style={{
+  1009→                width: "100%",
+  1010→                border: "1px solid var(--border)",
+  1011→                borderRadius: "var(--radius-sm)",
+  1012→                padding: "10px 12px",
+  1013→                font: "inherit",
+  1014→                resize: "vertical",
+  1015→                minHeight: "48px",
+  1016→              }}
+  1017→            />
+  1018→          </label>
+  1019→        </fieldset>
+  1020→
+  1021→        {/* ── Actions ───────────────────────────────── */}
+  1022→        <div className="form-actions">
+  1023→          <button className="btn btn-primary" type="submit" disabled={submitting}>
+  1024→            {submitting ? "Enregistrement..." : "Enregistrer l'admission"}
+  1025→          </button>
+  1026→          <button
+  1027→            className="btn btn-outline"
+  1028→            type="button"
+  1029→            onClick={() => {
+  1030→              setPatientId("");
+  1031→              setPatientSearch("");
+  1032→              setDepartmentId("");
+  1033→              setAdmissionType("CONSULTATION");
+  1034→              setMotif("");
+  1035→              setDoctorId("");
+  1036→              setAdmissionDate(new Date().toISOString().slice(0, 16));
+  1037→              setPriority("ROUTINE");
+  1038→              setNotes("");
+  1039→            }}
+  1040→          >
+  1041→            Réinitialiser
+  1042→          </button>
+  1043→        </div>
+  1044→      </form>
+  1045→    </div>
+  1046→  );
+  1047→}
+  1048→
+  1049→/* ═══════════════════════════════════════════════════════════════════
+  1050→   Tab 3 — Historique
+  1051→   ═══════════════════════════════════════════════════════════════════ */
+  1052→
+  1053→function HistoriqueTab({ lookups }: { lookups: LookupData }) {
+  1054→  const [admissions, setAdmissions] = useState<Row[]>([]);
+  1055→  const [loading, setLoading] = useState(true);
+  1056→  const [dateFrom, setDateFrom] = useState("");
+  1057→  const [dateTo, setDateTo] = useState("");
+  1058→
+  1059→  const loadAdmissions = useCallback(async () => {
+  1060→    setLoading(true);
+  1061→    try {
+  1062→      const payload = await apiRequest<any>("/admissions?page_size=1000");
+  1063→      const data: Row[] = Array.isArray(payload.data) ? payload.data : [];
+  1064→      setAdmissions(data);
+  1065→    } catch {
+  1066→      /* silent */
+  1067→    } finally {
+  1068→      setLoading(false);
+  1069→    }
+  1070→  }, []);
+  1071→
+  1072→  useEffect(() => {
+  1073→    loadAdmissions();
+  1074→    const handler = () => loadAdmissions();
+  1075→    window.addEventListener("refresh-resource", handler);
+  1076→    return () => window.removeEventListener("refresh-resource", handler);
+  1077→  }, [loadAdmissions]);
+  1078→
+  1079→  function getPatientName(patientId: string): string {
+  1080→    const p = lookups.patients.find((x) => x.id === patientId);
+  1081→    if (!p) return "Inconnu";
+  1082→    return `${p.first_name || ""} ${p.last_name || ""}`.trim() || p.patient_number || "N/A";
+  1083→  }
+  1084→
+  1085→  function getDeptName(deptId: string | null): string {
+  1086→    if (!deptId) return "—";
+  1087→    const d = lookups.departments.find((x) => x.id === deptId);
+  1088→    return d ? `${d.code || ""} - ${d.name || d.id}`.trim() : "—";
+  1089→  }
+  1090→
+  1091→  const discharged = useMemo(() => {
+  1092→    let rows = admissions.filter(
+  1093→      (a) => a.status === "CLOSED" || a.status === "DISCHARGED"
+  1094→    );
+  1095→    if (dateFrom) {
+  1096→      rows = rows.filter(
+  1097→        (a) =>
+  1098→          a.closed_at && new Date(a.closed_at) >= new Date(dateFrom)
+  1099→      );
+  1100→    }
+  1101→    if (dateTo) {
+  1102→      const to = new Date(dateTo);
+  1103→      to.setHours(23, 59, 59, 999);
+  1104→      rows = rows.filter(
+  1105→        (a) =>
+  1106→          a.closed_at && new Date(a.closed_at) <= to
+  1107→      );
+  1108→    }
+  1109→    return rows;
+  1110→  }, [admissions, dateFrom, dateTo]);
+  1111→
+  1112→  function getStayDuration(adm: Row): string {
+  1113→    if (!adm.admitted_at) return "—";
+  1114→    const start = new Date(adm.admitted_at);
+  1115→    const end = adm.closed_at ? new Date(adm.closed_at) : new Date();
+  1116→    const diffDays = Math.round(
+  1117→      (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
+  1118→    );
+  1119→    if (diffDays === 0) return "< 1 jour";
+  1120→    return `${diffDays} jour${diffDays > 1 ? "s" : ""}`;
+  1121→  }
+  1122→
+  1123→  return (
+  1124→    <>
+  1125→      {/* ── Filters ────────────────────────────────────── */}
+  1126→      <div
+  1127→        className="card"
+  1128→        style={{
+  1129→          marginBottom: "16px",
+  1130→          display: "flex",
+  1131→          gap: "12px",
+  1132→          flexWrap: "wrap",
+  1133→          alignItems: "end",
+  1134→          padding: "16px",
+  1135→        }}
+  1136→      >
+  1137→        <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
+  1138→          <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+  1139→            Date sortie début
+  1140→          </span>
+  1141→          <input
+  1142→            type="date"
+  1143→            value={dateFrom}
+  1144→            onChange={(e) => setDateFrom(e.target.value)}
+  1145→            style={{ fontSize: "13px" }}
+  1146→          />
+  1147→        </div>
+  1148→        <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
+  1149→          <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+  1150→            Date sortie fin
+  1151→          </span>
+  1152→          <input
+  1153→            type="date"
+  1154→            value={dateTo}
+  1155→            onChange={(e) => setDateTo(e.target.value)}
+  1156→            style={{ fontSize: "13px" }}
+  1157→          />
+  1158→        </div>
+  1159→        <button
+  1160→          className="btn btn-outline btn-sm"
+  1161→          onClick={() => {
+  1162→            setDateFrom("");
+  1163→            setDateTo("");
+  1164→          }}
+  1165→          style={{ height: "38px" }}
+  1166→        >
+  1167→          <X size={14} />
+  1168→          Réinitialiser
+  1169→        </button>
+  1170→      </div>
+  1171→
+  1172→      {/* ── Discharged Table ──────────────────────────── */}
+  1173→      {loading ? (
+  1174→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+  1175→          <div className="spinner" />
+  1176→          <p className="muted" style={{ marginTop: "12px" }}>
+  1177→            Chargement de l'historique...
+  1178→          </p>
+  1179→        </div>
+  1180→      ) : discharged.length === 0 ? (
+  1181→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+  1182→          <p className="muted">Aucun patient sorti trouvé.</p>
+  1183→        </div>
+  1184→      ) : (
+  1185→        <div className="card" style={{ padding: "0" }}>
+  1186→          <div className="table-wrapper" style={{ maxHeight: "520px", overflowY: "auto" }}>
+  1187→            <table className="data-table">
+  1188→              <thead>
+  1189→                <tr>
+  1190→                  <th>Patient</th>
+  1191→                  <th>Date d'admission</th>
+  1192→                  <th>Date de sortie</th>
+  1193→                  <th>Durée de séjour</th>
+  1194→                  <th>Type</th>
+  1195→                  <th>Service</th>
+  1196→                </tr>
+  1197→              </thead>
+  1198→              <tbody>
+  1199→                {discharged.map((adm) => (
+  1200→                  <tr key={adm.id}>
+  1201→                    <td style={{ fontWeight: 600 }}>
+  1202→                      {getPatientName(adm.patient_id)}
+  1203→                    </td>
+  1204→                    <td style={{ whiteSpace: "nowrap", fontSize: "13px" }}>
+  1205→                      {adm.admitted_at
+  1206→                        ? new Date(adm.admitted_at).toLocaleDateString("fr-FR")
+  1207→                        : "—"}
+  1208→                    </td>
+  1209→                    <td style={{ whiteSpace: "nowrap", fontSize: "13px" }}>
+  1210→                      {adm.closed_at
+  1211→                        ? new Date(adm.closed_at).toLocaleDateString("fr-FR")
+  1212→                        : "—"}
+  1213→                    </td>
+  1214→                    <td>
+  1215→                      <span
+  1216→                        className="badge badge-blue"
+  1217→                        style={{ fontSize: "12px" }}
+  1218→                      >
+  1219→                        {getStayDuration(adm)}
+  1220→                      </span>
+  1221→                    </td>
+  1222→                    <td style={{ fontSize: "13px" }}>
+  1223→                      {TYPE_LABELS[adm.admission_type] ||
+  1224→                        adm.admission_type ||
+  1225→                        "—"}
+  1226→                    </td>
+  1227→                    <td style={{ fontSize: "13px" }}>
+  1228→                      {getDeptName(adm.department_id)}
+  1229→                    </td>
+  1230→                  </tr>
+  1231→                ))}
+  1232→              </tbody>
+  1233→            </table>
+  1234→          </div>
+  1235→          <div
+  1236→            style={{
+  1237→              padding: "12px 16px",
+  1238→              borderTop: "1px solid var(--border-light)",
+  1239→              fontSize: "13px",
+  1240→              color: "var(--muted)",
+  1241→              fontWeight: 600,
+  1242→            }}
+  1243→          >
+  1244→            {discharged.length} sortie{discharged.length > 1 ? "s" : ""} affichée
+  1245→            {discharged.length > 1 ? "s" : ""}
+  1246→          </div>
+  1247→        </div>
+  1248→      )}
+  1249→    </>
+  1250→  );
+  1251→}
+  1252→
+  1253→/* ═══════════════════════════════════════════════════════════════════
+  1254→   KPI Card Component
+  1255→   ═══════════════════════════════════════════════════════════════════ */
+  1256→
+  1257→function KpiCard({
+  1258→  icon,
+  1259→  label,
+  1260→  value,
+  1261→  color,
+  1262→  bgColor,
+  1263→}: {
+  1264→  icon: React.ReactNode;
+  1265→  label: string;
+  1266→  value: number;
+  1267→  color: string;
+  1268→  bgColor: string;
+  1269→}) {
+  1270→  return (
+  1271→    <div
+  1272→      style={{
+  1273→        display: "flex",
+  1274→        alignItems: "center",
+  1275→        gap: "12px",
+  1276→        padding: "16px 18px",
+  1277→        background: "var(--card)",
+  1278→        borderRadius: "var(--radius-lg)",
+  1279→        boxShadow: "var(--shadow-xs)",
+  1280→        border: "1px solid var(--border-light)",
+  1281→      }}
+  1282→    >
+  1283→      <div
+  1284→        style={{
+  1285→          width: "42px",
+  1286→          height: "42px",
+  1287→          borderRadius: "var(--radius-md)",
+  1288→          display: "grid",
+  1289→          placeItems: "center",
+  1290→          background: bgColor,
+  1291→          color: color,
+  1292→          flexShrink: 0,
+  1293→        }}
+  1294→      >
+  1295→        {icon}
+  1296→      </div>
+  1297→      <div>
+  1298→        <div
+  1299→          style={{
+  1300→            fontSize: "24px",
+  1301→            fontWeight: 800,
+  1302→            color: "var(--text)",
+  1303→            lineHeight: 1.2,
+  1304→          }}
+  1305→        >
+  1306→          {value}
+  1307→        </div>
+  1308→        <div
+  1309→          style={{
+  1310→            fontSize: "12px",
+  1311→            color: "var(--muted)",
+  1312→            fontWeight: 500,
+  1313→          }}
+  1314→        >
+  1315→          {label}
+  1316→        </div>
+  1317→      </div>
+  1318→    </div>
+  1319→  );
+  1320→}
+  1321→

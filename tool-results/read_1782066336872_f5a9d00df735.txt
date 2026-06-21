@@ -1,0 +1,1053 @@
+     1→     1→import { useCallback, useEffect, useMemo, useState } from "react";
+     2→     2→import { apiRequest } from "../services/api";
+     3→     3→import { LookupData, Row } from "../types";
+     4→     4→import {
+     5→     5→  Activity,
+     6→     6→  Plus,
+     7→     7→  Search,
+     8→     8→  Filter,
+     9→     9→  Clock,
+    10→    10→  User,
+    11→    11→  ArrowUpCircle,
+    12→    12→  LogIn,
+    13→    13→  LogOut,
+    14→    14→  Trash2,
+    15→    15→  RefreshCw,
+    16→    16→  BarChart3,
+    17→    17→  Users,
+    18→    18→  ChevronDown,
+    19→    19→  X,
+    20→    20→  Eye,
+    21→    21→  Zap,
+    22→    22→  ToggleLeft,
+    23→    23→  ToggleRight,
+    24→    24→} from "lucide-react";
+    25→    25→
+    26→    26→/* ═══════════════════════════════════════════════════════════════════
+    27→    27→   Types & Constants
+    28→    28→   ═══════════════════════════════════════════════════════════════════ */
+    29→    29→
+    30→    30→type ActionType = "ALL" | "CREATE" | "UPDATE" | "DELETE" | "LOGIN" | "LOGOUT";
+    31→    31→type ModuleType =
+    32→    32→  | "ALL"
+    33→    33→  | "PATIENTS"
+    34→    34→  | "ADMISSIONS"
+    35→    35→  | "EMERGENCY"
+    36→    36→  | "PHARMACY"
+    37→    37→  | "LAB"
+    38→    38→  | "BILLING"
+    39→    39→  | "HOSPITALIZATION"
+    40→    40→  | "MATERNITY"
+    41→    41→  | "PERSONNEL"
+    42→    42→  | "IMAGING"
+    43→    43→  | "SURGERY"
+    44→    44→  | "QUALITY"
+    45→    45→  | "REPORTING"
+    46→    46→  | "AUTH";
+    47→    47→
+    48→    48→const ACTION_OPTIONS: { value: ActionType; label: string; icon: React.ReactNode }[] = [
+    49→    49→  { value: "ALL", label: "Toutes actions", icon: <Filter size={14} /> },
+    50→    50→  { value: "CREATE", label: "Création", icon: <Plus size={14} /> },
+    51→    51→  { value: "UPDATE", label: "Modification", icon: <ArrowUpCircle size={14} /> },
+    52→    52→  { value: "DELETE", label: "Suppression", icon: <Trash2 size={14} /> },
+    53→    53→  { value: "LOGIN", label: "Connexion", icon: <LogIn size={14} /> },
+    54→    54→  { value: "LOGOUT", label: "Déconnexion", icon: <LogOut size={14} /> },
+    55→    55→];
+    56→    56→
+    57→    57→const MODULE_OPTIONS: { value: ModuleType; label: string }[] = [
+    58→    58→  { value: "ALL", label: "Tous les modules" },
+    59→    59→  { value: "PATIENTS", label: "Patients" },
+    60→    60→  { value: "ADMISSIONS", label: "Admissions" },
+    61→    61→  { value: "EMERGENCY", label: "Urgences" },
+    62→    62→  { value: "PHARMACY", label: "Pharmacie" },
+    63→    63→  { value: "LAB", label: "Laboratoire" },
+    64→    64→  { value: "BILLING", label: "Facturation" },
+    65→    65→  { value: "HOSPITALIZATION", label: "Hospitalisation" },
+    66→    66→  { value: "MATERNITY", label: "Maternité" },
+    67→    67→  { value: "PERSONNEL", label: "Personnel" },
+    68→    68→  { value: "IMAGING", label: "Imagerie" },
+    69→    69→  { value: "SURGERY", label: "Chirurgie" },
+    70→    70→  { value: "QUALITY", label: "Qualité" },
+    71→    71→  { value: "REPORTING", label: "Reporting" },
+    72→    72→  { value: "AUTH", label: "Authentification" },
+    73→    73→];
+    74→    74→
+    75→    75→const ACTION_COLORS: Record<string, { dot: string; bg: string; text: string; border: string }> = {
+    76→    76→  CREATE: { dot: "#16a34a", bg: "#f0fdf4", text: "#047857", border: "#86efac" },
+    77→    77→  UPDATE: { dot: "#2563eb", bg: "#eff6ff", text: "#1d4ed8", border: "#93c5fd" },
+    78→    78→  DELETE: { dot: "#dc2626", bg: "#fef2f2", text: "#b91c1c", border: "#fca5a5" },
+    79→    79→  LOGIN: { dot: "#7c3aed", bg: "#f5f3ff", text: "#6d28d9", border: "#c4b5fd" },
+    80→    80→  LOGOUT: { dot: "#6b7280", bg: "#f9fafb", text: "#4b5563", border: "#d1d5db" },
+    81→    81→};
+    82→    82→
+    83→    83→/* Map action_name prefixes to action types */
+    84→    84→function inferActionType(actionName: string): string {
+    85→    85→  const lower = actionName.toLowerCase();
+    86→    86→  if (lower.includes("created") || lower.includes(".create") || lower.includes("admitted"))
+    87→    87→    return "CREATE";
+    88→    88→  if (lower.includes("deleted") || lower.includes(".delete") || lower.includes("removed"))
+    89→    89→    return "DELETE";
+    90→    90→  if (lower.includes("login") || lower.includes("logged_in") || lower.includes("authenticated"))
+    91→    91→    return "LOGIN";
+    92→    92→  if (lower.includes("logout") || lower.includes("logged_out"))
+    93→    93→    return "LOGOUT";
+    94→    94→  return "UPDATE";
+    95→    95→}
+    96→    96→
+    97→    97→/* Map entity_type to module */
+    98→    98→function inferModule(entityType: string | null): string {
+    99→    99→  if (!entityType) return "AUTH";
+   100→   100→  const lower = entityType.toLowerCase();
+   101→   101→  if (lower.includes("patient")) return "PATIENTS";
+   102→   102→  if (lower.includes("admission")) return "ADMISSIONS";
+   103→   103→  if (lower.includes("emergency")) return "EMERGENCY";
+   104→   104→  if (lower.includes("product") || lower.includes("dispensation") || lower.includes("pharmacy"))
+   105→   105→    return "PHARMACY";
+   106→   106→  if (lower.includes("lab") || lower.includes("order") || lower.includes("result"))
+   107→   107→    return "LAB";
+   108→   108→  if (lower.includes("invoice") || lower.includes("billing") || lower.includes("payment"))
+   109→   109→    return "BILLING";
+   110→   110→  if (lower.includes("stay") || lower.includes("bed") || lower.includes("room") || lower.includes("hospital"))
+   111→   111→    return "HOSPITALIZATION";
+   112→   112→  if (lower.includes("maternity") || lower.includes("delivery"))
+   113→   113→    return "MATERNITY";
+   114→   114→  if (lower.includes("staff") || lower.includes("personnel"))
+   115→   115→    return "PERSONNEL";
+   116→   116→  if (lower.includes("imaging") || lower.includes("radiology"))
+   117→   117→    return "IMAGING";
+   118→   118→  if (lower.includes("surgery") || lower.includes("operation"))
+   119→   119→    return "SURGERY";
+   120→   120→  if (lower.includes("quality") || lower.includes("audit"))
+   121→   121→    return "QUALITY";
+   122→   122→  if (lower.includes("report"))
+   123→   123→    return "REPORTING";
+   124→   124→  return "AUTH";
+   125→   125→}
+   126→   126→
+   127→   127→function formatActionLabel(actionName: string): string {
+   128→   128→  const parts = actionName.split(".");
+   129→   129→  const action = parts[parts.length - 1] || actionName;
+   130→   130→  const map: Record<string, string> = {
+   131→   131→    created: "Création",
+   132→   132→    updated: "Modification",
+   133→   133→    deleted: "Suppression",
+   134→   134→    closed: "Clôture",
+   135→   135→    admitted: "Admission",
+   136→   136→    discharged: "Sortie",
+   137→   137→    login: "Connexion",
+   138→   138→    logged_in: "Connexion",
+   139→   139→    logout: "Déconnexion",
+   140→   140→    logged_out: "Déconnexion",
+   141→   141→    authenticated: "Authentification",
+   142→   142→    validated: "Validation",
+   143→   143→    cancelled: "Annulation",
+   144→   144→    submitted: "Soumission",
+   145→   145→    dispensed: "Dispensation",
+   146→   146→    ordered: "Commande",
+   147→   147→    completed: "Achèvement",
+   148→   148→  };
+   149→   149→  return map[action.toLowerCase()] || actionName;
+   150→   150→}
+   151→   151→
+   152→   152→function formatEntityLabel(entityType: string | null): string {
+   153→   153→  if (!entityType) return "—";
+   154→   154→  const map: Record<string, string> = {
+   155→   155→    patient: "Patient",
+   156→   156→    admission: "Admission",
+   157→   157→    emergency_visit: "Visite urgence",
+   158→   158→    product: "Produit",
+   159→   159→    dispensation: "Dispensation",
+   160→   160→    lab_order: "Demande labo",
+   161→   161→    lab_result: "Résultat labo",
+   162→   162→    invoice: "Facture",
+   163→   163→    payment: "Paiement",
+   164→   164→    hospital_stay: "Séjour",
+   165→   165→    bed: "Lit",
+   166→   166→    room: "Chambre",
+   167→   167→    maternity_record: "Dossier maternité",
+   168→   168→    delivery: "Accouchement",
+   169→   169→    staff: "Personnel",
+   170→   170→    imaging_order: "Demande imagerie",
+   171→   171→    surgery: "Chirurgie",
+   172→   172→    user: "Utilisateur",
+   173→   173→  };
+   174→   174→  return map[entityType.toLowerCase()] || entityType;
+   175→   175→}
+   176→   176→
+   177→   177→/* ═══════════════════════════════════════════════════════════════════
+   178→   178→   Main Component
+   179→   179→   ═══════════════════════════════════════════════════════════════════ */
+   180→   180→
+   181→   181→export function ActivityPage({ lookups }: { lookups: LookupData }) {
+   182→   182→  const [entries, setEntries] = useState<Row[]>([]);
+   183→   183→  const [loading, setLoading] = useState(true);
+   184→   184→  const [actionFilter, setActionFilter] = useState<ActionType>("ALL");
+   185→   185→  const [moduleFilter, setModuleFilter] = useState<ModuleType>("ALL");
+   186→   186→  const [userFilter, setUserFilter] = useState("");
+   187→   187→  const [searchText, setSearchText] = useState("");
+   188→   188→  const [dateFrom, setDateFrom] = useState("");
+   189→   189→  const [dateTo, setDateTo] = useState("");
+   190→   190→  const [visibleCount, setVisibleCount] = useState(25);
+   191→   191→  const [autoRefresh, setAutoRefresh] = useState(false);
+   192→   192→  const [refreshKey, setRefreshKey] = useState(0);
+   193→   193→
+   194→   194→  const loadEntries = useCallback(async () => {
+   195→   195→    setLoading(true);
+   196→   196→    try {
+   197→   197→      const payload = await apiRequest<any>("/activity?page_size=1000");
+   198→   198→      const data: Row[] = Array.isArray(payload.data) ? payload.data : [];
+   199→   199→      setEntries(data);
+   200→   200→    } catch {
+   201→   201→      /* silent */
+   202→   202→    } finally {
+   203→   203→      setLoading(false);
+   204→   204→    }
+   205→   205→  }, []);
+   206→   206→
+   207→   207→  useEffect(() => {
+   208→   208→    loadEntries();
+   209→   209→  }, [loadEntries, refreshKey]);
+   210→   210→
+   211→   211→  useEffect(() => {
+   212→   212→    const handler = () => setRefreshKey((k) => k + 1);
+   213→   213→    window.addEventListener("refresh-resource", handler);
+   214→   214→    return () => window.removeEventListener("refresh-resource", handler);
+   215→   215→  }, []);
+   216→   216→
+   217→   217→  // Auto-refresh
+   218→   218→  useEffect(() => {
+   219→   219→    if (!autoRefresh) return;
+   220→   220→    const interval = setInterval(() => {
+   221→   221→      setRefreshKey((k) => k + 1);
+   222→   222→    }, 30000);
+   223→   223→    return () => clearInterval(interval);
+   224→   224→  }, [autoRefresh]);
+   225→   225→
+   226→   226→  /* ── Resolve user name ─────────────────────────── */
+   227→   227→  function getUserName(actorId: string | null): string {
+   228→   228→    if (!actorId) return "Système";
+   229→   229→    const staff = lookups.staff.find((s) => s.id === actorId);
+   230→   230→    if (staff)
+   231→   231→      return `${staff.first_name || ""} ${staff.last_name || ""}`.trim() ||
+   232→   232→        staff.email ||
+   233→   233→        actorId;
+   234→   234→    return actorId;
+   235→   235→  }
+   236→   236→
+   237→   237→  type EnrichedEntry = Row & { _actionType: string; _module: string };
+   238→   238→
+   239→   239→  /* ── Enrich entries with inferred types ────────── */
+   240→   240→  const enrichedEntries = useMemo((): EnrichedEntry[] => {
+   241→   241→    return entries.map((e): EnrichedEntry => ({
+   242→   242→      ...e,
+   243→   243→      _actionType: inferActionType(e.action_name || ""),
+   244→   244→      _module: inferModule(e.entity_type),
+   245→   245→    }));
+   246→   246→  }, [entries]);
+   247→   247→
+   248→   248→  /* ── Apply filters ─────────────────────────────── */
+   249→   249→  const filtered = useMemo(() => {
+   250→   250→    let rows = enrichedEntries;
+   251→   251→
+   252→   252→    if (actionFilter !== "ALL") {
+   253→   253→      rows = rows.filter((r) => r._actionType === actionFilter);
+   254→   254→    }
+   255→   255→    if (moduleFilter !== "ALL") {
+   256→   256→      rows = rows.filter((r) => r._module === moduleFilter);
+   257→   257→    }
+   258→   258→    if (userFilter) {
+   259→   259→      rows = rows.filter((r) => r.actor_id === userFilter);
+   260→   260→    }
+   261→   261→    if (searchText.trim()) {
+   262→   262→      const q = searchText.toLowerCase();
+   263→   263→      rows = rows.filter(
+   264→   264→        (r) =>
+   265→   265→          (r.action_name || "").toLowerCase().includes(q) ||
+   266→   266→          (r.entity_type || "").toLowerCase().includes(q) ||
+   267→   267→          (r.notes || "").toLowerCase().includes(q) ||
+   268→   268→          getUserName(r.actor_id).toLowerCase().includes(q)
+   269→   269→      );
+   270→   270→    }
+   271→   271→    if (dateFrom) {
+   272→   272→      rows = rows.filter(
+   273→   273→        (r) => r.created_at && new Date(r.created_at) >= new Date(dateFrom)
+   274→   274→      );
+   275→   275→    }
+   276→   276→    if (dateTo) {
+   277→   277→      const to = new Date(dateTo);
+   278→   278→      to.setHours(23, 59, 59, 999);
+   279→   279→      rows = rows.filter(
+   280→   280→        (r) => r.created_at && new Date(r.created_at) <= to
+   281→   281→      );
+   282→   282→    }
+   283→   283→    return rows;
+   284→   284→  }, [enrichedEntries, actionFilter, moduleFilter, userFilter, searchText, dateFrom, dateTo]);
+   285→   285→
+   286→   286→  const visibleEntries = filtered.slice(0, visibleCount);
+   287→   287→  const hasMore = visibleCount < filtered.length;
+   288→   288→
+   289→   289→  /* ── Summary stats ─────────────────────────────── */
+   290→   290→  const todayStr = new Date().toDateString();
+   291→   291→  const todayEntries = enrichedEntries.filter(
+   292→   292→    (e) => e.created_at && new Date(e.created_at).toDateString() === todayStr
+   293→   293→  );
+   294→   294→
+   295→   295→  const topUsersToday = useMemo(() => {
+   296→   296→    const countMap: Record<string, number> = {};
+   297→   297→    todayEntries.forEach((e) => {
+   298→   298→      const name = getUserName(e.actor_id);
+   299→   299→      countMap[name] = (countMap[name] || 0) + 1;
+   300→   300→    });
+   301→   301→    return Object.entries(countMap)
+   302→   302→      .sort(([, a], [, b]) => b - a)
+   303→   303→      .slice(0, 5);
+   304→   304→  }, [todayEntries]);
+   305→   305→
+   306→   306→  const moduleCounts = useMemo(() => {
+   307→   307→    const countMap: Record<string, number> = {};
+   308→   308→    todayEntries.forEach((e) => {
+   309→   309→      const mod = e._module;
+   310→   310→      countMap[mod] = (countMap[mod] || 0) + 1;
+   311→   311→    });
+   312→   312→    return Object.entries(countMap).sort(([, a], [, b]) => b - a);
+   313→   313→  }, [todayEntries]);
+   314→   314→
+   315→   315→  const maxModuleCount = Math.max(...moduleCounts.map(([, c]) => c), 1);
+   316→   316→
+   317→   317→  const moduleLabelMap: Record<string, string> = {
+   318→   318→    PATIENTS: "Patients",
+   319→   319→    ADMISSIONS: "Admissions",
+   320→   320→    EMERGENCY: "Urgences",
+   321→   321→    PHARMACY: "Pharmacie",
+   322→   322→    LAB: "Laboratoire",
+   323→   323→    BILLING: "Facturation",
+   324→   324→    HOSPITALIZATION: "Hospit.",
+   325→   325→    MATERNITY: "Maternité",
+   326→   326→    PERSONNEL: "Personnel",
+   327→   327→    IMAGING: "Imagerie",
+   328→   328→    SURGERY: "Chirurgie",
+   329→   329→    QUALITY: "Qualité",
+   330→   330→    REPORTING: "Reporting",
+   331→   331→    AUTH: "Auth",
+   332→   332→  };
+   333→   333→
+   334→   334→  const actionCountToday = useMemo(() => {
+   335→   335→    const countMap: Record<string, number> = {};
+   336→   336→    todayEntries.forEach((e) => {
+   337→   337→      const act = e._actionType;
+   338→   338→      countMap[act] = (countMap[act] || 0) + 1;
+   339→   339→    });
+   340→   340→    return countMap;
+   341→   341→  }, [todayEntries]);
+   342→   342→
+   343→   343→  return (
+   344→   344→    <section>
+   345→   345→      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "4px" }}>
+   346→   346→        <h1 style={{ margin: 0 }}>Activité & Audit</h1>
+   347→   347→      </div>
+   348→   348→      <p className="muted" style={{ marginBottom: "16px" }}>
+   349→   349→        Journal d'activité et traçabilité des actions utilisateurs.
+   350→   350→      </p>
+   351→   351→
+   352→   352→      <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: "20px" }}>
+   353→   353→        {/* ── Left Column: Filters + Timeline ──────── */}
+   354→   354→        <div>
+   355→   355→          {/* ── Filters ──────────────────────────────── */}
+   356→   356→          <div
+   357→   357→            className="card"
+   358→   358→            style={{
+   359→   359→              marginBottom: "16px",
+   360→   360→              padding: "16px",
+   361→   361→            }}
+   362→   362→          >
+   363→   363→            <div
+   364→   364→              style={{
+   365→   365→                display: "flex",
+   366→   366→                alignItems: "center",
+   367→   367→                gap: "8px",
+   368→   368→                marginBottom: "14px",
+   369→   369→                fontWeight: 700,
+   370→   370→                fontSize: "14px",
+   371→   371→                color: "var(--text)",
+   372→   372→              }}
+   373→   373→            >
+   374→   374→              <Filter size={16} />
+   375→   375→              Filtres
+   376→   376→            </div>
+   377→   377→            <div
+   378→   378→              style={{
+   379→   379→                display: "grid",
+   380→   380→                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+   381→   381→                gap: "12px",
+   382→   382→                alignItems: "end",
+   383→   383→              }}
+   384→   384→            >
+   385→   385→              <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
+   386→   386→                <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+   387→   387→                  Action
+   388→   388→                </span>
+   389→   389→                <select
+   390→   390→                  value={actionFilter}
+   391→   391→                  onChange={(e) => setActionFilter(e.target.value as ActionType)}
+   392→   392→                  style={{ fontSize: "13px" }}
+   393→   393→                >
+   394→   394→                  {ACTION_OPTIONS.map((o) => (
+   395→   395→                    <option key={o.value} value={o.value}>
+   396→   396→                      {o.label}
+   397→   397→                    </option>
+   398→   398→                  ))}
+   399→   399→                </select>
+   400→   400→              </div>
+   401→   401→              <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
+   402→   402→                <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+   403→   403→                  Module
+   404→   404→                </span>
+   405→   405→                <select
+   406→   406→                  value={moduleFilter}
+   407→   407→                  onChange={(e) => setModuleFilter(e.target.value as ModuleType)}
+   408→   408→                  style={{ fontSize: "13px" }}
+   409→   409→                >
+   410→   410→                  {MODULE_OPTIONS.map((o) => (
+   411→   411→                    <option key={o.value} value={o.value}>
+   412→   412→                      {o.label}
+   413→   413→                    </option>
+   414→   414→                  ))}
+   415→   415→                </select>
+   416→   416→              </div>
+   417→   417→              <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
+   418→   418→                <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+   419→   419→                  Utilisateur
+   420→   420→                </span>
+   421→   421→                <select
+   422→   422→                  value={userFilter}
+   423→   423→                  onChange={(e) => setUserFilter(e.target.value)}
+   424→   424→                  style={{ fontSize: "13px" }}
+   425→   425→                >
+   426→   426→                  <option value="">Tous les utilisateurs</option>
+   427→   427→                  {lookups.staff.map((s) => (
+   428→   428→                    <option key={s.id} value={s.id}>
+   429→   429→                      {s.first_name || ""} {s.last_name || ""}
+   430→   430→                    </option>
+   431→   431→                  ))}
+   432→   432→                </select>
+   433→   433→              </div>
+   434→   434→              <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
+   435→   435→                <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+   436→   436→                  Date début
+   437→   437→                </span>
+   438→   438→                <input
+   439→   439→                  type="date"
+   440→   440→                  value={dateFrom}
+   441→   441→                  onChange={(e) => setDateFrom(e.target.value)}
+   442→   442→                  style={{ fontSize: "13px" }}
+   443→   443→                />
+   444→   444→              </div>
+   445→   445→              <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
+   446→   446→                <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+   447→   447→                  Date fin
+   448→   448→                </span>
+   449→   449→                <input
+   450→   450→                  type="date"
+   451→   451→                  value={dateTo}
+   452→   452→                  onChange={(e) => setDateTo(e.target.value)}
+   453→   453→                  style={{ fontSize: "13px" }}
+   454→   454→                />
+   455→   455→              </div>
+   456→   456→              <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
+   457→   457→                <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+   458→   458→                  Recherche
+   459→   459→                </span>
+   460→   460→                <div style={{ position: "relative" }}>
+   461→   461→                  <Search
+   462→   462→                    size={14}
+   463→   463→                    style={{
+   464→   464→                      position: "absolute",
+   465→   465→                      left: "10px",
+   466→   466→                      top: "50%",
+   467→   467→                      transform: "translateY(-50%)",
+   468→   468→                      color: "var(--muted)",
+   469→   469→                    }}
+   470→   470→                  />
+   471→   471→                  <input
+   472→   472→                    type="text"
+   473→   473→                    placeholder="Rechercher..."
+   474→   474→                    value={searchText}
+   475→   475→                    onChange={(e) => setSearchText(e.target.value)}
+   476→   476→                    style={{ paddingLeft: "30px", fontSize: "13px" }}
+   477→   477→                  />
+   478→   478→                </div>
+   479→   479→              </div>
+   480→   480→            </div>
+   481→   481→            <div
+   482→   482→              style={{
+   483→   483→                display: "flex",
+   484→   484→                gap: "8px",
+   485→   485→                marginTop: "12px",
+   486→   486→                alignItems: "center",
+   487→   487→              }}
+   488→   488→            >
+   489→   489→              <button
+   490→   490→                className="btn btn-outline btn-sm"
+   491→   491→                onClick={() => {
+   492→   492→                  setActionFilter("ALL");
+   493→   493→                  setModuleFilter("ALL");
+   494→   494→                  setUserFilter("");
+   495→   495→                  setSearchText("");
+   496→   496→                  setDateFrom("");
+   497→   497→                  setDateTo("");
+   498→   498→                }}
+   499→   499→              >
+   500→   500→                <X size={14} />
+   501→   501→                Réinitialiser
+   502→   502→              </button>
+   503→   503→              <button
+   504→   504→                className="btn btn-outline btn-sm"
+   505→   505→                onClick={() => setRefreshKey((k) => k + 1)}
+   506→   506→              >
+   507→   507→                <RefreshCw size={14} />
+   508→   508→                Actualiser
+   509→   509→              </button>
+   510→   510→              <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "6px" }}>
+   511→   511→                <button
+   512→   512→                  className="btn btn-sm"
+   513→   513→                  style={{
+   514→   514→                    background: autoRefresh ? "var(--primary-light)" : "transparent",
+   515→   515→                    color: autoRefresh ? "var(--primary)" : "var(--muted)",
+   516→   516→                    border: `1px solid ${autoRefresh ? "var(--primary)" : "var(--border)"}`,
+   517→   517→                    display: "flex",
+   518→   518→                    alignItems: "center",
+   519→   519→                    gap: "4px",
+   520→   520→                  }}
+   521→   521→                  onClick={() => setAutoRefresh(!autoRefresh)}
+   522→   522→                >
+   523→   523→                  {autoRefresh ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+   524→   524→                  Auto-refresh
+   525→   525→                </button>
+   526→   526→              </div>
+   527→   527→            </div>
+   528→   528→          </div>
+   529→   529→
+   530→   530→          {/* ── Timeline ─────────────────────────────── */}
+   531→   531→          {loading ? (
+   532→   532→            <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   533→   533→              <div className="spinner" />
+   534→   534→              <p className="muted" style={{ marginTop: "12px" }}>
+   535→   535→                Chargement du journal d'activité...
+   536→   536→              </p>
+   537→   537→            </div>
+   538→   538→          ) : filtered.length === 0 ? (
+   539→   539→            <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   540→   540→              <Activity size={32} style={{ color: "var(--muted)", marginBottom: "8px" }} />
+   541→   541→              <p className="muted">Aucune activité trouvée.</p>
+   542→   542→            </div>
+   543→   543→          ) : (
+   544→   544→            <div className="card" style={{ padding: "20px" }}>
+   545→   545→              {/* Action type legend */}
+   546→   546→              <div
+   547→   547→                style={{
+   548→   548→                  display: "flex",
+   549→   549→                  gap: "12px",
+   550→   550→                  flexWrap: "wrap",
+   551→   551→                  marginBottom: "18px",
+   552→   552→                  paddingBottom: "14px",
+   553→   553→                  borderBottom: "1px solid var(--border-light)",
+   554→   554→                }}
+   555→   555→              >
+   556→   556→                {Object.entries(ACTION_COLORS).map(([action, colors]) => (
+   557→   557→                  <div
+   558→   558→                    key={action}
+   559→   559→                    style={{
+   560→   560→                      display: "flex",
+   561→   561→                      alignItems: "center",
+   562→   562→                      gap: "5px",
+   563→   563→                      fontSize: "12px",
+   564→   564→                      fontWeight: 600,
+   565→   565→                      color: colors.text,
+   566→   566→                    }}
+   567→   567→                  >
+   568→   568→                    <span
+   569→   569→                      style={{
+   570→   570→                        width: "8px",
+   571→   571→                        height: "8px",
+   572→   572→                        borderRadius: "50%",
+   573→   573→                        background: colors.dot,
+   574→   574→                        display: "inline-block",
+   575→   575→                      }}
+   576→   576→                    />
+   577→   577→                    {formatActionLabel(action.toLowerCase())}
+   578→   578→                    {actionCountToday[action] !== undefined && (
+   579→   579→                      <span
+   580→   580→                        style={{
+   581→   581→                          background: colors.bg,
+   582→   582→                          borderRadius: "10px",
+   583→   583→                          padding: "0 6px",
+   584→   584→                          fontSize: "11px",
+   585→   585→                        }}
+   586→   586→                      >
+   587→   587→                        {actionCountToday[action]}
+   588→   588→                      </span>
+   589→   589→                    )}
+   590→   590→                  </div>
+   591→   591→                ))}
+   592→   592→              </div>
+   593→   593→
+   594→   594→              {/* Timeline */}
+   595→   595→              <div style={{ position: "relative" }}>
+   596→   596→                {visibleEntries.map((entry, index) => {
+   597→   597→                  const actionType = entry._actionType;
+   598→   598→                  const colors = ACTION_COLORS[actionType] || ACTION_COLORS.UPDATE;
+   599→   599→                  const isLast = index === visibleEntries.length - 1;
+   600→   600→
+   601→   601→                  return (
+   602→   602→                    <div
+   603→   603→                      key={entry.id}
+   604→   604→                      style={{
+   605→   605→                        display: "flex",
+   606→   606→                        gap: "16px",
+   607→   607→                        position: "relative",
+   608→   608→                        minHeight: "56px",
+   609→   609→                      }}
+   610→   610→                    >
+   611→   611→                      {/* Timeline line + dot */}
+   612→   612→                      <div
+   613→   613→                        style={{
+   614→   614→                          display: "flex",
+   615→   615→                          flexDirection: "column",
+   616→   616→                          alignItems: "center",
+   617→   617→                          width: "20px",
+   618→   618→                          flexShrink: 0,
+   619→   619→                        }}
+   620→   620→                      >
+   621→   621→                        <div
+   622→   622→                          style={{
+   623→   623→                            width: "12px",
+   624→   624→                            height: "12px",
+   625→   625→                            borderRadius: "50%",
+   626→   626→                            background: colors.dot,
+   627→   627→                            border: `2px solid ${colors.bg}`,
+   628→   628→                            flexShrink: 0,
+   629→   629→                            marginTop: "6px",
+   630→   630→                            zIndex: 1,
+   631→   631→                          }}
+   632→   632→                        />
+   633→   633→                        {!isLast && (
+   634→   634→                          <div
+   635→   635→                            style={{
+   636→   636→                              width: "2px",
+   637→   637→                              flex: 1,
+   638→   638→                              background: "var(--border-light)",
+   639→   639→                              minHeight: "40px",
+   640→   640→                            }}
+   641→   641→                          />
+   642→   642→                        )}
+   643→   643→                      </div>
+   644→   644→
+   645→   645→                      {/* Content */}
+   646→   646→                      <div
+   647→   647→                        style={{
+   648→   648→                          flex: 1,
+   649→   649→                          paddingBottom: isLast ? 0 : "14px",
+   650→   650→                        }}
+   651→   651→                      >
+   652→   652→                        <div
+   653→   653→                          style={{
+   654→   654→                            display: "flex",
+   655→   655→                            alignItems: "center",
+   656→   656→                            gap: "8px",
+   657→   657→                            flexWrap: "wrap",
+   658→   658→                            marginBottom: "4px",
+   659→   659→                          }}
+   660→   660→                        >
+   661→   661→                          {/* Action badge */}
+   662→   662→                          <span
+   663→   663→                            style={{
+   664→   664→                              display: "inline-flex",
+   665→   665→                              alignItems: "center",
+   666→   666→                              gap: "4px",
+   667→   667→                              padding: "2px 8px",
+   668→   668→                              borderRadius: "var(--radius-full)",
+   669→   669→                              fontSize: "11px",
+   670→   670→                              fontWeight: 700,
+   671→   671→                              background: colors.bg,
+   672→   672→                              color: colors.text,
+   673→   673→                              border: `1px solid ${colors.border}`,
+   674→   674→                            }}
+   675→   675→                          >
+   676→   676→                            {formatActionLabel(entry.action_name || "")}
+   677→   677→                          </span>
+   678→   678→
+   679→   679→                          {/* Entity */}
+   680→   680→                          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>
+   681→   681→                            {formatEntityLabel(entry.entity_type)}
+   682→   682→                          </span>
+   683→   683→
+   684→   684→                          {/* Module badge */}
+   685→   685→                          <span
+   686→   686→                            style={{
+   687→   687→                              fontSize: "11px",
+   688→   688→                              color: "var(--muted)",
+   689→   689→                              background: "var(--border-light)",
+   690→   690→                              padding: "1px 6px",
+   691→   691→                              borderRadius: "var(--radius-full)",
+   692→   692→                            }}
+   693→   693→                          >
+   694→   694→                            {moduleLabelMap[entry._module] || entry._module}
+   695→   695→                          </span>
+   696→   696→                        </div>
+   697→   697→
+   698→   698→                        {/* Description */}
+   699→   699→                        <div style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "4px" }}>
+   700→   700→                          {entry.notes || entry.action_name || "—"}
+   701→   701→                        </div>
+   702→   702→
+   703→   703→                        {/* Meta: user + time */}
+   704→   704→                        <div
+   705→   705→                          style={{
+   706→   706→                            display: "flex",
+   707→   707→                            gap: "12px",
+   708→   708→                            fontSize: "12px",
+   709→   709→                            color: "var(--muted)",
+   710→   710→                          }}
+   711→   711→                        >
+   712→   712→                          <span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+   713→   713→                            <User size={12} />
+   714→   714→                            {getUserName(entry.actor_id)}
+   715→   715→                          </span>
+   716→   716→                          <span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+   717→   717→                            <Clock size={12} />
+   718→   718→                            {entry.created_at
+   719→   719→                              ? new Date(entry.created_at).toLocaleString("fr-FR", {
+   720→   720→                                  day: "2-digit",
+   721→   721→                                  month: "2-digit",
+   722→   722→                                  year: "numeric",
+   723→   723→                                  hour: "2-digit",
+   724→   724→                                  minute: "2-digit",
+   725→   725→                                  second: "2-digit",
+   726→   726→                                })
+   727→   727→                              : "—"}
+   728→   728→                          </span>
+   729→   729→                          {entry.entity_id && (
+   730→   730→                            <span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+   731→   731→                              <Eye size={12} />
+   732→   732→                              {entry.entity_id.slice(0, 8)}...
+   733→   733→                            </span>
+   734→   734→                          )}
+   735→   735→                        </div>
+   736→   736→                      </div>
+   737→   737→                    </div>
+   738→   738→                  );
+   739→   739→                })}
+   740→   740→              </div>
+   741→   741→
+   742→   742→              {/* Load more */}
+   743→   743→              {hasMore && (
+   744→   744→                <div
+   745→   745→                  style={{
+   746→   746→                    textAlign: "center",
+   747→   747→                    marginTop: "16px",
+   748→   748→                    paddingTop: "16px",
+   749→   749→                    borderTop: "1px solid var(--border-light)",
+   750→   750→                  }}
+   751→   751→                >
+   752→   752→                  <button
+   753→   753→                    className="btn btn-outline"
+   754→   754→                    onClick={() => setVisibleCount((c) => c + 25)}
+   755→   755→                  >
+   756→   756→                    <ChevronDown size={16} />
+   757→   757→                    Charger plus ({filtered.length - visibleCount} restantes)
+   758→   758→                  </button>
+   759→   759→                </div>
+   760→   760→              )}
+   761→   761→
+   762→   762→              <div
+   763→   763→                style={{
+   764→   764→                  marginTop: "12px",
+   765→   765→                  fontSize: "13px",
+   766→   766→                  color: "var(--muted)",
+   767→   767→                  fontWeight: 600,
+   768→   768→                }}
+   769→   769→              >
+   770→   770→                {filtered.length} entrée{filtered.length > 1 ? "s" : ""} au total
+   771→   771→              </div>
+   772→   772→            </div>
+   773→   773→          )}
+   774→   774→        </div>
+   775→   775→
+   776→   776→        {/* ── Right Sidebar: Summary ─────────────── */}
+   777→   777→        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+   778→   778→          {/* Activity today card */}
+   779→   779→          <div className="card">
+   780→   780→            <div
+   781→   781→              style={{
+   782→   782→                display: "flex",
+   783→   783→                alignItems: "center",
+   784→   784→                gap: "8px",
+   785→   785→                marginBottom: "12px",
+   786→   786→                fontWeight: 700,
+   787→   787→                fontSize: "14px",
+   788→   788→                color: "var(--text)",
+   789→   789→              }}
+   790→   790→            >
+   791→   791→              <Zap size={16} style={{ color: "var(--warning)" }} />
+   792→   792→              Activité aujourd'hui
+   793→   793→            </div>
+   794→   794→            <div
+   795→   795→              style={{
+   796→   796→                fontSize: "36px",
+   797→   797→                fontWeight: 800,
+   798→   798→                color: "var(--primary)",
+   799→   799→                lineHeight: 1.2,
+   800→   800→              }}
+   801→   801→            >
+   802→   802→              {todayEntries.length}
+   803→   803→            </div>
+   804→   804→            <div style={{ fontSize: "13px", color: "var(--muted)", fontWeight: 500 }}>
+   805→   805→              action{todayEntries.length > 1 ? "s" : ""} aujourd'hui
+   806→   806→            </div>
+   807→   807→
+   808→   808→            {/* Action breakdown */}
+   809→   809→            {Object.keys(actionCountToday).length > 0 && (
+   810→   810→              <div style={{ marginTop: "14px", display: "flex", gap: "6px", flexWrap: "wrap" }}>
+   811→   811→                {Object.entries(actionCountToday).map(([action, count]) => {
+   812→   812→                  const colors = ACTION_COLORS[action] || ACTION_COLORS.UPDATE;
+   813→   813→                  return (
+   814→   814→                    <span
+   815→   815→                      key={action}
+   816→   816→                      style={{
+   817→   817→                        display: "inline-flex",
+   818→   818→                        alignItems: "center",
+   819→   819→                        gap: "4px",
+   820→   820→                        padding: "3px 8px",
+   821→   821→                        borderRadius: "var(--radius-full)",
+   822→   822→                        fontSize: "12px",
+   823→   823→                        fontWeight: 600,
+   824→   824→                        background: colors.bg,
+   825→   825→                        color: colors.text,
+   826→   826→                      }}
+   827→   827→                    >
+   828→   828→                      <span
+   829→   829→                        style={{
+   830→   830→                          width: "6px",
+   831→   831→                          height: "6px",
+   832→   832→                          borderRadius: "50%",
+   833→   833→                          background: colors.dot,
+   834→   834→                        }}
+   835→   835→                      />
+   836→   836→                      {count}
+   837→   837→                    </span>
+   838→   838→                  );
+   839→   839→                })}
+   840→   840→              </div>
+   841→   841→            )}
+   842→   842→          </div>
+   843→   843→
+   844→   844→          {/* Top users today */}
+   845→   845→          <div className="card">
+   846→   846→            <div
+   847→   847→              style={{
+   848→   848→                display: "flex",
+   849→   849→                alignItems: "center",
+   850→   850→                gap: "8px",
+   851→   851→                marginBottom: "12px",
+   852→   852→                fontWeight: 700,
+   853→   853→                fontSize: "14px",
+   854→   854→                color: "var(--text)",
+   855→   855→              }}
+   856→   856→            >
+   857→   857→              <Users size={16} style={{ color: "var(--accent)" }} />
+   858→   858→              Utilisateurs actifs
+   859→   859→            </div>
+   860→   860→            {topUsersToday.length === 0 ? (
+   861→   861→              <p className="muted" style={{ fontSize: "13px" }}>
+   862→   862→                Aucune activité aujourd'hui
+   863→   863→              </p>
+   864→   864→            ) : (
+   865→   865→              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+   866→   866→                {topUsersToday.map(([name, count], idx) => (
+   867→   867→                  <div
+   868→   868→                    key={name}
+   869→   869→                    style={{
+   870→   870→                      display: "flex",
+   871→   871→                      alignItems: "center",
+   872→   872→                      gap: "10px",
+   873→   873→                    }}
+   874→   874→                  >
+   875→   875→                    <div
+   876→   876→                      style={{
+   877→   877→                        width: "28px",
+   878→   878→                        height: "28px",
+   879→   879→                        borderRadius: "50%",
+   880→   880→                        background:
+   881→   881→                          idx === 0
+   882→   882→                            ? "var(--primary-light)"
+   883→   883→                            : "var(--border-light)",
+   884→   884→                        color: idx === 0 ? "var(--primary)" : "var(--muted)",
+   885→   885→                        display: "grid",
+   886→   886→                        placeItems: "center",
+   887→   887→                        fontSize: "12px",
+   888→   888→                        fontWeight: 700,
+   889→   889→                        flexShrink: 0,
+   890→   890→                      }}
+   891→   891→                    >
+   892→   892→                      {idx + 1}
+   893→   893→                    </div>
+   894→   894→                    <div style={{ flex: 1, minWidth: 0 }}>
+   895→   895→                      <div
+   896→   896→                        style={{
+   897→   897→                          fontSize: "13px",
+   898→   898→                          fontWeight: 600,
+   899→   899→                          whiteSpace: "nowrap",
+   900→   900→                          overflow: "hidden",
+   901→   901→                          textOverflow: "ellipsis",
+   902→   902→                        }}
+   903→   903→                      >
+   904→   904→                        {name}
+   905→   905→                      </div>
+   906→   906→                      <div
+   907→   907→                        style={{
+   908→   908→                          height: "4px",
+   909→   909→                          borderRadius: "2px",
+   910→   910→                          background: "var(--border-light)",
+   911→   911→                          marginTop: "3px",
+   912→   912→                        }}
+   913→   913→                      >
+   914→   914→                        <div
+   915→   915→                          style={{
+   916→   916→                            height: "100%",
+   917→   917→                            borderRadius: "2px",
+   918→   918→                            background: idx === 0 ? "var(--primary)" : "var(--accent)",
+   919→   919→                            width: `${Math.round(
+   920→   920→                              (count / (topUsersToday[0]?.[1] || 1)) * 100
+   921→   921→                            )}%`,
+   922→   922→                            transition: "width 0.3s ease",
+   923→   923→                          }}
+   924→   924→                        />
+   925→   925→                      </div>
+   926→   926→                    </div>
+   927→   927→                    <span
+   928→   928→                      style={{
+   929→   929→                        fontSize: "13px",
+   930→   930→                        fontWeight: 700,
+   931→   931→                        color: "var(--text)",
+   932→   932→                        flexShrink: 0,
+   933→   933→                      }}
+   934→   934→                    >
+   935→   935→                      {count}
+   936→   936→                    </span>
+   937→   937→                  </div>
+   938→   938→                ))}
+   939→   939→              </div>
+   940→   940→            )}
+   941→   941→          </div>
+   942→   942→
+   943→   943→          {/* Actions by module */}
+   944→   944→          <div className="card">
+   945→   945→            <div
+   946→   946→              style={{
+   947→   947→                display: "flex",
+   948→   948→                alignItems: "center",
+   949→   949→                gap: "8px",
+   950→   950→                marginBottom: "12px",
+   951→   951→                fontWeight: 700,
+   952→   952→                fontSize: "14px",
+   953→   953→                color: "var(--text)",
+   954→   954→              }}
+   955→   955→            >
+   956→   956→              <BarChart3 size={16} style={{ color: "var(--primary)" }} />
+   957→   957→              Actions par module
+   958→   958→            </div>
+   959→   959→            {moduleCounts.length === 0 ? (
+   960→   960→              <p className="muted" style={{ fontSize: "13px" }}>
+   961→   961→                Aucune donnée
+   962→   962→              </p>
+   963→   963→            ) : (
+   964→   964→              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+   965→   965→                {moduleCounts.map(([mod, count]) => {
+   966→   966→                  const pct = Math.round((count / maxModuleCount) * 100);
+   967→   967→                  return (
+   968→   968→                    <div key={mod}>
+   969→   969→                      <div
+   970→   970→                        style={{
+   971→   971→                          display: "flex",
+   972→   972→                          justifyContent: "space-between",
+   973→   973→                          fontSize: "12px",
+   974→   974→                          marginBottom: "3px",
+   975→   975→                        }}
+   976→   976→                      >
+   977→   977→                        <span style={{ fontWeight: 600, color: "var(--text)" }}>
+   978→   978→                          {moduleLabelMap[mod] || mod}
+   979→   979→                        </span>
+   980→   980→                        <span style={{ fontWeight: 700, color: "var(--muted)" }}>
+   981→   981→                          {count}
+   982→   982→                        </span>
+   983→   983→                      </div>
+   984→   984→                      <div
+   985→   985→                        style={{
+   986→   986→                          height: "6px",
+   987→   987→                          borderRadius: "3px",
+   988→   988→                          background: "var(--border-light)",
+   989→   989→                        }}
+   990→   990→                      >
+   991→   991→                        <div
+   992→   992→                          style={{
+   993→   993→                            height: "100%",
+   994→   994→                            borderRadius: "3px",
+   995→   995→                            background: "var(--primary)",
+   996→   996→                            width: `${pct}%`,
+   997→   997→                            transition: "width 0.3s ease",
+   998→   998→                          }}
+   999→   999→                        />
+  1000→  1000→                      </div>
+  1001→  1001→                    </div>
+  1002→  1002→                  );
+  1003→  1003→                })}
+  1004→  1004→              </div>
+  1005→  1005→            )}
+  1006→  1006→          </div>
+  1007→  1007→
+  1008→  1008→          {/* Quick stats */}
+  1009→  1009→          <div className="card" style={{ background: "var(--primary-light)", border: "1px solid var(--primary-200)" }}>
+  1010→  1010→            <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>
+  1011→  1011→              Statistiques globales
+  1012→  1012→            </div>
+  1013→  1013→            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+  1014→  1014→              <div>
+  1015→  1015→                <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--primary)" }}>
+  1016→  1016→                  {entries.length}
+  1017→  1017→                </div>
+  1018→  1018→                <div style={{ fontSize: "11px", color: "var(--primary)", opacity: 0.8 }}>
+  1019→  1019→                  Total entrées
+  1020→  1020→                </div>
+  1021→  1021→              </div>
+  1022→  1022→              <div>
+  1023→  1023→                <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--primary)" }}>
+  1024→  1024→                  {new Set(entries.map((e) => e.actor_id).filter(Boolean)).size}
+  1025→  1025→                </div>
+  1026→  1026→                <div style={{ fontSize: "11px", color: "var(--primary)", opacity: 0.8 }}>
+  1027→  1027→                  Utilisateurs
+  1028→  1028→                </div>
+  1029→  1029→              </div>
+  1030→  1030→              <div>
+  1031→  1031→                <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--primary)" }}>
+  1032→  1032→                  {new Set(entries.map((e) => e.entity_type).filter(Boolean)).size}
+  1033→  1033→                </div>
+  1034→  1034→                <div style={{ fontSize: "11px", color: "var(--primary)", opacity: 0.8 }}>
+  1035→  1035→                  Types d'entités
+  1036→  1036→                </div>
+  1037→  1037→              </div>
+  1038→  1038→              <div>
+  1039→  1039→                <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--primary)" }}>
+  1040→  1040→                  {new Set(enrichedEntries.map((e) => e._module).filter(Boolean)).size}
+  1041→  1041→                </div>
+  1042→  1042→                <div style={{ fontSize: "11px", color: "var(--primary)", opacity: 0.8 }}>
+  1043→  1043→                  Modules
+  1044→  1044→                </div>
+  1045→  1045→              </div>
+  1046→  1046→            </div>
+  1047→  1047→          </div>
+  1048→  1048→        </div>
+  1049→  1049→      </div>
+  1050→  1050→    </section>
+  1051→  1051→  );
+  1052→  1052→}
+  1053→  1053→

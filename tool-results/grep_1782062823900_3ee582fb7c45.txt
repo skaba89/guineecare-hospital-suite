@@ -1,0 +1,222 @@
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PatientDetailPage.tsx:3:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PatientDetailPage.tsx:106:      const payload = await apiRequest<any>(`/patients/${id}`);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PatientDetailPage.tsx:221:      const payload = await apiRequest<any>(`/clinical/patients/${patientId}/notes`);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PatientDetailPage.tsx:239:      await apiRequest(`/clinical/patients/${patientId}/notes`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PatientDetailPage.tsx:363:      const payload = await apiRequest<any>(`/clinical/patients/${patientId}/measurements`);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PatientDetailPage.tsx:381:      await apiRequest(`/clinical/patients/${patientId}/measurements`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PatientDetailPage.tsx:503:      const payload = await apiRequest<any>(`/clinical/patients/${patientId}/diagnoses`);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PatientDetailPage.tsx:521:      await apiRequest(`/clinical/patients/${patientId}/diagnoses`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PatientDetailPage.tsx:676:          apiRequest<any>(`/admissions?patient_id=${patientId}&page_size=1000`),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PatientDetailPage.tsx:677:          apiRequest<any>(`/hospitalization/stays?patient_id=${patientId}&page_size=1000`),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PatientDetailPage.tsx:678:          apiRequest<any>(`/emergency/queue?page_size=1000`),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PatientDetailPage.tsx:833:          apiRequest<any>(`/imaging/orders?patient_id=${patientId}&page_size=1000`),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PatientDetailPage.tsx:834:          apiRequest<any>(`/laboratory/orders?page_size=1000`),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/AuditPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/AuditPage.tsx:93:      const res = await apiRequest<PaginatedResponse>(`/audit/logs?${params.toString()}`);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ActivityPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ActivityPage.tsx:197:      const payload = await apiRequest<any>("/activity?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SurgeryPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SurgeryPage.tsx:110:      const payload = await apiRequest<any>("/surgery/rooms?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SurgeryPage.tsx:137:      await apiRequest("/surgery/rooms", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SurgeryPage.tsx:298:      const payload = await apiRequest<any>("/surgery/schedules?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SurgeryPage.tsx:309:      const payload = await apiRequest<any>("/surgery/rooms?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SurgeryPage.tsx:334:      await apiRequest("/surgery/schedules", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SurgeryPage.tsx:365:      await apiRequest(`/surgery/schedules/${scheduleId}/start`, { method: "POST" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SurgeryPage.tsx:375:      await apiRequest(`/surgery/schedules/${scheduleId}/complete`, { method: "POST" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SurgeryPage.tsx:386:      await apiRequest(`/surgery/schedules/${scheduleId}/cancel`, { method: "POST" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SurgeryPage.tsx:604:      const payload = await apiRequest<any>("/surgery/reports?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SurgeryPage.tsx:615:      const payload = await apiRequest<any>("/surgery/schedules?status=COMPLETED&page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SurgeryPage.tsx:640:      await apiRequest("/surgery/reports", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SurgeryPage.tsx:671:      await apiRequest(`/surgery/reports/${reportId}/validate`, { method: "POST" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/UsersPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/UsersPage.tsx:79:      const res = await apiRequest<{ data: User[]; total: number }>(
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/UsersPage.tsx:93:      const res = await apiRequest<{ data: Facility[] }>(
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/UsersPage.tsx:121:      await apiRequest("/users", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/UsersPage.tsx:138:      await apiRequest(`/users/${user.id}`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SmsAdminPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SmsAdminPage.tsx:168:      const payload = await apiRequest<{ data: SmsProvider[] }>(
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SmsAdminPage.tsx:191:      await apiRequest("/notifications/sms/providers", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SmsAdminPage.tsx:219:      await apiRequest(`/notifications/sms/providers/${p.id}`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SmsAdminPage.tsx:233:      await apiRequest(`/notifications/sms/providers/${p.id}`, { method: "DELETE" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SmsAdminPage.tsx:244:      const result = await apiRequest<{ success: boolean; message_id: string | null; error_message: string | null }>(
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SmsAdminPage.tsx:424:      const payload = await apiRequest<{ data: SmsRoutingRule[] }>(
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SmsAdminPage.tsx:441:      await apiRequest(`/notifications/sms/rules/${r.id}`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SmsAdminPage.tsx:545:      const payload = await apiRequest<{ data: SmsMessage[]; total: number }>(path);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SmsAdminPage.tsx:563:      await apiRequest("/notifications/sms/send", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SmsAdminPage.tsx:580:      await apiRequest(`/notifications/sms/messages/${msgId}/retry`, { method: "POST" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/SmsAdminPage.tsx:717:      const payload = await apiRequest<SmsStats>(`/notifications/sms/stats?days=${days}`);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ImagingPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ImagingPage.tsx:129:      const payload = await apiRequest<any>(`/imaging/orders${qs ? `?${qs}` : ""}`);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ImagingPage.tsx:150:      await apiRequest("/imaging/orders", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ImagingPage.tsx:177:      await apiRequest(`/imaging/orders/${orderId}/start`, { method: "POST" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ImagingPage.tsx:187:      await apiRequest(`/imaging/orders/${orderId}/complete`, { method: "POST" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ImagingPage.tsx:393:      const payload = await apiRequest<any>("/imaging/results?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ImagingPage.tsx:404:      const payload = await apiRequest<any>("/imaging/orders?status=COMPLETED&page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ImagingPage.tsx:429:      await apiRequest("/imaging/results", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ImagingPage.tsx:454:      await apiRequest(`/imaging/results/${resultId}/validate`, { method: "POST" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/DashboardPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/DashboardPage.tsx:94:          apiRequest<{ data?: Row[]; total?: number }>("/patients?page_size=1"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/DashboardPage.tsx:95:          apiRequest<{ data?: Row[]; total?: number }>("/admissions?page_size=1"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/DashboardPage.tsx:96:          apiRequest<{ data?: Row[]; total?: number }>("/emergency/queue?page_size=1"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/DashboardPage.tsx:97:          apiRequest<{ data?: Row[]; total?: number }>("/hospitalization/stays?status=ACTIVE&page_size=1"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/DashboardPage.tsx:98:          apiRequest<{ data?: Row[] }>(`/hospitalization/bed-board?facility_id=${facilityId}`),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/DashboardPage.tsx:99:          apiRequest<{ data?: Row[]; total?: number }>("/laboratory/orders?page_size=1000"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/DashboardPage.tsx:100:          apiRequest<{ data?: Row[] }>("/imaging/orders?status=PENDING&page_size=1000"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/DashboardPage.tsx:101:          apiRequest<{ data?: Record<string, unknown> }>("/reporting/dashboard"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/DashboardPage.tsx:140:        apiRequest<{ data?: Row[] }>("/patients?page_size=5"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/DashboardPage.tsx:141:        apiRequest<{ data?: Row[] }>("/admissions?page_size=5"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/DashboardPage.tsx:148:      const allAdmRes = await apiRequest<{ data?: Row[] }>("/admissions?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyPage.tsx:41:        const payload = await apiRequest<any>("/emergency/queue?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/LeaveManagementPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/LeaveManagementPage.tsx:106:      const payload = await apiRequest<{ data: LeaveRequest[]; total: number }>(path);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/LeaveManagementPage.tsx:122:      await apiRequest(`/personnel/leaves/${reqId}`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/LeaveManagementPage.tsx:238:      const payload = await apiRequest<{ data: LeaveBalance[]; total: number }>(
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityAlertsTab.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityAlertsTab.tsx:133:      const payload = await apiRequest<{ data: QualityAlert[]; total: number }>(path);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityAlertsTab.tsx:148:      await apiRequest(`/quality/alerts/${a.id}/acknowledge`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityAlertsTab.tsx:162:      await apiRequest(`/quality/alerts/${resolveTarget.id}/resolve`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityAlertsTab.tsx:178:      await apiRequest(`/quality/alerts/${a.id}/close`, { method: "POST" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityAlertsTab.tsx:324:      const payload = await apiRequest<{ data: Threshold[]; total: number }>(
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityAlertsTab.tsx:344:      await apiRequest("/quality/thresholds", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityAlertsTab.tsx:371:      await apiRequest(`/quality/thresholds/${t.id}`, { method: "DELETE" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityAlertsTab.tsx:381:      await apiRequest(`/quality/thresholds/${t.id}`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/LabPage.tsx:27:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/LabPage.tsx:154:        apiRequest<any>("/laboratory/orders?page_size=1000"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/LabPage.tsx:155:        apiRequest<any>("/laboratory/results?page_size=1000"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/LabPage.tsx:383:      const res = await apiRequest<any>("/laboratory/orders?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/LabPage.tsx:411:      await apiRequest("/laboratory/orders", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/LabPage.tsx:719:        apiRequest<any>("/laboratory/results?page_size=1000"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/LabPage.tsx:720:        apiRequest<any>("/laboratory/orders?page_size=1000"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/LabPage.tsx:760:      await apiRequest(`/laboratory/orders/${orderId}/results`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/LabPage.tsx:785:      await apiRequest(`/laboratory/results/${resultId}/validate`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/LabPage.tsx:1039:      const res = await apiRequest<any>("/laboratory/tests?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/LabPage.tsx:1070:      await apiRequest("/laboratory/tests", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyQueuePage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyQueuePage.tsx:98:      const payload = await apiRequest<any>("/emergency/queue?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyQueuePage.tsx:152:      await apiRequest(`/emergency/visits/${visitId}/triage`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyQueuePage.tsx:166:      await apiRequest(`/emergency/visits/${visitId}/care`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyQueuePage.tsx:183:      await apiRequest(`/emergency/visits/${visitId}/orientation`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyQueuePage.tsx:205:      await apiRequest(`/emergency/visits/${visitId}/discharge`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyQueuePage.tsx:236:      await apiRequest("/emergency/visits", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyTriagePage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyTriagePage.tsx:107:      const payload = await apiRequest<any>("/emergency/queue?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyTriagePage.tsx:191:      await apiRequest(`/emergency/visits/${selectedVisitId}/triage`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyTriagePage.tsx:214:        await apiRequest(`/emergency/visits/${selectedVisitId}/care`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/NotificationsPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/NotificationsPage.tsx:101:      const res = await apiRequest<PaginatedResponse>(`/notifications?${params.toString()}`);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/NotificationsPage.tsx:119:      await apiRequest(`/notifications/${id}/read`, { method: "PATCH" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/NotificationsPage.tsx:131:      await apiRequest(`/notifications/mark-all-read`, { method: "POST" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/NotificationsPage.tsx:144:      await apiRequest(`/notifications/${id}`, { method: "DELETE" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/FinancePage.tsx:27:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/FinancePage.tsx:145:        apiRequest<any>("/billing/invoices?page_size=1000"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/FinancePage.tsx:146:        apiRequest<any>("/billing/payments?page_size=1000"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/FinancePage.tsx:451:        apiRequest<any>("/billing/invoices?page_size=1000"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/FinancePage.tsx:452:        apiRequest<any>("/billing/tariffs?page_size=1000"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/FinancePage.tsx:532:      await apiRequest("/billing/invoices", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/FinancePage.tsx:862:        apiRequest<any>("/billing/payments?page_size=1000"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/FinancePage.tsx:863:        apiRequest<any>("/billing/invoices?page_size=1000"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/FinancePage.tsx:914:      await apiRequest(`/billing/invoices/${invoiceId}/payments`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/FinancePage.tsx:1126:      const res = await apiRequest<any>("/billing/tariffs?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/FinancePage.tsx:1157:      await apiRequest("/billing/tariffs", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityDashboardTab.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityDashboardTab.tsx:106:      const payload = await apiRequest<Dashboard>(`/quality/dashboard?days=${days}`);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityDashboardTab.tsx:122:      const result = await apiRequest<{ indicators_created: number; thresholds_created: number }>(
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityDashboardTab.tsx:138:      const result = await apiRequest<{ raised: number }>(
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/HospitalizationPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/HospitalizationPage.tsx:62:      const payload = await apiRequest<any>(`/hospitalization/bed-board?facility_id=${facilityId}`);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/HospitalizationPage.tsx:193:      const payload = await apiRequest<any>(`/hospitalization/stays${qs ? `?${qs}&page_size=1000` : "?page_size=1000"}`);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/HospitalizationPage.tsx:205:      const payload = await apiRequest<any>(`/hospitalization/beds?bed_status=AVAILABLE&page_size=1000`);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/HospitalizationPage.tsx:230:      await apiRequest("/hospitalization/stays", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/HospitalizationPage.tsx:255:      await apiRequest(`/hospitalization/stays/${stayId}/discharge`, { method: "POST" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/AdmissionsPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/AdmissionsPage.tsx:166:      const payload = await apiRequest<any>(`/admissions${qs ? `?${qs}&page_size=1000` : "?page_size=1000"}`);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/AdmissionsPage.tsx:311:      await apiRequest(`/admissions/${admissionId}/close`, { method: "POST" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/AdmissionsPage.tsx:631:      await apiRequest("/admissions", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/AdmissionsPage.tsx:1062:      const payload = await apiRequest<any>("/admissions?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/MaternityPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/MaternityPage.tsx:94:      const payload = await apiRequest<any>("/maternity/records?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/MaternityPage.tsx:207:      await apiRequest("/maternity/records", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/MaternityPage.tsx:314:      const payload = await apiRequest<any>("/maternity/records?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/MaternityPage.tsx:324:      const payload = await apiRequest<any>(`/maternity/records/${recordId}`);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/MaternityPage.tsx:358:      await apiRequest(`/maternity/records/${currentRecord}/consultations`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/MaternityPage.tsx:538:      const payload = await apiRequest<any>("/maternity/records?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/MaternityPage.tsx:548:      const payload = await apiRequest<any>(`/maternity/records/${recordId}`);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/MaternityPage.tsx:581:      await apiRequest(`/maternity/records/${currentRecord}/deliveries`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/RbacPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/RbacPage.tsx:48:        apiRequest<{ data: Role[] }>(`/rbac/roles?page_size=1000`),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/RbacPage.tsx:49:        apiRequest<{ data: Permission[] }>(`/rbac/permissions?page_size=1000`),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/RbacPage.tsx:91:        await apiRequest("/rbac/role-permissions", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/RbacPage.tsx:110:      await apiRequest("/rbac/roles", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/RbacPage.tsx:129:      await apiRequest("/rbac/permissions", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ReportingPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ReportingPage.tsx:116:      const payload = await apiRequest<any>("/reporting/dashboard");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ReportingPage.tsx:194:      const payload = await apiRequest<any>("/reporting/national-reports?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ReportingPage.tsx:215:      await apiRequest("/reporting/national-reports", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ReportingPage.tsx:257:      await apiRequest(`/reporting/national-reports/${reportId}/submit`, { method: "POST" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ReportingPage.tsx:267:      await apiRequest(`/reporting/national-reports/${reportId}/validate`, { method: "POST" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ReportingPage.tsx:277:      await apiRequest(`/reporting/national-reports/${reportId}/reject`, { method: "POST" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ReportingPage.tsx:511:      const payload = await apiRequest<any>("/reporting/epidemic-alerts?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ReportingPage.tsx:532:      await apiRequest("/reporting/epidemic-alerts", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ReportingPage.tsx:561:      await apiRequest(`/reporting/epidemic-alerts/${alertId}/close`, { method: "POST" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ReportingPage.tsx:739:      const payload = await apiRequest<any>("/reporting/statistics?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/ReportingPage.tsx:760:      await apiRequest("/reporting/statistics", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/DepartmentsPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/DepartmentsPage.tsx:41:      const res = await apiRequest<{ data: Department[]; total: number }>(
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/DepartmentsPage.tsx:55:      const res = await apiRequest<{ data: Facility[] }>("/facilities?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/DepartmentsPage.tsx:76:      await apiRequest("/departments", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/FacilitiesPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/FacilitiesPage.tsx:59:      const res = await apiRequest<{ data: Facility[]; total: number }>(
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/FacilitiesPage.tsx:78:      await apiRequest("/facilities", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPage.tsx:162:      const payload = await apiRequest<any>(`/personnel/staff${qs ? `?${qs}` : ""}`);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPage.tsx:183:      await apiRequest("/personnel/staff", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPage.tsx:326:      const payload = await apiRequest<any>("/personnel/on-call?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPage.tsx:337:      const payload = await apiRequest<any>("/personnel/staff?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPage.tsx:364:      await apiRequest("/personnel/on-call", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPage.tsx:487:      const payload = await apiRequest<any>(`/personnel/leaves${qs ? `?${qs}` : ""}`);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPage.tsx:498:      const payload = await apiRequest<any>("/personnel/staff?status=ACTIVE&page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPage.tsx:525:      await apiRequest("/personnel/leaves", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPage.tsx:541:      await apiRequest(`/personnel/leaves/${leaveId}`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPage.tsx:662:      const payload = await apiRequest<any>("/personnel/contracts?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPage.tsx:673:      const payload = await apiRequest<any>("/personnel/staff?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPage.tsx:700:      await apiRequest("/personnel/contracts", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPage.tsx:804:      const payload = await apiRequest<any>("/personnel/stats?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPlanningPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPlanningPage.tsx:147:      const payload = await apiRequest<PlanningResponse>(path);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPlanningPage.tsx:323:      const payload = await apiRequest<{ data: Shift[]; total: number }>("/personnel/shifts");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPlanningPage.tsx:341:      await apiRequest("/personnel/shifts", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPlanningPage.tsx:372:      const result = await apiRequest<{ generated: number; skipped: number }>(
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPlanningPage.tsx:530:      const payload = await apiRequest<{ data: Assignment[]; total: number }>(path);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPlanningPage.tsx:625:      const payload = await apiRequest<{ data: any[]; total: number }>(
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPlanningPage.tsx:645:      await apiRequest("/personnel/on-call-duties", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPlanningPage.tsx:788:      const payload = await apiRequest<{ data: any[]; total: number }>(path);
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PersonnelPlanningPage.tsx:806:      await apiRequest(`/personnel/swaps/${swapId}/${action}`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityPage.tsx:152:      const payload = await apiRequest<any>("/quality/indicators?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityPage.tsx:173:      await apiRequest("/quality/indicators", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityPage.tsx:358:      const payload = await apiRequest<any>("/quality/measurements?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityPage.tsx:369:      const payload = await apiRequest<any>("/quality/indicators?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityPage.tsx:394:      await apiRequest("/quality/measurements", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityPage.tsx:577:      const payload = await apiRequest<any>("/quality/incidents?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityPage.tsx:598:      await apiRequest("/quality/incidents", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityPage.tsx:625:      await apiRequest(`/quality/incidents/${incidentId}/investigate`, { method: "POST" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/QualityPage.tsx:635:      await apiRequest(`/quality/incidents/${incidentId}/resolve`, { method: "POST" });
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PharmacyPage.tsx:26:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PharmacyPage.tsx:140:        apiRequest<any>("/pharmacy/stock?page_size=1000"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PharmacyPage.tsx:141:        apiRequest<any>("/pharmacy/products?page_size=1000"),
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PharmacyPage.tsx:483:      const res = await apiRequest<any>("/pharmacy/stock?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PharmacyPage.tsx:492:      const res = await apiRequest<any>("/pharmacy/stock/movements?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PharmacyPage.tsx:551:        await apiRequest("/pharmacy/stock/movements", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PharmacyPage.tsx:821:      const res = await apiRequest<any>("/pharmacy/products?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PharmacyPage.tsx:854:      await apiRequest("/pharmacy/products", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PharmacyPage.tsx:1061:      const res = await apiRequest<any>("/pharmacy/stock/movements?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/PharmacyPage.tsx:1085:      await apiRequest("/pharmacy/stock/movements", {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyOrientationPage.tsx:2:import { apiRequest } from "../services/api";
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyOrientationPage.tsx:102:      const payload = await apiRequest<any>("/emergency/queue?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyOrientationPage.tsx:108:        const bedsPayload = await apiRequest<any>("/hospitalization/beds?page_size=1000");
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyOrientationPage.tsx:171:        await apiRequest(`/emergency/visits/${orientingVisitId}/discharge`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyOrientationPage.tsx:186:        await apiRequest(`/emergency/visits/${orientingVisitId}/orientation`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyOrientationPage.tsx:196:            await apiRequest(`/emergency/visits/${orientingVisitId}/discharge`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyOrientationPage.tsx:224:        await apiRequest(`/emergency/visits/${visitId}/discharge`, {
+/home/z/my-project/guineecare-hospital-suite/frontend/src/pages/EmergencyOrientationPage.tsx:232:        await apiRequest(`/emergency/visits/${visitId}/orientation`, {
