@@ -83,6 +83,8 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void | Prom
       items: [
         { label: "Facturation", path: "/billing", icon: Receipt, visible: navVisibility.canSeeBilling },
         { label: "Personnel", path: "/personnel", icon: UserCog, visible: navVisibility.canSeePersonnel },
+        { label: "Planning & Gardes", path: "/personnel/planning", icon: UserCog, visible: navVisibility.canSeePersonnel },
+        { label: "Congés", path: "/personnel/leaves", icon: UserCog, visible: navVisibility.canSeePersonnel },
         { label: "Qualité", path: "/quality", icon: Shield, visible: navVisibility.canSeeQuality },
         { label: "Activité", path: "/activity", icon: Activity, visible: navVisibility.canSeeActivity },
       ],

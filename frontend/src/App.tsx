@@ -37,6 +37,8 @@ const DepartmentsPage = lazy(() => import("./pages/DepartmentsPage").then(m => (
 const AuditPage = lazy(() => import("./pages/AuditPage").then(m => ({ default: m.AuditPage })));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage").then(m => ({ default: m.NotificationsPage })));
 const SmsAdminPage = lazy(() => import("./pages/SmsAdminPage").then(m => ({ default: m.SmsAdminPage })));
+const PersonnelPlanningPage = lazy(() => import("./pages/PersonnelPlanningPage").then(m => ({ default: m.PersonnelPlanningPage })));
+const LeaveManagementPage = lazy(() => import("./pages/LeaveManagementPage").then(m => ({ default: m.LeaveManagementPage })));
 
 function PageLoader() {
   return (
@@ -101,6 +103,8 @@ function AppInner() {
             <Route path="/hospitalization" element={<ProtectedRoute permission="hospitalization.read"><HospitalizationPage lookups={lookups} /></ProtectedRoute>} />
             <Route path="/maternity" element={<ProtectedRoute permission="maternity.read"><MaternityPage lookups={lookups} /></ProtectedRoute>} />
             <Route path="/personnel" element={<ProtectedRoute permission="personnel.read"><PersonnelPage lookups={lookups} onCreated={refreshAll} /></ProtectedRoute>} />
+            <Route path="/personnel/planning" element={<ProtectedRoute permission="personnel.read"><PersonnelPlanningPage lookups={lookups} /></ProtectedRoute>} />
+            <Route path="/personnel/leaves" element={<ProtectedRoute permission="personnel.read"><LeaveManagementPage lookups={lookups} /></ProtectedRoute>} />
             <Route path="/imaging" element={<ProtectedRoute permission="imaging.read"><ImagingPage lookups={lookups} /></ProtectedRoute>} />
             <Route path="/surgery" element={<ProtectedRoute permission="surgery.read"><SurgeryPage lookups={lookups} /></ProtectedRoute>} />
             <Route path="/quality" element={<ProtectedRoute permission="quality.read"><QualityPage lookups={lookups} /></ProtectedRoute>} />
