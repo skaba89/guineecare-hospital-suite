@@ -60,6 +60,9 @@ DEFAULT_PERMISSIONS = [
     # v1.1.0 — change-management feedback loop
     ("feedback.read", "Consulter les retours utilisateurs", "feedback"),
     ("feedback.resolve", "Trier et resoudre les retours utilisateurs", "feedback"),
+    # v1.4.0 — SMS + quality dashboard advanced
+    ("notification.manage", "Configurer providers SMS et regles de routage", "notifications"),
+    ("quality.dashboard", "Consulter le dashboard qualite avance", "quality"),
 ]
 
 ROLE_PERMISSION_MAP = {
@@ -90,6 +93,7 @@ ROLE_PERMISSION_MAP = {
         "surgery.read",
         "surgery.manage",
         "quality.read",
+        "quality.dashboard",
         "reporting.read",
     ],
     "NURSE": [
@@ -107,6 +111,7 @@ ROLE_PERMISSION_MAP = {
         "maternity.read",
         "imaging.read",
         "quality.read",
+        "quality.dashboard",
     ],
     "PHARMACIST": [
         "facility.read",

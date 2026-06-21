@@ -1,5 +1,201 @@
 # Changelog
 
+## [1.4.0] — 2026-06-21
+
+### Added — Notifications SMS réelles (Orange/MTN/Moov) + tableau de bord qualité avancé
+
+Cette release livre les **2 premières évolutions moyen terme** identifiées
+dans `docs/post-pilot/EVOLUTIONS_POST_PILOTE.md` : le **(10) système de
+notifications SMS réelles via opérateurs locaux** et le **(9) tableau de
+bord qualité avancé** avec seuils d'alerte automatiques. Les 3 évolutions
+moyen terme restantes (app mobile React Native, HL7 FHIR R4, module RH v2)
+sont reportées à v1.5.
+
+#### Module backend `notifications/sms` — providers multicanal + routing
+
+3 nouvelles tables (migration Alembic `0017_sms_v14`) :
+
+- **`sms_providers`** — configuration des opérateurs (code, credentials
+  chiffrés via Fernet optionnel, sender ID, coût/SMS en GNF, quotas).
+- **`sms_messages`** — journal complet de chaque SMS envoyé (statut
+  PENDING/SENT/DELIVERED/FAILED/REJECTED, operator_message_id, coût,
+  tentatives, timestamps).
+- **`sms_routing_rules`** — règles de routage par catégorie de
+  notification (ex: `lab_critical` → `in_app,sms` avec `min_priority=urgent`).
+
+**Provider abstraction** (`backend/app/modules/notifications/sms_provider.py`) :
+
+- `SmsProviderBase` — interface commune, validation E.164, timeout 10s.
+- `MockSmsProvider` — toujours succès, log JSONL optionnel (`SMS_MOCK_LOG`).
+- `OrangeSmsProvider` — OAuth2 client_credentials → POST
+  `/smsmessaging/v1/outbound/{sender}/requests` (doc Orange API).
+- `MtnSmsProvider` — POST HTTP simple avec Bearer token.
+- `MoovSmsProvider` — POST HTTP avec clé API dans le body + signature.
+- `normalize_phone_gn()` — normalise les numéros guinéens (622334455 → +224622334455).
+- `encrypt_credential()` / `decrypt_credential()` — chiffrement Fernet
+  optionnel (fallback clair en dev/test).
+
+**Service** (`backend/app/modules/notifications/sms_service.py`) :
+
+- `send_sms()` — orchestration complète : normalisation → sélection
+  provider (règle de routage → provider préféré → provider par défaut →
+  mock implicite) → envoi → journalisation `SmsMessage`. Ne lève jamais
+  d'exception.
+- `get_routing_rule()` — résolution avec priorité facility-spécifique
+  surclasse la règle globale.
+- `should_send_sms_for_rule()` — vérifie que la priorité atteint le seuil.
+- `retry_failed_sms()` — retry avec max 3 tentatives cumulées.
+- `get_sms_stats()` — agrégats par provider / catégorie sur une période.
+- `seed_default_providers()` — crée un provider mock au premier accès
+  (dev convenience).
+- `seed_default_routing_rules()` — 8 règles par défaut (`lab_critical`,
+  `incident_critical`, `appointment_reminder`, `medication_dispensed`,
+  `admission_created`, `invoice_ready`, `quality_alert`, `system`).
+
+**Routes** (`/api/v1/notifications/sms/*` — tag OpenAPI `notifications-sms`) :
+
+- `GET /providers` — liste (credentials masqués, flags `has_api_key`/`has_api_secret`).
+- `GET /providers/supported` — catalogue statique (mock/orange/mtn/moov).
+- `POST /providers` — création (credentials chiffrés avant stockage).
+- `PATCH /providers/{id}` — mise à jour partielle.
+- `DELETE /providers/{id}` — suppression (mock protégé).
+- `POST /providers/{id}/test` — envoi d'un SMS de test (coût réel).
+- `GET /rules` — liste des règles de routage (multi-tenant).
+- `POST /rules` — création (409 si catégorie déjà enabled).
+- `PATCH /rules/{id}` — mise à jour.
+- `DELETE /rules/{id}` — suppression.
+- `POST /send` — envoi manuel (admin only, `notification.send`).
+- `POST /messages/{id}/retry` — retry d'un SMS échoué.
+- `GET /messages` — historique paginé (filtres `status`, `provider_code`,
+  `category`, `recipient_phone`).
+- `GET /stats?days=30` — statistiques agrégées.
+
+**Permissions RBAC** (2 nouvelles) :
+
+- `notification.manage` — CRUD providers + règles (SUPER_ADMIN/ADMIN bypass).
+- `notification.send` — envoi manuel + retry (déjà existant, étendu au SMS).
+
+Tests (`backend/tests/test_sms.py`) — **27 tests** : CRUD providers, règles
+de routage, envoi mock, normalisation téléphone, retry, stats, permissions
+RBAC, helpers unitaires.
+
+#### Module backend `quality/dashboard` — tableau de bord qualité avancé
+
+2 nouvelles tables (migration Alembic `0018_quality_dashboard`) :
+
+- **`quality_thresholds`** — seuils d'alerte par indicateur (comparateur
+  LT/LE/GT/GE/EQ, valeur, sévérité LOW/MEDIUM/HIGH/CRITICAL, cooldown,
+  notify_roles, channels).
+- **`quality_alerts`** — alertes concrètes levées quand une mesure franchit
+  un seuil. Cycle : OPEN → ACKNOWLEDGED → RESOLVED → CLOSED.
+
+**Catalogue d'indicateurs prédéfinis** (10 indicateurs OMS/HAS) :
+
+- `INOSO_RATE` — taux d'infections nosocomiales (cible OMS : < 5%).
+- `READMIT_30D` — taux de réadmissions à 30 jours (cible HAS : < 10%).
+- `SAT_PATIENT` — satisfaction patient (cible : > 80%).
+- `ED_WAIT_4H` — délai moyen prise en charge urgences (cible : < 4h).
+- `MORTALITY_24H` — mortalité 24h post-admission (cible : < 2%).
+- `MED_ERROR_RATE` — erreurs médicamenteuses (cible : < 1/1000).
+- `SURG_SITE_INFECTION` — infections site opératoire (cible OMS : < 3%).
+- `BED_OCCUPANCY` — taux d'occupation des lits (cible : ≤ 85%).
+- `FALL_RATE` — taux de chutes patient (cible HAS : < 3/1000).
+- `VAGINAL_DELIVERY_RATE` — taux d'accouchements voie basse (cible OMS : > 80%).
+
+**Seuils par défaut** (10 thresholds liés aux indicateurs ci-dessus) :
+seedés via `POST /quality/seed-defaults?facility_id=...` (idempotent).
+
+**Service** (`backend/app/modules/quality/dashboard_service.py`) :
+
+- `compute_dashboard()` — agrège KPIs (dernière valeur par indicateur),
+  incidents (par type/sévérité/statut, délai moyen résolution), alertes
+  (open/acknowledged/resolved + 10 récentes), tendances (5 premiers
+  indicateurs, séries temporelles).
+- `check_thresholds()` — évalue toutes les mesures récentes contre les
+  thresholds actifs. Lève une `QualityAlert` si franchissement + cooldown
+  respecté. Notifie via `notify()` du module notifications (multi-canal,
+  la catégorie `quality_alert` déclenche SMS via la règle de routage).
+- `evaluate_threshold()` — comparaison numérique ou string (EQ sur
+  catégories qualitatives).
+- `acknowledge_alert()` / `resolve_alert()` / `close_alert()` — cycle de
+  vie humain.
+
+**Routes** (`/api/v1/quality/*` — tag OpenAPI `quality-dashboard`) :
+
+- `GET /dashboard?days=30` — dashboard agrégé (multi-tenant).
+- `GET /indicators/catalog` — catalogue statique OMS/HAS (documentation).
+- `POST /seed-defaults?facility_id=...` — insertion indicateurs + seuils.
+- `GET /thresholds` — liste paginée.
+- `POST /thresholds` — création.
+- `PATCH /thresholds/{id}` — mise à jour.
+- `DELETE /thresholds/{id}` — suppression.
+- `GET /alerts?status=...` — liste paginée.
+- `POST /alerts/check` — déclenche l'évaluation manuelle des seuils.
+- `POST /alerts/{id}/acknowledge` — prise en charge.
+- `POST /alerts/{id}/resolve` — résolution avec note.
+- `POST /alerts/{id}/close` — clôture.
+
+**Permission RBAC** (1 nouvelle) :
+
+- `quality.dashboard` — consultation dashboard avancé (étendue à DOCTOR
+  et NURSE en plus de ADMIN/SUPER_ADMIN).
+
+Tests (`backend/tests/test_quality_dashboard.py`) — **22 tests** : CRUD
+thresholds, dashboard agrégé, seed defaults, check_thresholds (lève une
+alerte si franchissement, respecte le cooldown), lifecycle complet des
+alertes (open → ack → resolve → close), comparateurs (LT/LE/GT/GE/EQ),
+valeurs avec `%`, comparaison non numérique (EQ only).
+
+#### Frontend — nouvelles pages et onglets
+
+- **`SmsAdminPage.tsx`** (nouvelle page, route `/sms-admin`) — 4 onglets :
+  - **Providers** : liste + formulaire de création (code/name/credentials/
+    coût/SMS), toggle enable/disable, test provider (modal), suppression
+    (mock protégé).
+  - **Règles de routage** : liste des règles par catégorie, badges canaux
+    (sms/email/in_app), toggle enable/disable.
+  - **Historique** : tableau paginé des SMS envoyés, filtre par statut,
+    envoi manuel (formulaire), retry des échecs.
+  - **Statistiques** : 5 KPI cards (total, succès, échecs, taux, coût GNF)
+    + tables agrégées par provider et par catégorie.
+- **`QualityDashboardTab.tsx`** (nouvel onglet dans `QualityPage`) —
+  Dashboard agrégé : 5 stat cards, tableau KPIs (dernière valeur vs cible
+  avec statut coloré), agrégats incidents (par type/sévérité/statut),
+  tendances SVG (5 indicateurs principaux avec ligne de cible), boutons
+  "Seed OMS/HAS" et "Check seuils".
+- **`QualityAlertsTab.tsx`** (nouvel onglet dans `QualityPage`) — 2
+  sous-onglets : Alertes (liste avec filtre statut, actions ack/resolve/
+  close, modal de résolution avec note) + Seuils (CRUD complet avec
+  formulaire de création).
+- **Sidebar** — nouvelle entrée "SMS Admin" sous la section SYSTÈME
+  (icône `MessageSquare`, visible ADMIN/SUPER_ADMIN uniquement).
+- **`useLookupData`** — fetch également `/quality/indicators` pour le
+  dropdown de sélection d'indicateur dans le formulaire de seuil.
+- **`ProtectedRoute.useNavVisibility`** — nouveau flag `canSeeSmsAdmin`.
+
+#### Configuration et dépendances
+
+- **`backend/requirements.txt`** — ajout de `requests==2.32.3` (appels
+  HTTP aux opérateurs SMS Orange/MTN/Moov).
+- **`backend/app/main.py`** — version bump 1.3.0 → 1.4.0, nouveaux routers
+  `sms_router` et `quality_dashboard_router`, nouveaux tags OpenAPI
+  `notifications-sms` et `quality-dashboard`.
+- **`backend/tests/conftest.py`** — import des nouveaux modèles
+  (`SmsProvider`, `SmsMessage`, `SmsRoutingRule`, `QualityThreshold`,
+  `QualityAlert`) pour que `Base.metadata.create_all` les crée en SQLite.
+- **`backend/app/modules/rbac/seed.py`** — 2 nouvelles permissions
+  (`notification.manage`, `quality.dashboard`) + `quality.dashboard`
+  ajoutée à DOCTOR et NURSE.
+
+#### Variables d'environnement
+
+- `SMS_FERNET_KEY` (optionnel) — clé Fernet pour chiffrer les credentials
+  SMS. En dev/test sans cette clé, les credentials sont stockés en clair.
+- `SMS_MOCK_LOG` (optionnel) — chemin d'un fichier JSONL où le provider
+  mock journalise chaque SMS (utile pour audit local en démo).
+
+---
+
 ## [1.3.0] — 2026-06-21
 
 ### Added — Internationalisation EN/FR + dashboard temps réel (WebSocket) + mode hors-ligne PWA
