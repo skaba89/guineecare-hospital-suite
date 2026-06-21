@@ -1,7 +1,7 @@
 # Évolutions post-pilote — Roadmap v1.3 et au-delà
 
 > Public : équipe projet, direction médicale, Ministère de la Santé
-> Dernière mise à jour : 2026-06-21 (v1.5.0)
+> Dernière mise à jour : 2026-06-22 (v1.7.0)
 > Statut : document **dynamique** — alimenté par les retours utilisateurs
 > collectés via la boucle feedback de v1.1.0.
 
@@ -32,6 +32,60 @@ décroissant. Seules les évolutions à score ≥ 60 entrent dans la
 roadmap suivante. Le comité de pilotage (équipe projet + direction
 médicale + représentant Ministère) révise les priorités tous les
 mois.
+
+---
+
+## v1.7 — Livré le 2026-06-22 (release v1.7.0)
+
+La release v1.7.0 livre la **5ᵉ et dernière évolution moyen terme** :
+l'**application mobile Android** (évolution 6). Avec cette release, les **5
+évolutions moyen terme de la roadmap v1.4-v1.7 sont toutes livrées**.
+
+### ✅ Évolution 6 — Application mobile Android (React Native) (LIVRÉ)
+
+Module `mobile/` — application React Native 0.74 via Expo SDK 51, dédiée aux
+médecins et infirmiers en garde. 8 écrans implémentés (Login, BiometricLock,
+Dashboard, Patients, PatientDetail, QRScan, Notifications, Profile).
+
+**Stack** : React Navigation 6, Axios + JWT avec refresh automatique,
+expo-secure-store (tokens), expo-local-authentication (biométrie),
+expo-barcode-scanner (QR code patient), expo-notifications (push),
+@react-native-community/netinfo + AsyncStorage (offline sync), EAS Build
+(builds Android APK/AAB).
+
+**Authentification biométrique** : empreinte/Face ID au démarrage (optionnel,
+désactivable). Bouton "Se déconnecter" en secours.
+
+**Scan QR code patient** : scan du bracelet d'identification → navigation
+directe vers le dossier patient. Gestion des erreurs (patient introuvable,
+QR invalide, réseau).
+
+**Mode hors-ligne** : file d'attente des mutations (POST/PATCH/DELETE) via
+AsyncStorage. Replay FIFO automatique au retour du réseau. 4xx → abandon, 5xx
+→ retry jusqu'à 5 fois.
+
+**2 hooks réutilisables** : `useOfflineSync` (file d'attente + replay) et
+`usePushNotifications` (Expo Push Token + channels Android + listeners).
+
+Documentation complète : `mobile/README.md`. Points d'attention documentés
+(endpoint push token à implémenter côté backend en v1.8, pas de WebSocket
+temps réel sur mobile, saisie clinique limitée aux constantes vitales, pas
+de cache patient offline).
+
+### ⏭️ Évolutions moyen terme — Terminées ✅
+
+Avec v1.7.0, **toutes les évolutions moyen terme sont livrées** :
+
+- ✅ Évolution 6 — Application mobile Android (React Native) (v1.7.0)
+- ✅ Évolution 7 — Interopérabilité HL7 FHIR R4 (v1.6.0)
+- ✅ Évolution 8 — Module RH v2 (v1.5.0)
+- ✅ Évolution 9 — Tableau de bord qualité avancé (v1.4.0)
+- ✅ Évolution 10 — Notifications SMS réelles (v1.4.0)
+
+La suite de la roadmap se concentre maintenant sur les **évolutions long
+terme (v2.0+)** : data warehouse santé national, télémédecine, IA d'aide au
+diagnostic, gestion multi-entrepôts, migration Kubernetes. Voir section
+`v2.0 — Long terme (12+ mois)` ci-dessous.
 
 ---
 

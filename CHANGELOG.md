@@ -1,5 +1,124 @@
 # Changelog
 
+## [1.7.0] — 2026-06-22
+
+### Added — Application mobile Android (React Native + Expo)
+
+Cette release livre la **5ᵉ et dernière évolution moyen terme** : l'**application
+mobile Android** (évolution 6). Avec cette release, les **5 évolutions moyen
+terme de la roadmap v1.4-v1.7 sont toutes livrées**.
+
+### Module mobile (`mobile/`)
+
+Application React Native 0.74 via Expo SDK 51, dédiée aux médecins et
+infirmiers en garde. Conçue pour le contexte guinéen (connectivité
+intermittente, usage au lit du patient, notifications critiques).
+
+#### Stack technique
+
+- **React Native 0.74** + **Expo SDK 51** (managed workflow)
+- **TypeScript** strict
+- **React Navigation 6** (Stack + Bottom Tabs)
+- **Axios** + JWT avec refresh automatique et queue des requêtes
+- **expo-secure-store** pour le stockage sécurisé des tokens (Keychain iOS / Keystore Android)
+- **expo-local-authentication** pour la biométrie (empreinte/Face ID)
+- **expo-barcode-scanner** pour le scan QR code patient
+- **expo-notifications** pour les push notifications
+- **@react-native-community/netinfo** + **AsyncStorage** pour l'offline sync
+- **EAS Build** pour les builds Android (APK/AAB)
+
+#### 8 écrans implémentés
+
+1. **LoginScreen** — authentification email/password avec persistance session
+2. **BiometricLockScreen** — verrou biométrique au démarrage (si activé)
+3. **DashboardScreen** — KPIs du jour (patients, admissions, lits, urgences, finances)
+4. **PatientsListScreen** — liste paginée + recherche debouncée 300ms
+5. **PatientDetailScreen** — dossier patient (constantes, labo, ordonnances) + saisie constante
+6. **QRScanScreen** — scan QR code patient au pied du lit → navigation directe
+7. **NotificationsScreen** — liste paginée avec badges priorité + marquer comme lu
+8. **ProfileScreen** — profil utilisateur + toggle biométrie + déconnexion
+
+#### 2 hooks réutilisables
+
+- **`useOfflineSync`** — file d'attente des mutations offline via AsyncStorage.
+  Détection réseau via NetInfo, replay FIFO au retour du réseau, gestion
+  d'erreurs (4xx → abandon, 5xx → retry jusqu'à 5 fois).
+- **`usePushNotifications`** — enregistrement Expo Push Token auprès du backend,
+  configuration des channels Android (`default` + `urgent`), listeners
+  foreground + tap.
+
+#### Authentification biométrique
+
+Au démarrage, si une session est persistée et que la biométrie est activée :
+- L'app se verrouille (BiometricLockScreen)
+- L'utilisateur doit s'authentifier via empreinte/Face ID
+- Bouton "Se déconnecter" en secours
+
+Activation/désactivation depuis ProfileScreen. Détection du hardware
+compatible via `LocalAuthentication.hasHardwareAsync()` + `isEnrolledAsync()`.
+
+#### Scan QR code patient
+
+Le QR code patient (sur le bracelet d'identification) contient soit :
+- l'ID interne du patient (UUID 36 chars), soit
+- le patient_number (format PAT-YYYYMMDDHHMMSS)
+
+Au scan → appel API `GET /patients/{id_or_number}` → navigation directe vers
+PatientDetailScreen. Gestion des erreurs (patient introuvable, QR invalide,
+réseau).
+
+#### Mode hors-ligne
+
+Quand le réseau est coupé (NetInfo détecte `isConnected=false`) :
+- Les mutations (POST/PATCH/DELETE) sont stockées dans AsyncStorage
+- Affichage d'un message "Sauvegardé hors-ligne"
+- Au retour du réseau, replay FIFO automatique
+- 4xx → abandon définitif, 5xx → retry jusqu'à 5 fois
+
+Usage typique :
+```typescript
+const { isOnline, enqueue } = useOfflineSync();
+
+if (!isOnline) {
+  await enqueue('POST', '/clinical/measurements', payload);
+  Alert.alert('Sauvegardé hors-ligne', 'Sera synchronisé au retour du réseau.');
+} else {
+  await createMeasurement(payload);
+}
+```
+
+#### Configuration
+
+- **Backend URL** : `EXPO_PUBLIC_API_URL` env var (défaut `http://10.0.2.2:8000/api/v1` pour émulateur Android, `http://localhost:8000/api/v1` pour iOS)
+- **Permissions Android** : CAMERA, USE_BIOMETRIC, USE_FINGERPRINT, VIBRATE, INTERNET, ACCESS_NETWORK_STATE
+- **EAS Build** : builds cloud Expo (~15min pour APK Android)
+- **EAS Update** : mises à jour OTA sans rebuild natif
+
+#### Documentation
+
+- `mobile/README.md` — guide complet d'installation, structure du projet, build production, points d'attention
+
+#### Points d'attention v1.7
+
+1. **Endpoint push token** : `POST /user-profile/devices` est appelé mais n'existe pas encore côté backend. À implémenter en v1.8 pour activer les push réels.
+2. **Pas de temps réel WebSocket** : le dashboard ne se met pas à jour en live (pull-to-refresh uniquement). L'intégration WebSocket (déjà présente côté web via `useRealtimeKPIs`) est prévue en v1.8.
+3. **Saisie clinique limitée** : seules les constantes vitales peuvent être saisies depuis le mobile. Les prescriptions, ordonnances labo/imagerie, admissions etc. restent sur l'interface desktop (plus ergonomique).
+4. **Pas de cache patient offline** : la liste des patients et le détail patient ne sont pas mis en cache AsyncStorage. En offline, seules les mutations sont queueées — pas de consultation des données déjà chargées. À améliorer en v1.8 avec un cache local SQLite (expo-sqlite).
+5. **Auth biométrique optionnelle** : activée par défaut sur device compatible, mais désactivable depuis ProfileScreen. En cas de problème, l'utilisateur peut toujours se déconnecter et se reconnecter avec email/password.
+6. **Multi-tenant** : l'app envoie automatiquement `X-Facility-ID` pour les rôles non-SUPER_ADMIN (comme le frontend web). Le user conserve son facility_id au login.
+
+#### Roadmap v1.8 (non incluse)
+
+- Cache local SQLite pour consultation offline des dossiers patients
+- WebSocket temps réel sur le dashboard (KPIs live)
+- Push notifications avec navigation contextuelle (tap → PatientDetail)
+- Saisie de notes cliniques courtes (observation, évolution)
+- Mode portrait/paysage optimisé pour tablettes
+- Authentification par code PIN (alternative à la biométrie)
+- Internationalisation EN/FR (cohérent avec le web)
+
+---
+
 ## [1.5.0] — 2026-06-21
 
 ### Added — Module RH v2 (plannings, gardes, congés, astreintes, remplacements)

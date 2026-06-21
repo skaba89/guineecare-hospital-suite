@@ -5,12 +5,18 @@
 [![E2E admin pages](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-admin-pages.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-admin-pages.yml)
 [![E2E Playwright](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-playwright.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-playwright.yml)
 [![OpenAPI drift](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/openapi-check.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/openapi-check.yml)
-[![Version](https://img.shields.io/badge/version-v1.5.0-blue.svg)](https://github.com/skaba89/guineecare-hospital-suite/releases)
+[![Version](https://img.shields.io/badge/version-v1.7.0-blue.svg)](https://github.com/skaba89/guineecare-hospital-suite/releases)
 [![License](https://img.shields.io/badge/license-Private-red.svg)](#licence)
 
 Plateforme hospitalière complète pour la Guinée, inspirée des meilleurs SIH modernes : dossier patient informatisé, maternité, urgences, hospitalisation, pharmacie, laboratoire, imagerie, facturation, bloc opératoire, RH, qualité, reporting national et architecture technique industrielle.
 
-**Version actuelle :** `v1.5.0` — Module RH v2 (plannings hebdo/mensuels, gardes jour/nuit/24h, astreintes téléphoniques/physiques, congés avec soldes annuels, demandes de remplacement entre staffs avec workflow REQUESTED → ACCEPTED → APPROVED) — complète les évolutions moyen terme v1.4 (SMS réel Orange/MTN/Moov + dashboard qualité avancé OMS/HAS avec seuils d'alerte automatiques)
+**Version actuelle :** `v1.7.0` — Application mobile Android (React Native + Expo) avec authentification biométrique (empreinte/Face ID), scan QR code patient au pied du lit, notifications push, mode hors-ligne avec file d'attente des mutations, 8 écrans (Login, BiometricLock, Dashboard, Patients, PatientDetail, QRScan, Notifications, Profile) — complète les évolutions v1.4 (SMS réel + dashboard qualité OMS/HAS), v1.5 (RH v2 plannings/gardes/astreintes/congés), v1.6 (FHIR R4 + pagination server-side)
+
+## Composants
+
+- **`backend/`** — API FastAPI 0.115 + Python 3.12 + SQLAlchemy 2.0 + Alembic
+- **`frontend/`** — Web app React 18 + TypeScript + Vite + Tailwind CSS
+- **`mobile/`** — App mobile React Native 0.74 + Expo SDK 51 (Android + iOS)
 
 ## Objectif
 
