@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "../services/api";
 import { LookupData, Row } from "../types";
 import { showToast } from "../components/Toast";
 import { buildOptions, firstValue } from "../utils/options";
+import { usePaginatedList } from "../hooks/usePaginatedList";
+import { Pagination } from "../components/Pagination";
 import {
   Activity,
   CalendarCheck,
@@ -147,45 +149,84 @@ function TableauTab({
   lookups: LookupData;
   onCreated: () => void;
 }) {
-  const [admissions, setAdmissions] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Filtres serveur (appliqués via usePaginatedList.extraParams)
   const [statusFilter, setStatusFilter] = useState("OPEN");
   const [deptFilter, setDeptFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Données KPI (chargées séparément, indépendantes des filtres/pagination)
+  const [kpiData, setKpiData] = useState<Row[]>([]);
 
   const options = buildOptions(lookups);
 
-  const loadAdmissions = useCallback(async () => {
-    setLoading(true);
+  // Liste paginée des admissions (recherche server-side + filtres serveur).
+  // NOTE: le filtre statut est passé via extraParams.status (et NON via search),
+  // ce qui corrige l'ancien bug où params.set("search", statusFilter) filtrait
+  // sur admission_type au lieu du statut réel.
+  const {
+    items: admissions,
+    total,
+    page,
+    totalPages,
+    loading,
+    error,
+    search,
+    setSearch,
+    setPage,
+    reload,
+  } = usePaginatedList<Row>("/admissions", {
+    pageSize: 20,
+    debounceMs: 300,
+    extraParams: {
+      status: statusFilter || null,
+      department_id: deptFilter || null,
+      admission_type: typeFilter || null,
+      date_from: dateFrom || null,
+      date_to: dateTo || null,
+    },
+  });
+
+  // Charger toutes les admissions pour les KPIs (comptages globaux,
+  // indépendants des filtres/pagination de la table)
+  async function loadKpis() {
     try {
-      const params = new URLSearchParams();
-      if (statusFilter) params.set("search", statusFilter);
-      const qs = params.toString();
-      const payload = await apiRequest<any>(`/admissions${qs ? `?${qs}&page_size=1000` : "?page_size=1000"}`);
-      const data: Row[] = Array.isArray(payload.data) ? payload.data : [];
-      setAdmissions(data);
+      const payload = await apiRequest<any>("/admissions?page_size=1000");
+      setKpiData(Array.isArray(payload.data) ? payload.data : []);
     } catch {
       /* silent */
-    } finally {
-      setLoading(false);
     }
-  }, [statusFilter]);
+  }
 
   useEffect(() => {
-    loadAdmissions();
-  }, [loadAdmissions, refreshKey]);
-
-  useEffect(() => {
-    const handler = () => setRefreshKey((k) => k + 1);
-    window.addEventListener("refresh-resource", handler);
-    return () => window.removeEventListener("refresh-resource", handler);
+    loadKpis();
   }, []);
 
+  // Réagir aux refresh globaux (création/sortie d'admission ailleurs)
+  useEffect(() => {
+    const handler = () => {
+      reload();
+      loadKpis();
+    };
+    window.addEventListener("refresh-resource", handler);
+    return () => window.removeEventListener("refresh-resource", handler);
+  }, [reload]);
+
   function handleRefresh() {
-    setRefreshKey((k) => k + 1);
+    reload();
+    loadKpis();
     onCreated();
+  }
+
+  function handleResetFilters() {
+    setStatusFilter("OPEN");
+    setDeptFilter("");
+    setTypeFilter("");
+    setDateFrom("");
+    setDateTo("");
+    setSearch("");
+    setPage(1);
   }
 
   /* ── Resolve names ─────────────────────────────── */
@@ -211,19 +252,19 @@ function TableauTab({
   const todayStr = now.toDateString();
 
   const kpis = useMemo(() => {
-    const active = admissions.filter(
+    const active = kpiData.filter(
       (a) => a.status === "OPEN" || a.status === "ACTIVE"
     );
-    const todayAdmissions = admissions.filter((a) => {
+    const todayAdmissions = kpiData.filter((a) => {
       if (!a.admitted_at) return false;
       return new Date(a.admitted_at).toDateString() === todayStr;
     });
-    const hospitalized = admissions.filter(
+    const hospitalized = kpiData.filter(
       (a) =>
         (a.status === "OPEN" || a.status === "ACTIVE") &&
         a.admission_type === "HOSPITALIZATION"
     );
-    const plannedDischarges = admissions.filter(
+    const plannedDischarges = kpiData.filter(
       (a) => a.status === "CLOSED" || a.status === "DISCHARGED"
     );
     return {
@@ -232,37 +273,9 @@ function TableauTab({
       hospCount: hospitalized.length,
       dischargeCount: plannedDischarges.length,
     };
-  }, [admissions, todayStr]);
+  }, [kpiData, todayStr]);
 
-  /* ── Apply filters ─────────────────────────────── */
-  const filtered = useMemo(() => {
-    let rows = admissions.filter(
-      (a) => a.status === "OPEN" || a.status === "ACTIVE"
-    );
-    if (statusFilter === "ALL") {
-      rows = admissions;
-    } else if (statusFilter === "CLOSED") {
-      rows = admissions.filter(
-        (a) => a.status === "CLOSED" || a.status === "DISCHARGED"
-      );
-    }
-    if (deptFilter) {
-      rows = rows.filter((a) => a.department_id === deptFilter);
-    }
-    if (dateFrom) {
-      rows = rows.filter(
-        (a) => a.admitted_at && new Date(a.admitted_at) >= new Date(dateFrom)
-      );
-    }
-    if (dateTo) {
-      const to = new Date(dateTo);
-      to.setHours(23, 59, 59, 999);
-      rows = rows.filter(
-        (a) => a.admitted_at && new Date(a.admitted_at) <= to
-      );
-    }
-    return rows;
-  }, [admissions, statusFilter, deptFilter, dateFrom, dateTo]);
+  /* ── Apply filters ── (filtrage server-side via usePaginatedList.extraParams) */
 
   /* ── Color coding helpers ──────────────────────── */
   function getStayIndicator(admission: Row): React.ReactNode {
@@ -357,6 +370,25 @@ function TableauTab({
         />
       </div>
 
+      {/* ── Barre de recherche (server-side, debounce 300ms) ── */}
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          marginBottom: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <input
+          type="text"
+          placeholder="🔍 Rechercher (patient, numéro, motif)..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 250, padding: "8px 12px" }}
+        />
+      </div>
+
       {/* ── Filters ────────────────────────────────────── */}
       <div
         className="card"
@@ -373,19 +405,43 @@ function TableauTab({
           <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Statut</span>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
             style={{ minWidth: "160px", fontSize: "13px" }}
           >
+            <option value="">Tous statuts</option>
             <option value="OPEN">Actives</option>
             <option value="CLOSED">Sortis</option>
-            <option value="ALL">Tous</option>
+          </select>
+        </div>
+        <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
+          <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Type</span>
+          <select
+            value={typeFilter}
+            onChange={(e) => {
+              setTypeFilter(e.target.value);
+              setPage(1);
+            }}
+            style={{ minWidth: "160px", fontSize: "13px" }}
+          >
+            <option value="">Tous types</option>
+            {ADMISSION_TYPE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
           </select>
         </div>
         <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
           <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Service</span>
           <select
             value={deptFilter}
-            onChange={(e) => setDeptFilter(e.target.value)}
+            onChange={(e) => {
+              setDeptFilter(e.target.value);
+              setPage(1);
+            }}
             style={{ minWidth: "180px", fontSize: "13px" }}
           >
             <option value="">Tous les services</option>
@@ -401,7 +457,10 @@ function TableauTab({
           <input
             type="date"
             value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              setPage(1);
+            }}
             style={{ fontSize: "13px" }}
           />
         </div>
@@ -410,18 +469,16 @@ function TableauTab({
           <input
             type="date"
             value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
+            onChange={(e) => {
+              setDateTo(e.target.value);
+              setPage(1);
+            }}
             style={{ fontSize: "13px" }}
           />
         </div>
         <button
           className="btn btn-outline btn-sm"
-          onClick={() => {
-            setStatusFilter("OPEN");
-            setDeptFilter("");
-            setDateFrom("");
-            setDateTo("");
-          }}
+          onClick={handleResetFilters}
           style={{ height: "38px" }}
         >
           <X size={14} />
@@ -445,7 +502,11 @@ function TableauTab({
             Chargement des admissions...
           </p>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : error ? (
+        <div className="card" style={{ padding: "16px", color: "var(--danger)" }}>
+          {error}
+        </div>
+      ) : admissions.length === 0 ? (
         <div className="card" style={{ textAlign: "center", padding: "32px" }}>
           <p className="muted">Aucune admission trouvée.</p>
         </div>
@@ -465,7 +526,7 @@ function TableauTab({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((adm) => {
+                {admissions.map((adm) => {
                   const statusInfo = STATUS_MAP[adm.status] || {
                     label: adm.status,
                     badge: "badge-gray",
@@ -543,17 +604,14 @@ function TableauTab({
               </tbody>
             </table>
           </div>
-          <div
-            style={{
-              padding: "12px 16px",
-              borderTop: "1px solid var(--border-light)",
-              fontSize: "13px",
-              color: "var(--muted)",
-              fontWeight: 600,
-            }}
-          >
-            {filtered.length} admission{filtered.length > 1 ? "s" : ""} affichée
-            {filtered.length > 1 ? "s" : ""}
+          <div style={{ padding: "0 16px" }}>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              onPageChange={setPage}
+              loading={loading}
+            />
           </div>
         </div>
       )}
@@ -1051,30 +1109,38 @@ function NouvelleAdmissionTab({
    ═══════════════════════════════════════════════════════════════════ */
 
 function HistoriqueTab({ lookups }: { lookups: LookupData }) {
-  const [admissions, setAdmissions] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  const loadAdmissions = useCallback(async () => {
-    setLoading(true);
-    try {
-      const payload = await apiRequest<any>("/admissions?page_size=1000");
-      const data: Row[] = Array.isArray(payload.data) ? payload.data : [];
-      setAdmissions(data);
-    } catch {
-      /* silent */
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Liste paginée des admissions sorties (status=CLOSED, recherche server-side).
+  // Backend supporte status=CLOSED qui couvre les statuts CLOSED/DISCHARGED.
+  const {
+    items: admissions,
+    total,
+    page,
+    totalPages,
+    loading,
+    error,
+    search,
+    setSearch,
+    setPage,
+    reload,
+  } = usePaginatedList<Row>("/admissions", {
+    pageSize: 20,
+    debounceMs: 300,
+    extraParams: {
+      status: "CLOSED",
+      date_from: dateFrom || null,
+      date_to: dateTo || null,
+    },
+  });
 
+  // Réagir aux refresh globaux (création/sortie d'admission ailleurs)
   useEffect(() => {
-    loadAdmissions();
-    const handler = () => loadAdmissions();
+    const handler = () => reload();
     window.addEventListener("refresh-resource", handler);
     return () => window.removeEventListener("refresh-resource", handler);
-  }, [loadAdmissions]);
+  }, [reload]);
 
   function getPatientName(patientId: string): string {
     const p = lookups.patients.find((x) => x.id === patientId);
@@ -1087,27 +1153,6 @@ function HistoriqueTab({ lookups }: { lookups: LookupData }) {
     const d = lookups.departments.find((x) => x.id === deptId);
     return d ? `${d.code || ""} - ${d.name || d.id}`.trim() : "—";
   }
-
-  const discharged = useMemo(() => {
-    let rows = admissions.filter(
-      (a) => a.status === "CLOSED" || a.status === "DISCHARGED"
-    );
-    if (dateFrom) {
-      rows = rows.filter(
-        (a) =>
-          a.closed_at && new Date(a.closed_at) >= new Date(dateFrom)
-      );
-    }
-    if (dateTo) {
-      const to = new Date(dateTo);
-      to.setHours(23, 59, 59, 999);
-      rows = rows.filter(
-        (a) =>
-          a.closed_at && new Date(a.closed_at) <= to
-      );
-    }
-    return rows;
-  }, [admissions, dateFrom, dateTo]);
 
   function getStayDuration(adm: Row): string {
     if (!adm.admitted_at) return "—";
@@ -1122,18 +1167,23 @@ function HistoriqueTab({ lookups }: { lookups: LookupData }) {
 
   return (
     <>
-      {/* ── Filters ────────────────────────────────────── */}
+      {/* ── Barre de recherche + filtres date (server-side, debounce 300ms) ── */}
       <div
-        className="card"
         style={{
-          marginBottom: "16px",
           display: "flex",
-          gap: "12px",
+          gap: 12,
+          alignItems: "center",
+          marginBottom: 12,
           flexWrap: "wrap",
-          alignItems: "end",
-          padding: "16px",
         }}
       >
+        <input
+          type="text"
+          placeholder="🔍 Rechercher (patient, numéro)..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 250, padding: "8px 12px" }}
+        />
         <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
           <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
             Date sortie début
@@ -1141,7 +1191,10 @@ function HistoriqueTab({ lookups }: { lookups: LookupData }) {
           <input
             type="date"
             value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              setPage(1);
+            }}
             style={{ fontSize: "13px" }}
           />
         </div>
@@ -1152,7 +1205,10 @@ function HistoriqueTab({ lookups }: { lookups: LookupData }) {
           <input
             type="date"
             value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
+            onChange={(e) => {
+              setDateTo(e.target.value);
+              setPage(1);
+            }}
             style={{ fontSize: "13px" }}
           />
         </div>
@@ -1161,6 +1217,8 @@ function HistoriqueTab({ lookups }: { lookups: LookupData }) {
           onClick={() => {
             setDateFrom("");
             setDateTo("");
+            setSearch("");
+            setPage(1);
           }}
           style={{ height: "38px" }}
         >
@@ -1177,7 +1235,11 @@ function HistoriqueTab({ lookups }: { lookups: LookupData }) {
             Chargement de l'historique...
           </p>
         </div>
-      ) : discharged.length === 0 ? (
+      ) : error ? (
+        <div className="card" style={{ padding: "16px", color: "var(--danger)" }}>
+          {error}
+        </div>
+      ) : admissions.length === 0 ? (
         <div className="card" style={{ textAlign: "center", padding: "32px" }}>
           <p className="muted">Aucun patient sorti trouvé.</p>
         </div>
@@ -1196,7 +1258,7 @@ function HistoriqueTab({ lookups }: { lookups: LookupData }) {
                 </tr>
               </thead>
               <tbody>
-                {discharged.map((adm) => (
+                {admissions.map((adm) => (
                   <tr key={adm.id}>
                     <td style={{ fontWeight: 600 }}>
                       {getPatientName(adm.patient_id)}
@@ -1232,17 +1294,14 @@ function HistoriqueTab({ lookups }: { lookups: LookupData }) {
               </tbody>
             </table>
           </div>
-          <div
-            style={{
-              padding: "12px 16px",
-              borderTop: "1px solid var(--border-light)",
-              fontSize: "13px",
-              color: "var(--muted)",
-              fontWeight: 600,
-            }}
-          >
-            {discharged.length} sortie{discharged.length > 1 ? "s" : ""} affichée
-            {discharged.length > 1 ? "s" : ""}
+          <div style={{ padding: "0 16px" }}>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              onPageChange={setPage}
+              loading={loading}
+            />
           </div>
         </div>
       )}

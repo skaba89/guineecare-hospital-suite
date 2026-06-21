@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   TrendingUp,
   Plus,
-  Search,
   ShoppingCart,
   ArrowDownCircle,
   ArrowUpCircle,
@@ -27,6 +26,8 @@ import { apiRequest } from "../services/api";
 import { LookupData, Row } from "../types";
 import { showToast } from "../components/Toast";
 import { buildOptions, firstValue } from "../utils/options";
+import { usePaginatedList } from "../hooks/usePaginatedList";
+import { Pagination } from "../components/Pagination";
 
 type TabKey = "stock" | "dispensation" | "products" | "movements";
 
@@ -124,37 +125,49 @@ export function PharmacyPage({
    ═════════════════════════════════════════════════════════════════ */
 
 function StockTab({ lookups }: { lookups: LookupData }) {
-  const [stock, setStock] = useState<Row[]>([]);
+  // Référence produits (petite table) pour l'enrichissement + KPIs
   const [products, setProducts] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+
+  // Liste paginée des stocks (recherche server-side + debounce 300ms)
+  const {
+    items: stock,
+    total,
+    page,
+    totalPages,
+    loading,
+    error,
+    search,
+    setSearch,
+    setPage,
+    reload,
+  } = usePaginatedList<Row>("/pharmacy/stock", {
+    pageSize: 20,
+    debounceMs: 300,
+  });
 
   const options = buildOptions(lookups);
   const facilityId = firstValue(options.facilities);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [stockRes, prodRes] = await Promise.all([
-        apiRequest<any>("/pharmacy/stock?page_size=1000"),
-        apiRequest<any>("/pharmacy/products?page_size=1000"),
-      ]);
-      setStock(Array.isArray(stockRes.data) ? stockRes.data : []);
-      setProducts(Array.isArray(prodRes.data) ? prodRes.data : []);
-    } catch {
-      showToast("Erreur de chargement des stocks.", "error");
-    } finally {
-      setLoading(false);
+  // Charger les produits (petite table de référence) une seule fois
+  useEffect(() => {
+    async function loadProducts() {
+      try {
+        const res = await apiRequest<any>("/pharmacy/products?page_size=1000");
+        setProducts(Array.isArray(res.data) ? res.data : []);
+      } catch {
+        // silent — KPIs ne seront pas bloqués
+      }
     }
+    loadProducts();
   }, []);
 
+  // Réagir aux refresh globaux (création d'mouvement ailleurs)
   useEffect(() => {
-    loadData();
-    const handler = () => loadData();
+    const handler = () => reload();
     window.addEventListener("refresh-resource", handler);
     return () => window.removeEventListener("refresh-resource", handler);
-  }, [loadData]);
+  }, [reload]);
 
   // Build enriched stock items by merging stock with product info
   const enrichedStock: Row[] = stock.map((s) => {
@@ -162,20 +175,10 @@ function StockTab({ lookups }: { lookups: LookupData }) {
     return { ...s, ...prod, product_name: prod.name, product_code: prod.code };
   });
 
-  // Apply filters
-  const filtered = enrichedStock.filter((item: Row) => {
-    const matchSearch =
-      !search ||
-      (item.product_name || "")
-        .toLowerCase()
-        .includes(search.toLowerCase()) ||
-      (item.product_code || "")
-        .toLowerCase()
-        .includes(search.toLowerCase());
-    const matchCategory =
-      !categoryFilter || item.category === categoryFilter;
-    return matchSearch && matchCategory;
-  });
+  // Filtre catégorie appliqué côté client (le backend ne supporte pas category sur /stock)
+  const filtered = categoryFilter
+    ? enrichedStock.filter((item: Row) => item.category === categoryFilter)
+    : enrichedStock;
 
   // KPIs
   const totalProducts = products.length;
@@ -203,17 +206,6 @@ function StockTab({ lookups }: { lookups: LookupData }) {
     if (qty === 0) return "epuise";
     if (qty <= threshold) return "bas";
     return "ok";
-  }
-
-  if (loading) {
-    return (
-      <div className="card" style={{ textAlign: "center", padding: "32px" }}>
-        <div className="spinner" />
-        <p className="muted" style={{ marginTop: "12px" }}>
-          Chargement des stocks...
-        </p>
-      </div>
-    );
   }
 
   return (
@@ -274,142 +266,158 @@ function StockTab({ lookups }: { lookups: LookupData }) {
         </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="section-header">
-        <div style={{ display: "flex", gap: "12px", alignItems: "center", flex: 1 }}>
-          <div style={{ position: "relative", flex: 1, maxWidth: "360px" }}>
-            <Search
-              size={16}
-              style={{
-                position: "absolute",
-                left: "10px",
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: "var(--muted)",
-              }}
-            />
-            <input
-              type="text"
-              placeholder="Rechercher un produit..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ paddingLeft: "32px" }}
-            />
-          </div>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            style={{ maxWidth: "220px" }}
-          >
-            {CATEGORY_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button className="primary-button" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+      {/* Barre de recherche + filtre catégorie (recherche server-side, debounce 300ms) */}
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          marginBottom: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <input
+          type="text"
+          placeholder="🔍 Rechercher un produit..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 250, padding: "8px 12px" }}
+        />
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          style={{ padding: "8px 12px", minWidth: 180 }}
+        >
+          {CATEGORY_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <button
+          className="primary-button"
+          style={{ display: "flex", alignItems: "center", gap: "6px" }}
+        >
           <ShoppingCart size={16} />
           Commande fournisseur
         </button>
       </div>
 
       {/* Stock Table */}
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <div className="table-wrapper">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Produit</th>
-                <th>Catégorie</th>
-                <th>Forme</th>
-                <th>Dosage</th>
-                <th style={{ textAlign: "right" }}>Qté dispo</th>
-                <th style={{ textAlign: "right" }}>Seuil min</th>
-                <th>Statut</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={8} style={{ textAlign: "center", padding: "24px" }}>
-                    <span className="muted">Aucun produit en stock.</span>
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((item: Row) => {
-                  const status = getStockStatus(item);
-                  return (
-                    <tr
-                      key={item.id}
-                      style={{
-                        background:
-                          status === "epuise"
-                            ? "var(--danger-light)"
-                            : status === "bas"
-                            ? "var(--warning-light)"
-                            : "inherit",
-                      }}
-                    >
-                      <td style={{ fontWeight: 600 }}>
-                        {item.product_name || item.product_id || "—"}
-                        {item.product_code && (
-                          <span
-                            className="muted"
-                            style={{ fontWeight: 400, marginLeft: "8px", fontSize: "12px" }}
-                          >
-                            ({item.product_code})
-                          </span>
-                        )}
-                      </td>
-                      <td>{item.category || "—"}</td>
-                      <td>{item.form || "—"}</td>
-                      <td>{item.dosage || "—"}</td>
-                      <td style={{ textAlign: "right", fontWeight: 700 }}>
-                        {item.quantity_available ?? 0}
-                      </td>
-                      <td style={{ textAlign: "right" }}>
-                        {item.min_threshold ?? 0}
-                      </td>
-                      <td>
-                        <span
-                          className={`badge ${
-                            status === "ok"
-                              ? "badge-green"
-                              : status === "bas"
-                              ? "badge-yellow"
-                              : "badge-red"
-                          }`}
-                        >
-                          {status === "ok"
-                            ? "OK"
-                            : status === "bas"
-                            ? "Bas"
-                            : "Épuisé"}
-                        </span>
-                      </td>
-                      <td>
-                        <button
-                          className="secondary-button"
-                          style={{ padding: "4px 10px", fontSize: "12px" }}
-                          onClick={() =>
-                            alert(
-                              `Détail produit: ${item.product_name || item.product_id}`
-                            )
-                          }
-                        >
-                          Détail
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+      {loading ? (
+        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+          <div className="spinner" />
         </div>
-      </div>
+      ) : error ? (
+        <div className="card" style={{ padding: "16px", color: "var(--danger)" }}>
+          {error}
+        </div>
+      ) : (
+        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+          <div className="table-wrapper">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Produit</th>
+                  <th>Catégorie</th>
+                  <th>Forme</th>
+                  <th>Dosage</th>
+                  <th style={{ textAlign: "right" }}>Qté dispo</th>
+                  <th style={{ textAlign: "right" }}>Seuil min</th>
+                  <th>Statut</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: "center", padding: "24px" }}>
+                      <span className="muted">Aucun produit en stock.</span>
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((item: Row) => {
+                    const status = getStockStatus(item);
+                    return (
+                      <tr
+                        key={item.id}
+                        style={{
+                          background:
+                            status === "epuise"
+                              ? "var(--danger-light)"
+                              : status === "bas"
+                              ? "var(--warning-light)"
+                              : "inherit",
+                        }}
+                      >
+                        <td style={{ fontWeight: 600 }}>
+                          {item.product_name || item.product_id || "—"}
+                          {item.product_code && (
+                            <span
+                              className="muted"
+                              style={{ fontWeight: 400, marginLeft: "8px", fontSize: "12px" }}
+                            >
+                              ({item.product_code})
+                            </span>
+                          )}
+                        </td>
+                        <td>{item.category || "—"}</td>
+                        <td>{item.form || "—"}</td>
+                        <td>{item.dosage || "—"}</td>
+                        <td style={{ textAlign: "right", fontWeight: 700 }}>
+                          {item.quantity_available ?? 0}
+                        </td>
+                        <td style={{ textAlign: "right" }}>
+                          {item.min_threshold ?? 0}
+                        </td>
+                        <td>
+                          <span
+                            className={`badge ${
+                              status === "ok"
+                                ? "badge-green"
+                                : status === "bas"
+                                ? "badge-yellow"
+                                : "badge-red"
+                            }`}
+                          >
+                            {status === "ok"
+                              ? "OK"
+                              : status === "bas"
+                              ? "Bas"
+                              : "Épuisé"}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            className="secondary-button"
+                            style={{ padding: "4px 10px", fontSize: "12px" }}
+                            onClick={() =>
+                              alert(
+                                `Détail produit: ${item.product_name || item.product_id}`
+                              )
+                            }
+                          >
+                            Détail
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ padding: "0 16px" }}>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              onPageChange={setPage}
+              loading={loading}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Chart */}
       <div className="card chart-container" style={{ marginTop: "20px" }}>
@@ -802,10 +810,27 @@ function ProductsTab({
   const options = buildOptions(lookups);
   const facilityId = firstValue(options.facilities);
 
-  const [products, setProducts] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState("");
+
+  // Liste paginée des produits (recherche server-side + filtre catégorie + debounce 300ms)
+  const {
+    items: products,
+    total,
+    page,
+    totalPages,
+    loading,
+    error,
+    search,
+    setSearch,
+    setPage,
+    reload,
+  } = usePaginatedList<Row>("/pharmacy/products", {
+    pageSize: 20,
+    debounceMs: 300,
+    extraParams: { category: categoryFilter || null },
+  });
 
   // Form fields
   const [code, setCode] = useState("");
@@ -815,24 +840,12 @@ function ProductsTab({
   const [dosage, setDosage] = useState("");
   const [minThreshold, setMinThreshold] = useState("10");
 
-  const loadProducts = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await apiRequest<any>("/pharmacy/products?page_size=1000");
-      setProducts(Array.isArray(res.data) ? res.data : []);
-    } catch {
-      showToast("Erreur de chargement des produits.", "error");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Réagir aux refresh globaux (création d'produit ailleurs)
   useEffect(() => {
-    loadProducts();
-    const handler = () => loadProducts();
+    const handler = () => reload();
     window.addEventListener("refresh-resource", handler);
     return () => window.removeEventListener("refresh-resource", handler);
-  }, [loadProducts]);
+  }, [reload]);
 
   function resetForm() {
     setCode("");
@@ -866,7 +879,7 @@ function ProductsTab({
       resetForm();
       setShowForm(false);
       onCreated();
-      loadProducts();
+      reload();
     } catch (err: any) {
       showToast(err.message || "Erreur lors de la création.", "error");
     } finally {
@@ -971,9 +984,46 @@ function ProductsTab({
         </div>
       )}
 
+      {/* Barre de recherche + filtre catégorie (server-side, debounce 300ms) */}
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          marginBottom: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <input
+          type="text"
+          placeholder="🔍 Rechercher (code, nom)..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 250, padding: "8px 12px" }}
+        />
+        <select
+          value={categoryFilter}
+          onChange={(e) => {
+            setCategoryFilter(e.target.value);
+            setPage(1);
+          }}
+          style={{ padding: "8px 12px", minWidth: 180 }}
+        >
+          {CATEGORY_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {loading ? (
         <div className="card" style={{ textAlign: "center", padding: "32px" }}>
           <div className="spinner" />
+        </div>
+      ) : error ? (
+        <div className="card" style={{ padding: "16px", color: "var(--danger)" }}>
+          {error}
         </div>
       ) : (
         <div className="card" style={{ marginTop: showForm ? "16px" : 0, padding: 0, overflow: "hidden" }}>
@@ -1025,6 +1075,15 @@ function ProductsTab({
               </tbody>
             </table>
           </div>
+          <div style={{ padding: "0 16px" }}>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              onPageChange={setPage}
+              loading={loading}
+            />
+          </div>
         </div>
       )}
     </>
@@ -1045,34 +1104,45 @@ function MovementsTab({
   const options = buildOptions(lookups);
   const facilityId = firstValue(options.facilities);
 
-  const [movements, setMovements] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [typeFilter, setTypeFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  // Liste paginée des mouvements (recherche server-side + filtres type/date + debounce 300ms)
+  const {
+    items: movements,
+    total,
+    page,
+    totalPages,
+    loading,
+    error,
+    search,
+    setSearch,
+    setPage,
+    reload,
+  } = usePaginatedList<Row>("/pharmacy/stock/movements", {
+    pageSize: 20,
+    debounceMs: 300,
+    extraParams: {
+      movement_type: typeFilter || null,
+      date_from: dateFrom || null,
+      date_to: dateTo || null,
+    },
+  });
 
   // Form fields for entry
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [reason, setReason] = useState("");
 
-  const loadMovements = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await apiRequest<any>("/pharmacy/stock/movements?page_size=1000");
-      setMovements(Array.isArray(res.data) ? res.data : []);
-    } catch {
-      showToast("Erreur de chargement des mouvements.", "error");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Réagir aux refresh globaux (création d'mouvement ailleurs)
   useEffect(() => {
-    loadMovements();
-    const handler = () => loadMovements();
+    const handler = () => reload();
     window.addEventListener("refresh-resource", handler);
     return () => window.removeEventListener("refresh-resource", handler);
-  }, [loadMovements]);
+  }, [reload]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -1098,7 +1168,7 @@ function MovementsTab({
       setReason("");
       setShowForm(false);
       onCreated();
-      loadMovements();
+      reload();
     } catch (err: any) {
       showToast(err.message || "Erreur lors de l'entrée.", "error");
     } finally {
@@ -1182,9 +1252,84 @@ function MovementsTab({
         </div>
       )}
 
+      {/* Barre de recherche + filtres (server-side, debounce 300ms) */}
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          marginBottom: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <input
+          type="text"
+          placeholder="🔍 Rechercher (motif, produit)..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 250, padding: "8px 12px" }}
+        />
+        <select
+          value={typeFilter}
+          onChange={(e) => {
+            setTypeFilter(e.target.value);
+            setPage(1);
+          }}
+          style={{ padding: "8px 12px", minWidth: 140 }}
+        >
+          <option value="">Tous types</option>
+          <option value="IN">Entrée</option>
+          <option value="OUT">Sortie</option>
+        </select>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: 13,
+            color: "var(--muted)",
+          }}
+        >
+          Du
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              setPage(1);
+            }}
+            style={{ padding: "8px 12px" }}
+          />
+        </label>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: 13,
+            color: "var(--muted)",
+          }}
+        >
+          Au
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => {
+              setDateTo(e.target.value);
+              setPage(1);
+            }}
+            style={{ padding: "8px 12px" }}
+          />
+        </label>
+      </div>
+
       {loading ? (
         <div className="card" style={{ textAlign: "center", padding: "32px" }}>
           <div className="spinner" />
+        </div>
+      ) : error ? (
+        <div className="card" style={{ padding: "16px", color: "var(--danger)" }}>
+          {error}
         </div>
       ) : (
         <div className="card" style={{ marginTop: showForm ? "16px" : 0, padding: 0, overflow: "hidden" }}>
@@ -1245,6 +1390,15 @@ function MovementsTab({
                 )}
               </tbody>
             </table>
+          </div>
+          <div style={{ padding: "0 16px" }}>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              onPageChange={setPage}
+              loading={loading}
+            />
           </div>
         </div>
       )}

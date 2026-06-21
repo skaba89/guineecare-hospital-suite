@@ -29,6 +29,8 @@ import { LookupData, Row } from "../types";
 import { showToast } from "../components/Toast";
 import { buildOptions, firstValue } from "../utils/options";
 import { PdfButton } from "../components/PdfButton";
+import { usePaginatedList } from "../hooks/usePaginatedList";
+import { Pagination } from "../components/Pagination";
 
 type TabKey = "dashboard" | "invoices" | "payments" | "tariffs";
 
@@ -432,40 +434,55 @@ function InvoicesTab({
   const options = buildOptions(lookups);
   const facilityId = firstValue(options.facilities);
 
-  const [invoices, setInvoices] = useState<Row[]>([]);
+  // Tarifs chargés en plein (petite table de référence pour le dropdown du formulaire)
   const [tariffs, setTariffs] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Liste paginée des factures (recherche server-side + filtre statut)
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const {
+    items: invoices,
+    total,
+    page,
+    totalPages,
+    loading,
+    error,
+    search,
+    setSearch,
+    setPage,
+    reload,
+  } = usePaginatedList<Row>("/billing/invoices", {
+    pageSize: 20,
+    debounceMs: 300,
+    extraParams: { status: statusFilter || null },
+  });
+
+  // Charger les tarifs (petite table de référence) une seule fois
+  useEffect(() => {
+    async function loadTariffs() {
+      try {
+        const tariffsRes = await apiRequest<any>("/billing/tariffs?page_size=1000");
+        setTariffs(Array.isArray(tariffsRes.data) ? tariffsRes.data : []);
+      } catch {
+        // silent — le form ne sera pas bloqué
+      }
+    }
+    loadTariffs();
+  }, []);
+
+  // Réagir aux refresh globaux (création d'facture ailleurs)
+  useEffect(() => {
+    const handler = () => reload();
+    window.addEventListener("refresh-resource", handler);
+    return () => window.removeEventListener("refresh-resource", handler);
+  }, [reload]);
 
   // Form fields
   const [patientId, setPatientId] = useState("");
   const [invoiceLines, setInvoiceLines] = useState<InvoiceLine[]>([]);
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [description, setDescription] = useState("");
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [invoicesRes, tariffsRes] = await Promise.all([
-        apiRequest<any>("/billing/invoices?page_size=1000"),
-        apiRequest<any>("/billing/tariffs?page_size=1000"),
-      ]);
-      setInvoices(Array.isArray(invoicesRes.data) ? invoicesRes.data : []);
-      setTariffs(Array.isArray(tariffsRes.data) ? tariffsRes.data : []);
-    } catch {
-      showToast("Erreur de chargement des factures.", "error");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadData();
-    const handler = () => loadData();
-    window.addEventListener("refresh-resource", handler);
-    return () => window.removeEventListener("refresh-resource", handler);
-  }, [loadData]);
 
   function addLine() {
     setInvoiceLines([
@@ -508,7 +525,7 @@ function InvoicesTab({
     const now = new Date();
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, "0");
-    const seq = String(invoices.length + 1).padStart(4, "0");
+    const seq = String(total + 1).padStart(4, "0");
     return `FAC-${y}${m}-${seq}`;
   }
 
@@ -546,7 +563,7 @@ function InvoicesTab({
       setDescription("");
       setShowForm(false);
       onCreated();
-      loadData();
+      reload();
     } catch (err: any) {
       showToast(err.message || "Erreur lors de la création.", "error");
     } finally {
@@ -741,9 +758,49 @@ function InvoicesTab({
         </div>
       )}
 
+      {/* Barre de recherche + filtre statut (server-side, debounce 300ms) */}
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          marginBottom: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <input
+          type="text"
+          placeholder="🔍 Rechercher (n° facture, description)..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 250, padding: "8px 12px" }}
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(1);
+          }}
+          style={{ padding: "8px 12px", minWidth: 180 }}
+        >
+          <option value="">Tous statuts</option>
+          <option value="PENDING">En attente</option>
+          <option value="PARTIALLY_PAID">Partiellement payée</option>
+          <option value="PAID">Payée</option>
+          <option value="CANCELLED">Annulée</option>
+        </select>
+        <button className="primary-button" onClick={() => setShowForm(!showForm)}>
+          {showForm ? "Annuler" : "+ Nouvelle facture"}
+        </button>
+      </div>
+
       {loading ? (
         <div className="card" style={{ textAlign: "center", padding: "32px" }}>
           <div className="spinner" />
+        </div>
+      ) : error ? (
+        <div className="card" style={{ padding: "16px", color: "var(--danger)" }}>
+          {error}
         </div>
       ) : (
         <div className="card" style={{ marginTop: showForm ? "16px" : 0, padding: 0, overflow: "hidden" }}>
@@ -765,7 +822,7 @@ function InvoicesTab({
                 {invoices.length === 0 ? (
                   <tr>
                     <td colSpan={8} style={{ textAlign: "center", padding: "24px" }}>
-                      <span className="muted">Aucune facture enregistrée.</span>
+                      <span className="muted">Aucune facture trouvée.</span>
                     </td>
                   </tr>
                 ) : (
@@ -822,6 +879,15 @@ function InvoicesTab({
                 )}
               </tbody>
             </table>
+          </div>
+          <div style={{ padding: "0 16px" }}>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              onPageChange={setPage}
+              loading={loading}
+            />
           </div>
         </div>
       )}

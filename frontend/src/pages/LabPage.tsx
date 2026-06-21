@@ -29,6 +29,8 @@ import { LookupData, Row } from "../types";
 import { showToast } from "../components/Toast";
 import { buildOptions, firstValue } from "../utils/options";
 import { PdfButton } from "../components/PdfButton";
+import { usePaginatedList } from "../hooks/usePaginatedList";
+import { Pagination } from "../components/Pagination";
 
 type TabKey = "dashboard" | "orders" | "results" | "catalog";
 
@@ -365,11 +367,27 @@ function OrdersTab({
     label: `${d.last_name || ""} ${d.first_name || ""}`.trim(),
   }));
 
-  const [orders, setOrders] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Liste paginée des demandes (recherche server-side + filtre statut)
+  const {
+    items: orders,
+    total,
+    page,
+    totalPages,
+    loading,
+    error,
+    search,
+    setSearch,
+    setPage,
+    reload,
+  } = usePaginatedList<Row>("/laboratory/orders", {
+    pageSize: 20,
+    debounceMs: 300,
+    extraParams: { status: statusFilter || null },
+  });
 
   // Form fields
   const [patientId, setPatientId] = useState("");
@@ -377,28 +395,12 @@ function OrdersTab({
   const [priority, setPriority] = useState("NORMAL");
   const [clinicalInfo, setClinicalInfo] = useState("");
 
-  const loadOrders = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await apiRequest<any>("/laboratory/orders?page_size=1000");
-      setOrders(Array.isArray(res.data) ? res.data : []);
-    } catch {
-      showToast("Erreur de chargement des demandes.", "error");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Réagir aux refresh globaux (création d'demande ailleurs)
   useEffect(() => {
-    loadOrders();
-    const handler = () => loadOrders();
+    const handler = () => reload();
     window.addEventListener("refresh-resource", handler);
     return () => window.removeEventListener("refresh-resource", handler);
-  }, [loadOrders]);
-
-  const filteredOrders = statusFilter
-    ? orders.filter((o) => o.status === statusFilter)
-    : orders;
+  }, [reload]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -424,7 +426,7 @@ function OrdersTab({
       setClinicalInfo("");
       setShowForm(false);
       onCreated();
-      loadOrders();
+      reload();
     } catch (err: any) {
       showToast(err.message || "Erreur lors de la création.", "error");
     } finally {
@@ -438,7 +440,7 @@ function OrdersTab({
       // The backend doesn't have a status update endpoint, so we'll simulate
       // by just refreshing — in real scenario this would be a PATCH
       showToast("Analyse démarrée.", "success");
-      loadOrders();
+      reload();
     } catch (err: any) {
       showToast(err.message || "Erreur.", "error");
     }
@@ -447,7 +449,7 @@ function OrdersTab({
   async function handleCompleteOrder(orderId: string) {
     try {
       showToast("Analyse marquée comme terminée.", "success");
-      loadOrders();
+      reload();
     } catch (err: any) {
       showToast(err.message || "Erreur.", "error");
     }
@@ -468,20 +470,7 @@ function OrdersTab({
   return (
     <>
       <div className="section-header">
-        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-          <h2>Demandes d'analyses</h2>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={{ maxWidth: "200px" }}
-          >
-            <option value="">Tous les statuts</option>
-            <option value="ORDERED">En attente</option>
-            <option value="IN_PROGRESS">En cours</option>
-            <option value="RESULT_ENTERED">Résultat saisi</option>
-            <option value="VALIDATED">Validé</option>
-          </select>
-        </div>
+        <h2>Demandes d'analyses</h2>
         <button
           className="primary-button"
           style={{ display: "flex", alignItems: "center", gap: "6px" }}
@@ -567,9 +556,48 @@ function OrdersTab({
         </div>
       )}
 
+      {/* Barre de recherche + filtre statut (server-side, debounce 300ms) */}
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          marginBottom: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <input
+          type="text"
+          placeholder="🔍 Rechercher (patient, test, n° demande)..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 250, padding: "8px 12px" }}
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(1);
+          }}
+          style={{ padding: "8px 12px", minWidth: 180 }}
+        >
+          <option value="">Tous statuts</option>
+          <option value="ORDERED">En attente</option>
+          <option value="IN_PROGRESS">En cours</option>
+          <option value="RESULT_ENTERED">Résultat saisi</option>
+          <option value="VALIDATED">Validé</option>
+          <option value="COMPLETED">Terminé</option>
+          <option value="CANCELLED">Annulé</option>
+        </select>
+      </div>
+
       {loading ? (
         <div className="card" style={{ textAlign: "center", padding: "32px" }}>
           <div className="spinner" />
+        </div>
+      ) : error ? (
+        <div className="card" style={{ padding: "16px", color: "var(--danger)" }}>
+          {error}
         </div>
       ) : (
         <div className="card" style={{ marginTop: showForm ? "16px" : 0, padding: 0, overflow: "hidden" }}>
@@ -587,14 +615,14 @@ function OrdersTab({
                 </tr>
               </thead>
               <tbody>
-                {filteredOrders.length === 0 ? (
+                {orders.length === 0 ? (
                   <tr>
                     <td colSpan={7} style={{ textAlign: "center", padding: "24px" }}>
                       <span className="muted">Aucune demande trouvée.</span>
                     </td>
                   </tr>
                 ) : (
-                  filteredOrders.map((order) => {
+                  orders.map((order) => {
                     const statusCfg = ORDER_STATUS_MAP[order.status] || {
                       label: order.status,
                       badge: "badge-gray",
@@ -680,6 +708,15 @@ function OrdersTab({
               </tbody>
             </table>
           </div>
+          <div style={{ padding: "0 16px" }}>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              onPageChange={setPage}
+              loading={loading}
+            />
+          </div>
         </div>
       )}
     </>
@@ -700,40 +737,60 @@ function ResultsTab({
   const options = buildOptions(lookups);
   const facilityId = firstValue(options.facilities);
 
-  const [results, setResults] = useState<Row[]>([]);
-  const [orders, setOrders] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Liste paginée des résultats (recherche server-side + filtre statut)
+  const {
+    items: results,
+    total,
+    page,
+    totalPages,
+    loading,
+    error,
+    search,
+    setSearch,
+    setPage,
+    reload,
+  } = usePaginatedList<Row>("/laboratory/results", {
+    pageSize: 20,
+    debounceMs: 300,
+    extraParams: { status: statusFilter || null },
+  });
+
+  // Demandes chargées en plein (lookup pour le dropdown du formulaire +
+  // affichage patient/test dans la table des résultats)
+  const [orders, setOrders] = useState<Row[]>([]);
+
+  const loadOrdersLookup = useCallback(async () => {
+    try {
+      const ordersRes = await apiRequest<any>("/laboratory/orders?page_size=1000");
+      setOrders(Array.isArray(ordersRes.data) ? ordersRes.data : []);
+    } catch {
+      /* silent — le form ne sera pas bloqué */
+    }
+  }, []);
+
+  useEffect(() => {
+    loadOrdersLookup();
+  }, [loadOrdersLookup]);
+
+  // Réagir aux refresh globaux (création/validation ailleurs)
+  useEffect(() => {
+    const handler = () => {
+      reload();
+      loadOrdersLookup();
+    };
+    window.addEventListener("refresh-resource", handler);
+    return () => window.removeEventListener("refresh-resource", handler);
+  }, [reload, loadOrdersLookup]);
 
   // Form fields
   const [orderId, setOrderId] = useState("");
   const [findings, setFindings] = useState("");
   const [isAbnormal, setIsAbnormal] = useState(false);
   const [comments, setComments] = useState("");
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [resultsRes, ordersRes] = await Promise.all([
-        apiRequest<any>("/laboratory/results?page_size=1000"),
-        apiRequest<any>("/laboratory/orders?page_size=1000"),
-      ]);
-      setResults(Array.isArray(resultsRes.data) ? resultsRes.data : []);
-      setOrders(Array.isArray(ordersRes.data) ? ordersRes.data : []);
-    } catch {
-      showToast("Erreur de chargement des résultats.", "error");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadData();
-    const handler = () => loadData();
-    window.addEventListener("refresh-resource", handler);
-    return () => window.removeEventListener("refresh-resource", handler);
-  }, [loadData]);
 
   // Only IN_PROGRESS or RESULT_ENTERED orders are eligible for results
   const eligibleOrders = orders.filter(
@@ -772,7 +829,8 @@ function ResultsTab({
       setComments("");
       setShowForm(false);
       onCreated();
-      loadData();
+      reload();
+      loadOrdersLookup();
     } catch (err: any) {
       showToast(err.message || "Erreur lors de l'enregistrement.", "error");
     } finally {
@@ -786,7 +844,8 @@ function ResultsTab({
         method: "POST",
       });
       showToast("Résultat validé.", "success");
-      loadData();
+      reload();
+      loadOrdersLookup();
     } catch (err: any) {
       showToast(err.message || "Erreur lors de la validation.", "error");
     }
@@ -904,9 +963,44 @@ function ResultsTab({
         </div>
       )}
 
+      {/* Barre de recherche + filtre statut (server-side, debounce 300ms) */}
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          marginBottom: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <input
+          type="text"
+          placeholder="🔍 Rechercher (patient, test, résultat)..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 250, padding: "8px 12px" }}
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(1);
+          }}
+          style={{ padding: "8px 12px", minWidth: 180 }}
+        >
+          <option value="">Tous statuts</option>
+          <option value="DRAFT">Brouillon</option>
+          <option value="VALIDATED">Validé</option>
+        </select>
+      </div>
+
       {loading ? (
         <div className="card" style={{ textAlign: "center", padding: "32px" }}>
           <div className="spinner" />
+        </div>
+      ) : error ? (
+        <div className="card" style={{ padding: "16px", color: "var(--danger)" }}>
+          {error}
         </div>
       ) : (
         <div className="card" style={{ marginTop: showForm ? "16px" : 0, padding: 0, overflow: "hidden" }}>
@@ -1002,6 +1096,15 @@ function ResultsTab({
               </tbody>
             </table>
           </div>
+          <div style={{ padding: "0 16px" }}>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              onPageChange={setPage}
+              loading={loading}
+            />
+          </div>
         </div>
       )}
     </>
@@ -1022,10 +1125,25 @@ function CatalogTab({
   const options = buildOptions(lookups);
   const facilityId = firstValue(options.facilities);
 
-  const [tests, setTests] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Liste paginée des tests analytiques (recherche server-side + debounce)
+  const {
+    items: tests,
+    total,
+    page,
+    totalPages,
+    loading,
+    error,
+    search,
+    setSearch,
+    setPage,
+    reload,
+  } = usePaginatedList<Row>("/laboratory/tests", {
+    pageSize: 20,
+    debounceMs: 300,
+  });
 
   // Form fields
   const [code, setCode] = useState("");
@@ -1033,24 +1151,12 @@ function CatalogTab({
   const [category, setCategory] = useState("HEMATOLOGY");
   const [sampleType, setSampleType] = useState("BLOOD");
 
-  const loadTests = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await apiRequest<any>("/laboratory/tests?page_size=1000");
-      setTests(Array.isArray(res.data) ? res.data : []);
-    } catch {
-      showToast("Erreur de chargement du catalogue.", "error");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Réagir aux refresh globaux (création d'test ailleurs)
   useEffect(() => {
-    loadTests();
-    const handler = () => loadTests();
+    const handler = () => reload();
     window.addEventListener("refresh-resource", handler);
     return () => window.removeEventListener("refresh-resource", handler);
-  }, [loadTests]);
+  }, [reload]);
 
   function resetForm() {
     setCode("");
@@ -1081,7 +1187,7 @@ function CatalogTab({
       resetForm();
       setShowForm(false);
       onCreated();
-      loadTests();
+      reload();
     } catch (err: any) {
       showToast(err.message || "Erreur lors de la création.", "error");
     } finally {
@@ -1174,9 +1280,32 @@ function CatalogTab({
         </div>
       )}
 
+      {/* Barre de recherche (server-side, debounce 300ms) */}
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          marginBottom: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <input
+          type="text"
+          placeholder="🔍 Rechercher (code, nom, catégorie)..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 250, padding: "8px 12px" }}
+        />
+      </div>
+
       {loading ? (
         <div className="card" style={{ textAlign: "center", padding: "32px" }}>
           <div className="spinner" />
+        </div>
+      ) : error ? (
+        <div className="card" style={{ padding: "16px", color: "var(--danger)" }}>
+          {error}
         </div>
       ) : (
         <div className="card" style={{ marginTop: showForm ? "16px" : 0, padding: 0, overflow: "hidden" }}>
@@ -1227,6 +1356,15 @@ function CatalogTab({
                 )}
               </tbody>
             </table>
+          </div>
+          <div style={{ padding: "0 16px" }}>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              onPageChange={setPage}
+              loading={loading}
+            />
           </div>
         </div>
       )}

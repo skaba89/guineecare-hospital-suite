@@ -20,12 +20,41 @@ router = APIRouter(prefix="/admissions", tags=["admissions"])
 @router.get("")
 def list_admissions(
     pagination: PaginationParams = Depends(),
+    status: str | None = None,
+    patient_id: str | None = None,
+    department_id: str | None = None,
+    admission_type: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("admission.read")),
 ):
+    """Liste paginée des admissions avec filtres serveur.
+
+    Filtres : `status`, `patient_id`, `department_id`, `admission_type`,
+    `date_from`/`date_to` (sur admitted_at), `search`.
+    """
     query = tenant_query(db, Admission, current_user).order_by(Admission.admitted_at.desc())
     if pagination.search:
         query = query.filter(Admission.admission_type.ilike(f"%{pagination.search}%"))
+    if status:
+        query = query.filter(Admission.status == status.upper())
+    if patient_id:
+        query = query.filter(Admission.patient_id == patient_id)
+    if department_id:
+        query = query.filter(Admission.department_id == department_id)
+    if admission_type:
+        query = query.filter(Admission.admission_type == admission_type.upper())
+    if date_from:
+        try:
+            query = query.filter(Admission.admitted_at >= datetime.fromisoformat(date_from))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            query = query.filter(Admission.admitted_at <= datetime.fromisoformat(date_to))
+        except ValueError:
+            pass
     return paginate(query, pagination)
 
 
