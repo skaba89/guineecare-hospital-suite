@@ -1,7 +1,7 @@
 # Évolutions post-pilote — Roadmap v1.3 et au-delà
 
 > Public : équipe projet, direction médicale, Ministère de la Santé
-> Dernière mise à jour : 2026-06-21 (v1.3.0)
+> Dernière mise à jour : 2026-06-21 (v1.4.0)
 > Statut : document **dynamique** — alimenté par les retours utilisateurs
 > collectés via la boucle feedback de v1.1.0.
 
@@ -10,7 +10,7 @@ Hospital Suite après le pilote CHU Donka. Il ne s'agit pas d'un
 engagement formel : chaque évolution sera priorisée en fonction des
 retours terrain, des contraintes budgétaires et des arbitrages
 stratégiques. Le backlog est organisé en trois temps : **court terme**
-(v1.2-v1.3 — 6 mois), **moyen terme** (v1.4 — 9 mois) et **long terme**
+(v1.2-v1.3 — 6 mois), **moyen terme** (v1.4-v1.5 — 9 mois) et **long terme**
 (v2.0 — 12+ mois).
 
 ---
@@ -32,6 +32,103 @@ décroissant. Seules les évolutions à score ≥ 60 entrent dans la
 roadmap suivante. Le comité de pilotage (équipe projet + direction
 médicale + représentant Ministère) révise les priorités tous les
 mois.
+
+---
+
+## v1.4 — Livré le 2026-06-21 (release v1.4.0)
+
+La release v1.4.0 livre les **2 premières évolutions moyen terme** :
+le système de notifications SMS réelles via opérateurs locaux
+(évolution 10) et le tableau de bord qualité avancé avec seuils
+d'alerte automatiques (évolution 9). Les 3 évolutions moyen terme
+restantes (app mobile React Native, HL7 FHIR R4, module RH v2) sont
+reportées à v1.5.
+
+### ✅ Évolution 10 — Système de notifications SMS multicanal étendu (LIVRÉ)
+
+Module backend `notifications/sms` avec 3 nouvelles tables (migration
+Alembic `0017_sms_v14`) : `sms_providers` (configuration des opérateurs
+avec credentials chiffrés via Fernet optionnel), `sms_messages`
+(journal de chaque SMS envoyé : statut, coût GNF, opérateur,
+tentatives), `sms_routing_rules` (règles de routage par catégorie de
+notification).
+
+**Provider abstraction** : 4 implémentations — `MockSmsProvider`
+(dev/test, toujours succès), `OrangeSmsProvider` (OAuth2
+client_credentials → Orange SMS Pro API), `MtnSmsProvider` (Bearer
+token), `MoovSmsProvider` (clé API dans le body + signature).
+Normalisation automatique des numéros guinéens (`622334455` →
+`+224622334455`). Aucune exception ne remonte à l'appelant — tous les
+échecs sont journalisés dans `SmsMessage`.
+
+**Service** : `send_sms()` orchestre normalisation → sélection
+provider (règle de routage → provider préféré → provider par défaut →
+mock implicite) → envoi → journalisation. `retry_failed_sms()` avec
+max 3 tentatives. `get_sms_stats()` agrège par provider/catégorie sur
+une période.
+
+**Routes** (14 endpoints sous `/api/v1/notifications/sms/*`) : CRUD
+providers, CRUD règles de routage, envoi manuel, retry, historique
+paginé (filtres `status`/`provider_code`/`category`/`recipient_phone`),
+statistiques agrégées (coût total GNF, taux de succès par provider et
+par catégorie).
+
+**8 règles de routage par défaut** seedées automatiquement :
+`lab_critical` (urgent → SMS+in_app), `incident_critical` (urgent →
+SMS+email+in_app), `appointment_reminder` (normal → SMS+in_app),
+`medication_dispensed` (in_app only), `admission_created` (in_app),
+`invoice_ready` (normal → SMS+in_app), `quality_alert` (high →
+SMS+email+in_app), `system` (in_app only).
+
+**Frontend** : nouvelle page `/sms-admin` (4 onglets : Providers,
+Règles de routage, Historique, Statistiques) accessible aux
+ADMIN/SUPER_ADMIN. 27 tests backend.
+
+### ✅ Évolution 9 — Tableau de bord qualité avancé (LIVRÉ)
+
+Module backend `quality/dashboard` avec 2 nouvelles tables (migration
+Alembic `0018_quality_dashboard`) : `quality_thresholds` (seuils
+d'alerte par indicateur avec comparateur LT/LE/GT/GE/EQ, sévérité
+LOW/MEDIUM/HIGH/CRITICAL, cooldown anti-spam, notify_roles,
+channels), `quality_alerts` (alertes concrètes avec lifecycle OPEN →
+ACKNOWLEDGED → RESOLVED → CLOSED).
+
+**Catalogue d'indicateurs prédéfinis OMS/HAS** (10 indicateurs) :
+`INOSO_RATE` (infections nosocomiales, cible < 5%), `READMIT_30D`
+(réadmissions 30j, < 10%), `SAT_PATIENT` (satisfaction, > 80%),
+`ED_WAIT_4H` (délai urgences, < 4h), `MORTALITY_24H` (mortalité 24h,
+< 2%), `MED_ERROR_RATE` (erreurs médicamenteuses, < 1/1000),
+`SURG_SITE_INFECTION` (infections site opératoire, < 3%),
+`BED_OCCUPANCY` (occupation lits, ≤ 85%), `FALL_RATE` (chutes, <
+3/1000), `VAGINAL_DELIVERY_RATE` (accouchements voie basse, > 80%).
+
+**Service** : `compute_dashboard()` agrège KPIs + incidents +
+alertes + tendances. `check_thresholds()` évalue les mesures récentes
+contre les seuils, lève des `QualityAlert` si franchissement (avec
+cooldown), notifie via `notify()` du module notifications (multi-canal
+— la catégorie `quality_alert` déclenche SMS via la règle de routage).
+`evaluate_threshold()` gère comparaisons numériques et qualitatives
+(EQ only).
+
+**Routes** (11 endpoints sous `/api/v1/quality/*`) : dashboard agrégé,
+catalogue statique, seed-defaults (idempotent), CRUD thresholds,
+liste alertes, check manuel, ack/resolve/close.
+
+**Frontend** : 2 nouveaux onglets dans `QualityPage` — Dashboard
+(5 stat cards, tableau KPIs avec statut coloré, agrégats incidents,
+tendances SVG avec ligne de cible) et Alertes (liste avec filtre
+statut, actions ack/resolve/close, modal de résolution, CRUD seuils).
+22 tests backend.
+
+### ⏭️ Évolutions moyen terme — Statut
+
+Avec v1.4.0, 2 des 5 évolutions moyen terme sont livrées :
+
+- ✅ Évolution 9 — Tableau de bord qualité avancé (v1.4.0)
+- ✅ Évolution 10 — Notifications SMS réelles (v1.4.0)
+- ⏭️ Évolution 6 — Application mobile Android (React Native) — reportée v1.5
+- ⏭️ Évolution 7 — Interopérabilité HL7 FHIR R4 — reportée v1.5
+- ⏭️ Évolution 8 — Module RH v2 (plannings/gardes) — reportée v1.5
 
 ---
 

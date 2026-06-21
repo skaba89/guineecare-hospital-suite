@@ -39,8 +39,10 @@ from app.modules.surgery.models import OperatingRoom, SurgerySchedule, SurgeryTe
 from app.modules.quality.models import QualityIndicator, QualityMeasurement, IncidentReport
 from app.modules.reporting.models import NationalReport, EpidemicAlert, HealthStatistic
 from app.modules.notifications.models import Notification
+from app.modules.notifications.sms_models import SmsProvider, SmsMessage, SmsRoutingRule
 from app.modules.user_profile.models import UserPreference, UserFeedback, UserRecentItem
 from app.modules.documents.models import DocumentGenerated
+from app.modules.quality.dashboard_models import QualityThreshold, QualityAlert
 
 # Use SQLite for tests
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_guineecare.db"

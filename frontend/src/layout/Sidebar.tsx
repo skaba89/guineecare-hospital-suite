@@ -20,6 +20,7 @@ import {
   Building2,
   BarChart3,
   Bell,
+  MessageSquare,
   LogOut,
   ChevronDown,
   ChevronRight,
@@ -94,6 +95,7 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void | Prom
         { label: "Établissements", path: "/facilities", icon: Building2, visible: navVisibility.canSeeFacilities },
         { label: "Départements", path: "/departments", icon: Building2, visible: navVisibility.canSeeDepartments },
         { label: "Journal d'audit", path: "/audit", icon: Shield, visible: navVisibility.canSeeAudit },
+        { label: "SMS Admin", path: "/sms-admin", icon: MessageSquare, visible: navVisibility.canSeeSmsAdmin },
       ],
     },
     {

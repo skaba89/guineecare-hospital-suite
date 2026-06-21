@@ -50,6 +50,7 @@ export function useNavVisibility() {
     canSeeBilling: hasPermission("billing.read"),
     canSeePersonnel: hasPermission("personnel.read"),
     canSeeQuality: hasPermission("quality.read"),
+    canSeeSmsAdmin: isSuperAdmin || isAdmin,
     canSeeActivity: hasRole("SUPER_ADMIN", "ADMIN"),
     canSeeNational: hasRole("SUPER_ADMIN", "ADMIN"),
     canSeeReporting: hasPermission("reporting.read"),

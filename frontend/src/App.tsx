@@ -36,6 +36,7 @@ const FacilitiesPage = lazy(() => import("./pages/FacilitiesPage").then(m => ({ 
 const DepartmentsPage = lazy(() => import("./pages/DepartmentsPage").then(m => ({ default: m.DepartmentsPage })));
 const AuditPage = lazy(() => import("./pages/AuditPage").then(m => ({ default: m.AuditPage })));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage").then(m => ({ default: m.NotificationsPage })));
+const SmsAdminPage = lazy(() => import("./pages/SmsAdminPage").then(m => ({ default: m.SmsAdminPage })));
 
 function PageLoader() {
   return (
@@ -112,6 +113,7 @@ function AppInner() {
             <Route path="/facilities" element={<ProtectedRoute roles={["SUPER_ADMIN", "ADMIN"]}><FacilitiesPage /></ProtectedRoute>} />
             <Route path="/departments" element={<ProtectedRoute roles={["SUPER_ADMIN", "ADMIN"]}><DepartmentsPage /></ProtectedRoute>} />
             <Route path="/audit" element={<ProtectedRoute roles={["SUPER_ADMIN", "ADMIN"]}><AuditPage /></ProtectedRoute>} />
+            <Route path="/sms-admin" element={<ProtectedRoute roles={["SUPER_ADMIN", "ADMIN"]}><SmsAdminPage /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

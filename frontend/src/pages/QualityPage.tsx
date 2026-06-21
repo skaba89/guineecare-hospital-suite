@@ -3,10 +3,14 @@ import { apiRequest } from "../services/api";
 import { LookupData, Row } from "../types";
 import { showToast } from "../components/Toast";
 import { buildOptions, firstValue } from "../utils/options";
+import { QualityDashboardTab } from "./QualityDashboardTab";
+import { QualityAlertsTab } from "./QualityAlertsTab";
 
-type TabKey = "indicators" | "measurements" | "incidents";
+type TabKey = "dashboard" | "alerts" | "indicators" | "measurements" | "incidents";
 
 const TABS: { key: TabKey; label: string }[] = [
+  { key: "dashboard", label: "Dashboard" },
+  { key: "alerts", label: "Alertes" },
   { key: "indicators", label: "Indicateurs" },
   { key: "measurements", label: "Mesures" },
   { key: "incidents", label: "Événements indésirables" },
@@ -95,12 +99,12 @@ const FREQUENCY_LABEL: Record<string, string> = {
 };
 
 export function QualityPage({ lookups }: { lookups: LookupData }) {
-  const [activeTab, setActiveTab] = useState<TabKey>("indicators");
+  const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
 
   return (
     <section>
       <h1>Qualité / Pilotage</h1>
-      <p className="muted">Gestion des indicateurs qualité, mesures et événements indésirables.</p>
+      <p className="muted">Gestion des indicateurs qualité, mesures, événements indésirables et alertes automatiques.</p>
 
       <div className="tab-bar">
         {TABS.map((tab) => (
@@ -114,6 +118,8 @@ export function QualityPage({ lookups }: { lookups: LookupData }) {
         ))}
       </div>
 
+      {activeTab === "dashboard" && <QualityDashboardTab lookups={lookups} />}
+      {activeTab === "alerts" && <QualityAlertsTab lookups={lookups} />}
       {activeTab === "indicators" && <IndicatorsTab lookups={lookups} />}
       {activeTab === "measurements" && <MeasurementsTab lookups={lookups} />}
       {activeTab === "incidents" && <IncidentsTab lookups={lookups} />}
