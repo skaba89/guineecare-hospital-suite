@@ -25,6 +25,7 @@ import { BiometricLockScreen } from './screens/BiometricLockScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { PatientsListScreen } from './screens/PatientsListScreen';
 import { PatientDetailScreen } from './screens/PatientDetailScreen';
+import { PatientFormScreen } from './screens/PatientFormScreen';
 import { QRScanScreen } from './screens/QRScanScreen';
 import { NotificationsScreen } from './screens/NotificationsScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
@@ -123,6 +124,15 @@ function AppStack() {
         component={PatientDetailScreen}
         options={{
           title: 'Dossier patient',
+          headerStyle: { backgroundColor: '#0f766e' },
+          headerTintColor: '#ffffff',
+        }}
+      />
+      <Stack.Screen
+        name="PatientForm"
+        component={PatientFormScreen}
+        options={{
+          title: 'Nouveau patient',
           headerStyle: { backgroundColor: '#0f766e' },
           headerTintColor: '#ffffff',
         }}
