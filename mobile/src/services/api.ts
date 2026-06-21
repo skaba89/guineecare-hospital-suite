@@ -196,6 +196,10 @@ export async function getPatientByQr(qrContent: string): Promise<{ data: Patient
  * facility_id est auto-rempli depuis l'utilisateur courant.
  * patient_number est auto-généré au format PAT-YYYYMMDDHHMMSS.
  *
+ * Champs médicaux (v1.7.1) : tous ont une valeur par défaut "Non renseigné"
+ * côté backend si non fournis. Le soignant peut les laisser tels quels à
+ * la création et les mettre à jour ultérieurement.
+ *
  * Retourne le patient créé (avec son id) pour navigation vers PatientDetail.
  */
 export async function createPatient(payload: {
@@ -209,6 +213,12 @@ export async function createPatient(payload: {
   insurance_number?: string;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
+  // Champs médicaux (v1.7.1) — defaults "Non renseigné" si non fournis
+  blood_type?: string; // NON_RENSEIGNE | A+ | A- | B+ | B- | AB+ | AB- | O+ | O-
+  allergies?: string;
+  medical_history?: string;
+  current_medication?: string;
+  chronic_conditions?: string;
 }): Promise<{ data: Patient; message: string }> {
   const resp = await api.post('/patients', payload);
   return resp.data;

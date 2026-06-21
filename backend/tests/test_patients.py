@@ -89,3 +89,74 @@ def test_create_patient_without_auth(client):
     """POST /patients without authentication should return 401."""
     response = client.post("/api/v1/patients", json=PATIENT_PAYLOAD)
     assert response.status_code in (401, 403)
+
+
+def test_create_patient_with_medical_fields_defaults(auth_headers, client):
+    """POST /patients sans champs médicaux → valeurs par défaut 'Non renseigné'."""
+    payload = {
+        "facility_id": "facility-test-001",
+        "patient_number": "P-MED-DEFAULT-01",
+        "first_name": "MedDefault",
+        "last_name": "Patient",
+        # Pas de blood_type, allergies, etc. fournis
+    }
+    response = client.post("/api/v1/patients", json=payload, headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["blood_type"] == "NON_RENSEIGNE"
+    assert data["allergies"] == "Non renseigné"
+    assert data["medical_history"] == "Non renseigné"
+    assert data["current_medication"] == "Non renseigné"
+    assert data["chronic_conditions"] == "Non renseigné"
+
+
+def test_create_patient_with_explicit_medical_fields(auth_headers, client):
+    """POST /patients avec champs médicaux explicites → valeurs conservées."""
+    payload = {
+        "facility_id": "facility-test-001",
+        "patient_number": "P-MED-EXPLICIT-01",
+        "first_name": "MedExplicit",
+        "last_name": "Patient",
+        "blood_type": "O+",
+        "allergies": "Pénicilline, arachide",
+        "medical_history": "Appendicectomie 2020",
+        "current_medication": "Paracetamol 1g x3/j",
+        "chronic_conditions": "Diabète type 2, HTA",
+    }
+    response = client.post("/api/v1/patients", json=payload, headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["blood_type"] == "O+"
+    assert "Pénicilline" in data["allergies"]
+    assert "Appendicectomie" in data["medical_history"]
+    assert "Paracetamol" in data["current_medication"]
+    assert "Diabète" in data["chronic_conditions"]
+
+
+def test_get_patient_includes_medical_fields(auth_headers, client, db):
+    """GET /patients/{id} retourne bien les champs médicaux."""
+    # Créer un patient
+    create = client.post(
+        "/api/v1/patients",
+        json={
+            "facility_id": "facility-test-001",
+            "patient_number": "P-MED-GET-01",
+            "first_name": "MedGet",
+            "last_name": "Patient",
+            "blood_type": "A+",
+            "allergies": "Iode",
+        },
+        headers=auth_headers,
+    )
+    patient_id = create.json()["data"]["id"]
+
+    # GET
+    response = client.get(f"/api/v1/patients/{patient_id}", headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["blood_type"] == "A+"
+    assert data["allergies"] == "Iode"
+    # Les champs non fournis ont la valeur par défaut
+    assert data["medical_history"] == "Non renseigné"
+    assert data["current_medication"] == "Non renseigné"
+    assert data["chronic_conditions"] == "Non renseigné"

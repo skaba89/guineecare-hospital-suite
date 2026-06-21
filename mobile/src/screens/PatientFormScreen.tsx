@@ -58,6 +58,13 @@ export function PatientFormScreen() {
   const [emergencyName, setEmergencyName] = useState('');
   const [emergencyPhone, setEmergencyPhone] = useState('');
 
+  // Champs médicaux (v1.7.1) — valeurs par défaut "Non renseigné"
+  const [bloodType, setBloodType] = useState('NON_RENSEIGNE');
+  const [allergies, setAllergies] = useState('Non renseigné');
+  const [medicalHistory, setMedicalHistory] = useState('Non renseigné');
+  const [currentMedication, setCurrentMedication] = useState('Non renseigné');
+  const [chronicConditions, setChronicConditions] = useState('Non renseigné');
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -103,6 +110,12 @@ export function PatientFormScreen() {
       insurance_number: insuranceNumber.trim() || undefined,
       emergency_contact_name: emergencyName.trim() || undefined,
       emergency_contact_phone: emergencyPhone.trim() || undefined,
+      // Champs médicaux — toujours envoyés (jamais vides)
+      blood_type: bloodType,
+      allergies: allergies.trim() || 'Non renseigné',
+      medical_history: medicalHistory.trim() || 'Non renseigné',
+      current_medication: currentMedication.trim() || 'Non renseigné',
+      chronic_conditions: chronicConditions.trim() || 'Non renseigné',
     };
 
     try {
@@ -303,6 +316,79 @@ export function PatientFormScreen() {
             placeholderTextColor="#94a3b8"
           />
 
+          <Text style={styles.sectionTitle}>Informations médicales</Text>
+          <Text style={styles.sectionHint}>
+            Les champs laissés à "Non renseigné" pourront être complétés ultérieurement
+            depuis le dossier patient.
+          </Text>
+
+          <Text style={styles.label}>Groupe sanguin</Text>
+          <View style={styles.bloodTypeRow}>
+            {[
+              'NON_RENSEIGNE',
+              'A+', 'A-', 'B+', 'B-',
+              'AB+', 'AB-', 'O+', 'O-',
+            ].map((bt) => (
+              <TouchableOpacity
+                key={bt}
+                style={[
+                  styles.bloodPill,
+                  bloodType === bt && styles.bloodPillSelected,
+                ]}
+                onPress={() => setBloodType(bt)}
+              >
+                <Text
+                  style={[
+                    styles.bloodPillText,
+                    bloodType === bt && styles.bloodPillTextSelected,
+                  ]}
+                >
+                  {bt === 'NON_RENSEIGNE' ? '?' : bt}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>Allergies connues</Text>
+          <TextInput
+            style={[styles.input, { minHeight: 60 }]}
+            value={allergies}
+            onChangeText={setAllergies}
+            placeholder="Pénicilline, arachide, iodé... ou 'Non renseigné'"
+            placeholderTextColor="#94a3b8"
+            multiline
+          />
+
+          <Text style={styles.label}>Antécédents médicaux</Text>
+          <TextInput
+            style={[styles.input, { minHeight: 60 }]}
+            value={medicalHistory}
+            onChangeText={setMedicalHistory}
+            placeholder="Chirurgicaux, familiaux... ou 'Non renseigné'"
+            placeholderTextColor="#94a3b8"
+            multiline
+          />
+
+          <Text style={styles.label}>Traitement en cours</Text>
+          <TextInput
+            style={[styles.input, { minHeight: 60 }]}
+            value={currentMedication}
+            onChangeText={setCurrentMedication}
+            placeholder="Médicaments, posologie... ou 'Non renseigné'"
+            placeholderTextColor="#94a3b8"
+            multiline
+          />
+
+          <Text style={styles.label}>Maladies chroniques</Text>
+          <TextInput
+            style={[styles.input, { minHeight: 60 }]}
+            value={chronicConditions}
+            onChangeText={setChronicConditions}
+            placeholder="Diabète, HTA, asthme... ou 'Non renseigné'"
+            placeholderTextColor="#94a3b8"
+            multiline
+          />
+
           <Text style={styles.sectionTitle}>Contact d'urgence</Text>
           <Text style={styles.label}>Nom du contact</Text>
           <TextInput
@@ -402,6 +488,12 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 8,
   },
+  sectionHint: {
+    fontSize: 11,
+    color: '#94a3b8',
+    marginBottom: 8,
+    fontStyle: 'italic',
+  },
   row: { flexDirection: 'row' },
   label: {
     fontSize: 12,
@@ -438,6 +530,27 @@ const styles = StyleSheet.create({
   },
   genderPillText: { color: '#475569', fontSize: 13 },
   genderPillTextSelected: { color: 'white', fontWeight: '700' },
+  bloodTypeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  bloodPill: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minWidth: 44,
+    alignItems: 'center',
+    backgroundColor: 'white',
+  },
+  bloodPillSelected: {
+    backgroundColor: '#dc2626',
+    borderColor: '#dc2626',
+  },
+  bloodPillText: { color: '#475569', fontSize: 13, fontWeight: '600' },
+  bloodPillTextSelected: { color: 'white', fontWeight: '800' },
   errorBox: {
     flexDirection: 'row',
     backgroundColor: '#fef2f2',
