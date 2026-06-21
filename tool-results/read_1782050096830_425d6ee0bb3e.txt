@@ -1,0 +1,1681 @@
+     1→"""
+     2→Comprehensive seed data for GuinéeCare Hospital Suite.
+     3→Realistic data modelled after Guinea's healthcare system with:
+     4→- Multiple facilities (CHU, HGR, CSI, clinics, pharmacies) across all regions
+     5→- Staff with Guinean names and real specialties
+     6→- Patients with full demographics, national IDs, insurance
+     7→- End-to-end clinical workflows (admission → consultation → lab → imaging → surgery → billing)
+     8→- Emergency visits with triage and orientation
+     9→- Maternity records (prenatal, delivery, postnatal)
+    10→- Pharmacy stock with movements
+    11→- Quality indicators and incident reports
+    12→- National reporting data
+    13→"""
+    14→
+    15→import json
+    16→from datetime import datetime, timedelta
+    17→from random import choice, randint, seed as rseed
+    18→from uuid import uuid4
+    19→
+    20→from app.core.security import hash_password
+    21→from app.db.init_db import init_db
+    22→from app.db.session import SessionLocal
+    23→from app.modules.activity.models import ActivityEntry
+    24→from app.modules.admissions.models import Admission
+    25→from app.modules.billing.models import Invoice, Payment, TariffItem
+    26→from app.modules.clinical.models import ClinicalNote, Diagnosis, PatientMeasurement
+    27→from app.modules.departments.models import Department
+    28→from app.modules.emergency.models import EmergencyVisit
+    29→from app.modules.facilities.models import Facility
+    30→from app.modules.hospitalization.models import Bed, HospitalStay, Room
+    31→from app.modules.imaging.models import ImagingOrder, ImagingResult
+    32→from app.modules.laboratory.models import LabOrder, LabResult, LabTest
+    33→from app.modules.maternity.models import (
+    34→    DeliveryRecord,
+    35→    MaternityConsultation,
+    36→    MaternityRecord,
+    37→)
+    38→from app.modules.patients.models import Patient
+    39→from app.modules.personnel.models import OnCallSchedule, StaffMember
+    40→from app.modules.pharmacy.models import PharmacyProduct, PharmacyStock, StockMovement
+    41→from app.modules.quality.models import IncidentReport, QualityIndicator, QualityMeasurement
+    42→from app.modules.reporting.models import EpidemicAlert, HealthStatistic, NationalReport
+    43→from app.modules.surgery.models import (
+    44→    OperatingRoom,
+    45→    SurgeryReport,
+    46→    SurgerySchedule,
+    47→    SurgeryTeamMember,
+    48→)
+    49→from app.modules.users.models import User
+    50→
+    51→# Deterministic random
+    52→rseed(42)
+    53→
+    54→# ─────────────────────────────────────────────
+    55→# Reference data
+    56→# ─────────────────────────────────────────────
+    57→
+    58→FACILITIES_DATA = [
+    59→    # (code, name, category, region, prefecture)
+    60→    ("CHU-DONKA", "CHU Donka", "CHU", "Conakry", "Conakry"),
+    61→    ("CHU-IGNACE-DEEN", "CHU Ignace Deen", "CHU", "Conakry", "Conakry"),
+    62→    ("CHU-ANGRE", "CHU de l'Institut Cardiologique d'Almamy Samory Touré", "CHU", "Conakry", "Conakry"),
+    63→    ("HGR-KINDIA", "HGR de Kindia", "HGR", "Kindia", "Kindia"),
+    64→    ("HGR-BOKE", "HGR de Boké", "HGR", "Boké", "Boké"),
+    65→    ("HGR-MAMOU", "HGR de Mamou", "HGR", "Mamou", "Mamou"),
+    66→    ("HGR-LABE", "HGR de Labé", "HGR", "Labé", "Labé"),
+    67→    ("HGR-KANKAN", "HGR de Kankan", "HGR", "Kankan", "Kankan"),
+    68→    ("HGR-NZEREKORE", "HGR de N'Zérékoré", "HGR", "N'Zérékoré", "N'Zérékoré"),
+    69→    ("HGR-FARANAH", "HGR de Faranah", "HGR", "Faranah", "Faranah"),
+    70→    ("CSI-MATAM", "CSI de Matam", "CSI", "Conakry", "Conakry"),
+    71→    ("CSI-RATOMA", "CSI de Ratoma", "CSI", "Conakry", "Ratoma"),
+    72→    ("CSI-DIXINN", "CSI de Dixinn", "CSI", "Conakry", "Dixinn"),
+    73→    ("CSI-KALOUM", "CSI de Kaloum", "CSI", "Conakry", "Kaloum"),
+    74→    ("CLINIQUE-PASTEUR", "Clinique Pasteur", "PRIVE", "Conakry", "Conakry"),
+    75→    ("CLINIQUE-ESPERANCE", "Clinique l'Espérance", "PRIVE", "Conakry", "Conakry"),
+    76→    ("PHARMA-CENTRALE", "Pharmacie Centrale de Guinée", "PHARMACIE", "Conakry", "Conakry"),
+    77→    ("PHARMA-KIPPE", "Pharmacie du Kippé", "PHARMACIE", "Conakry", "Conakry"),
+    78→    ("PHARMA-KINDIA", "Pharmacie de Kindia", "PHARMACIE", "Kindia", "Kindia"),
+    79→    ("PHARMA-KANKAN", "Pharmacie de Kankan", "PHARMACIE", "Kankan", "Kankan"),
+    80→]
+    81→
+    82→DEPARTMENTS_DATA = {
+    83→    "CHU": [
+    84→        ("URG", "Urgences", "CLINICAL"),
+    85→        ("MED", "Médecine interne", "CLINICAL"),
+    86→        ("CHIR", "Chirurgie générale", "CLINICAL"),
+    87→        ("MAT", "Maternité", "CLINICAL"),
+    88→        ("PED", "Pédiatrie", "CLINICAL"),
+    89→        ("CARD", "Cardiologie", "CLINICAL"),
+    90→        ("NEPH", "Néphrologie", "CLINICAL"),
+    91→        ("NEURO", "Neurologie", "CLINICAL"),
+    92→        ("ORL", "ORL", "CLINICAL"),
+    93→        ("OPHT", "Ophtalmologie", "CLINICAL"),
+    94→        ("DERM", "Dermatologie", "CLINICAL"),
+    95→        ("PNEUM", "Pneumologie", "CLINICAL"),
+    96→        ("GASTRO", "Gastro-entérologie", "CLINICAL"),
+    97→        ("REANIM", "Réanimation", "CLINICAL"),
+    98→        ("LAB", "Laboratoire", "TECHNICAL"),
+    99→        ("IMAGERIE", "Imagerie médicale", "TECHNICAL"),
+   100→        ("BLOC", "Bloc opératoire", "TECHNICAL"),
+   101→        ("PHA", "Pharmacie", "SUPPORT"),
+   102→        ("CAI", "Caisse / Facturation", "ADMIN"),
+   103→        ("ADM", "Administration", "ADMIN"),
+   104→        ("QUAL", "Qualité", "ADMIN"),
+   105→    ],
+   106→    "HGR": [
+   107→        ("URG", "Urgences", "CLINICAL"),
+   108→        ("MED", "Médecine générale", "CLINICAL"),
+   109→        ("CHIR", "Chirurgie", "CLINICAL"),
+   110→        ("MAT", "Maternité", "CLINICAL"),
+   111→        ("PED", "Pédiatrie", "CLINICAL"),
+   112→        ("LAB", "Laboratoire", "TECHNICAL"),
+   113→        ("IMAGERIE", "Imagerie", "TECHNICAL"),
+   114→        ("PHA", "Pharmacie", "SUPPORT"),
+   115→        ("CAI", "Caisse", "ADMIN"),
+   116→        ("ADM", "Administration", "ADMIN"),
+   117→    ],
+   118→    "CSI": [
+   119→        ("MED", "Consultations", "CLINICAL"),
+   120→        ("MAT", "Maternité", "CLINICAL"),
+   121→        ("LAB", "Laboratoire", "TECHNICAL"),
+   122→        ("PHA", "Pharmacie", "SUPPORT"),
+   123→        ("CAI", "Caisse", "ADMIN"),
+   124→    ],
+   125→    "PRIVE": [
+   126→        ("MED", "Consultations", "CLINICAL"),
+   127→        ("CHIR", "Chirurgie", "CLINICAL"),
+   128→        ("MAT", "Maternité", "CLINICAL"),
+   129→        ("LAB", "Laboratoire", "TECHNICAL"),
+   130→        ("IMAGERIE", "Imagerie", "TECHNICAL"),
+   131→        ("BLOC", "Bloc opératoire", "TECHNICAL"),
+   132→        ("PHA", "Pharmacie", "SUPPORT"),
+   133→        ("CAI", "Caisse", "ADMIN"),
+   134→    ],
+   135→    "PHARMACIE": [
+   136→        ("DISP", "Dispensation", "SUPPORT"),
+   137→        ("STOCK", "Gestion stock", "SUPPORT"),
+   138→        ("CAI", "Caisse", "ADMIN"),
+   139→    ],
+   140→}
+   141→
+   142→USERS_DATA = [
+   143→    # (email, first_name, last_name, role, facility_code)
+   144→    ("admin@guineecare.com", "Admin", "GuinéeCare", "SUPER_ADMIN", "CHU-DONKA"),
+   145→    ("dr.diallo@chu-donka.gn", "Amadou", "Diallo", "DOCTOR", "CHU-DONKA"),
+   146→    ("dr.bah@chu-donka.gn", "Mamadou", "Bah", "DOCTOR", "CHU-DONKA"),
+   147→    ("dr.sow@chu-donka.gn", "Aïssatou", "Sow", "DOCTOR", "CHU-DONKA"),
+   148→    ("dr.keita@chu-donka.gn", "Ibrahima", "Keita", "DOCTOR", "CHU-DONKA"),
+   149→    ("dr.toure@chu-donka.gn", "Mariame", "Touré", "DOCTOR", "CHU-DONKA"),
+   150→    ("dr.conde@chu-donka.gn", "Alpha", "Condé", "DOCTOR", "CHU-DONKA"),
+   151→    ("dr.coulibaly@chu-ignace.gn", "Fatoumata", "Coulibaly", "DOCTOR", "CHU-IGNACE-DEEN"),
+   152→    ("dr.camara@chu-ignace.gn", "Sekou", "Camara", "DOCTOR", "CHU-IGNACE-DEEN"),
+   153→    ("dr.diallo2@chu-ignace.gn", "Ousmane", "Diallo", "DOCTOR", "CHU-IGNACE-DEEN"),
+   154→    ("dr.sylla@hgr-kindia.gn", "Kadiatou", "Sylla", "DOCTOR", "HGR-KINDIA"),
+   155→    ("dr.kaba@hgr-kindia.gn", "Mamadou", "Kaba", "DOCTOR", "HGR-KINDIA"),
+   156→    ("dr.barry@hgr-labe.gn", "Thierno", "Barry", "DOCTOR", "HGR-LABE"),
+   157→    ("dr.diallo3@hgr-kankan.gn", "Lounceny", "Diallo", "DOCTOR", "HGR-KANKAN"),
+   158→    ("dr.gbou@hgr-nzerekore.gn", "Gbou", "Loua", "DOCTOR", "HGR-NZEREKORE"),
+   159→    ("sf.bangoura@chu-donka.gn", "Marie", "Bangoura", "MIDWIFE", "CHU-DONKA"),
+   160→    ("sf.doumbouya@chu-donka.gn", "Aminata", "Doumbouya", "MIDWIFE", "CHU-DONKA"),
+   161→    ("sf.cisse@chu-ignace.gn", "Fatoumata", "Cissé", "MIDWIFE", "CHU-IGNACE-DEEN"),
+   162→    ("sf.baldé@hgr-kindia.gn", "Hawa", "Baldé", "MIDWIFE", "HGR-KINDIA"),
+   163→    ("inf.konde@chu-donka.gn", "Joseph", "Kondé", "NURSE", "CHU-DONKA"),
+   164→    ("inf.sano@chu-donka.gn", "Augustin", "Sano", "NURSE", "CHU-DONKA"),
+   165→    ("inf.fofana@chu-donka.gn", "M'mah", "Fofana", "NURSE", "CHU-DONKA"),
+   166→    ("inf.doum@chu-ignace.gn", "Saa", "Doumbouya", "NURSE", "CHU-IGNACE-DEEN"),
+   167→    ("inf.leno@hgr-kindia.gn", "Pierre", "Léno", "NURSE", "HGR-KINDIA"),
+   168→    ("pharma.dubois@chu-donka.gn", "Jean", "Dubois", "PHARMACIST", "CHU-DONKA"),
+   169→    ("pharma.kante@chu-ignace.gn", "Koumba", "Kanté", "PHARMACIST", "CHU-IGNACE-DEEN"),
+   170→    ("pharma.dore@pharma-centrale.gn", "Mamadou", "Doré", "PHARMACIST", "PHARMA-CENTRALE"),
+   171→    ("lab.sakouv@chu-donka.gn", "Céline", "Sakouvogui", "LAB_TECH", "CHU-DONKA"),
+   172→    ("lab.kom@chu-ignace.gn", "Thierno", "Kom", "LAB_TECH", "CHU-IGNACE-DEEN"),
+   173→    ("caisse.koli@chu-donka.gn", "Aïcha", "Koli", "CASHIER", "CHU-DONKA"),
+   174→    ("caisse.tamba@chu-ignace.gn", "Mamadou", "Tamba", "CASHIER", "CHU-IGNACE-DEEN"),
+   175→    ("admin.donka@chu-donka.gn", "Ibrahima", "Kalil", "ADMIN", "CHU-DONKA"),
+   176→    ("admin.ignace@chu-ignace.gn", "Fatou", "Bantama", "ADMIN", "CHU-IGNACE-DEEN"),
+   177→    ("dr.traore@clinique-pasteur.gn", "Boubacar", "Traoré", "DOCTOR", "CLINIQUE-PASTEUR"),
+   178→    ("dr.ndiaye@clinique-esperance.gn", "Moussa", "Ndiaye", "DOCTOR", "CLINIQUE-ESPERANCE"),
+   179→    ("dr.yansane@hgr-boke.gn", "Fodé", "Yansané", "DOCTOR", "HGR-BOKE"),
+   180→    ("dr.dem@hgr-mamou.gn", "Samba", "Dem", "DOCTOR", "HGR-MAMOU"),
+   181→    ("dr.sagna@hgr-faranah.gn", "Boubacar", "Sagna", "DOCTOR", "HGR-FARANAH"),
+   182→]
+   183→
+   184→# Guinean patient names
+   185→PATIENT_FIRST_NAMES_M = [
+   186→    "Mamadou", "Ibrahima", "Alpha", "Ousmane", "Sekou", "Moussa", "Lounceny",
+   187→    "Thierno", "Boubacar", "Fodé", "Amadou", "Abdoulaye", "Samba", "Djibril",
+   188→    "Mamady", "Kerfalla", "Mory", "Youssouf", "Abdou", "Elhadj", "Malal",
+   189→    "Tamba", "Momo", "Almamy", "Khalil", "Boubacar", "Souleymane", "Ibrahim",
+   190→]
+   191→PATIENT_FIRST_NAMES_F = [
+   192→    "Aïssatou", "Fatoumata", "Mariame", "Kadiatou", "Hawa", "M'mah", "Aminata",
+   193→    "Fatou", "Djenabou", "Koumba", "Mariama", "Safiatou", "Nabintou", "Sira",
+   194→    "Aïcha", "Djénéba", "Bintou", "Fanta", "Youssouf", "Assétou", "Awa",
+   195→    "Bineta", "Oumou", "Ramata", "Adama", "Satigui", "Djénéba", "Fanta",
+   196→]
+   197→PATIENT_LAST_NAMES = [
+   198→    "Camara", "Diallo", "Bah", "Sow", "Keita", "Touré", "Condé", "Coulibaly",
+   199→    "Sylla", "Kaba", "Barry", "Doumbouya", "Bangoura", "Cissé", "Fofana",
+   200→    "Kanté", "Baldé", "Traoré", "Ndiaye", "Yansané", "Sakouvogui", "Doum",
+   201→    "Tamba", "Koli", "Léno", "Sano", "Kondé", "Doré", "Dem", "Sagna",
+   202→    "Gbou", "Loua", "Kom", "Bantama", "Kalil", "Doubiya", "Koïta", "Souaré",
+   203→    "Dioubaté", "Sanoh", "Kourouma", "Loupé", "Bérété", "Chérif", "Diakité",
+   204→    "Fané", "Gassama", "Haba", "Indjai",
+   205→]
+   206→
+   207→REGIONS = ["Conakry", "Kindia", "Boké", "Mamou", "Labé", "Kankan", "N'Zérékoré", "Faranah"]
+   208→PREFECTURES_CONAKRY = ["Kaloum", "Dixinn", "Ratoma", "Matam"]
+   209→
+   210→# Common diagnoses in Guinea (CIM-10 codes)
+   211→COMMON_DIAGNOSES = [
+   212→    ("A00.0", "Choléra", "PRINCIPAL"),
+   213→    ("A01.0", "Fièvre typhoïde", "PRINCIPAL"),
+   214→    ("A06.0", "Amibiase", "PRINCIPAL"),
+   215→    ("B50.0", "Paludisme à Plasmodium falciparum", "PRINCIPAL"),
+   216→    ("B54", "Paludisme, sans précision", "PRINCIPAL"),
+   217→    ("J18.9", "Pneumonie", "PRINCIPAL"),
+   218→    ("J06.9", "Infection respiratoire aiguë", "PRINCIPAL"),
+   219→    ("K29.5", "Gastrite", "PRINCIPAL"),
+   220→    ("K35.0", "Appendicite aiguë", "PRINCIPAL"),
+   221→    ("N10", "Néphrite aiguë", "PRINCIPAL"),
+   222→    ("I10", "Hypertension artérielle", "PRINCIPAL"),
+   223→    ("E11.9", "Diabète type 2", "PRINCIPAL"),
+   224→    ("I21.9", "Infarctus du myocarde", "PRINCIPAL"),
+   225→    ("I63.9", "AVC", "PRINCIPAL"),
+   226→    ("J45.0", "Asthme", "PRINCIPAL"),
+   227→    ("L23.9", "Dermite de contact", "PRINCIPAL"),
+   228→    ("M54.5", "Lombalgie", "PRINCIPAL"),
+   229→    ("N20.0", "Calcul rénal", "PRINCIPAL"),
+   230→    ("O62.0", "Dystocie", "PRINCIPAL"),
+   231→    ("O46.0", "Hémorragie ante-partum", "PRINCIPAL"),
+   232→    ("O80.0", "Accouchement normal", "PRINCIPAL"),
+   233→    ("S72.0", "Fracture du col du fémur", "PRINCIPAL"),
+   234→    ("S82.8", "Fracture de la cheville", "PRINCIPAL"),
+   235→    ("S06.0", "Traumatisme crânien", "PRINCIPAL"),
+   236→    ("T78.2", "Choc anaphylactique", "PRINCIPAL"),
+   237→    ("A09", "Diarrhée aiguë", "PRINCIPAL"),
+   238→    ("B37.0", "Candidose", "SECONDARY"),
+   239→    ("E46", "Malnutrition", "SECONDARY"),
+   240→    ("Z23", "Vaccination", "SECONDARY"),
+   241→    ("J00", "Rhinite aiguë", "SECONDARY"),
+   242→]
+   243→
+   244→PHARMACY_PRODUCTS_DATA = [
+   245→    # (code, name, category, form, dosage, quantity, min_threshold)
+   246→    ("PARA-500", "Paracétamol 500 mg", "ANTALGIQUE", "comprimé", "500 mg", 5000, 500),
+   247→    ("PARA-SIRO", "Paracétamol sirop 125 mg/5ml", "ANTALGIQUE", "sirop", "125 mg/5ml", 2000, 200),
+   248→    ("IBU-400", "Ibuprofène 400 mg", "ANTI-INFLAMMATOIRE", "comprimé", "400 mg", 3000, 300),
+   249→    ("AMOX-500", "Amoxicilline 500 mg", "ANTIBIOTIQUE", "gélule", "500 mg", 4000, 400),
+   250→    ("AMOX-SUSP", "Amoxicilline suspension 125 mg/5ml", "ANTIBIOTIQUE", "suspension", "125 mg/5ml", 1500, 150),
+   251→    ("COTRIM", "Cotrimoxazole 480 mg", "ANTIBIOTIQUE", "comprimé", "480 mg", 3000, 300),
+   252→    ("METRO-500", "Métronidazole 500 mg", "ANTIBIOTIQUE", "comprimé", "500 mg", 2000, 200),
+   253→    ("CIPRO-500", "Ciprofloxacine 500 mg", "ANTIBIOTIQUE", "comprimé", "500 mg", 1500, 150),
+   254→    ("AZITHRO-500", "Azithromycine 500 mg", "ANTIBIOTIQUE", "comprimé", "500 mg", 1000, 100),
+   255→    ("DOXY-100", "Doxycycline 100 mg", "ANTIBIOTIQUE", "gélule", "100 mg", 2000, 200),
+   256→    ("QUININE-500", "Quinine 500 mg", "ANTIPALUDÉEN", "comprimé", "500 mg", 5000, 500),
+   257→    ("ARTHESUN", "Artésunate 50 mg", "ANTIPALUDÉEN", "comprimé", "50 mg", 3000, 300),
+   258→    ("COARTEM", "Coartem (Artéméther+Luméfantrine)", "ANTIPALUDÉEN", "comprimé", "20/120 mg", 4000, 400),
+   259→    ("ORS", "Sels de réhydratation orale", "RÉHYDRATATION", "sachet", "20.5g/L", 8000, 800),
+   260→    ("METO-5", "Metoclopramide 5 mg/ml", "ANTIÉMÉTIQUE", "ampoule", "5 mg/ml", 1000, 100),
+   261→    ("OMEPRA-20", "Oméprazole 20 mg", "ANTIULCÉREUX", "gélule", "20 mg", 2000, 200),
+   262→    ("DICLO-50", "Diclofenac 50 mg", "ANTI-INFLAMMATOIRE", "comprimé", "50 mg", 2000, 200),
+   263→    ("MORPH-10", "Morphine 10 mg/ml", "ANTALGIQUE", "ampoule", "10 mg/ml", 200, 20),
+   264→    ("DIAZ-10", "Diazépam 10 mg", "ANXIOLYTIQUE", "comprimé", "10 mg", 500, 50),
+   265→    ("PHENOBAR", "Phénobarbital 100 mg", "ANTICONVULSANT", "comprimé", "100 mg", 300, 30),
+   266→    ("INSULIN-100", "Insuline 100 UI/ml", "ANTIDIABÉTIQUE", "flacon", "100 UI/ml", 200, 20),
+   267→    ("METFORM-500", "Metformine 500 mg", "ANTIDIABÉTIQUE", "comprimé", "500 mg", 2000, 200),
+   268→    ("AMLO-5", "Amlodipine 5 mg", "ANTIHYPERTENSEUR", "comprimé", "5 mg", 1500, 150),
+   269→    ("CAPTOPRIL-25", "Captopril 25 mg", "ANTIHYPERTENSEUR", "comprimé", "25 mg", 1000, 100),
+   270→    ("FURO-40", "Furosémide 40 mg", "DIURÉTIQUE", "comprimé", "40 mg", 800, 80),
+   271→    ("DIGOX-025", "Digoxine 0.25 mg", "CARDIAQUE", "comprimé", "0.25 mg", 200, 20),
+   272→    ("SALB-2", "Salbutamol 2 mg", "BRONCHODILATATEUR", "sirop", "2 mg/5ml", 500, 50),
+   273→    ("PRED-5", "Prednisone 5 mg", "CORTICOÏDE", "comprimé", "5 mg", 1000, 100),
+   274→    ("HYDRO-5", "Hydrocortisone 5 mg", "CORTICOÏDE", "crème", "5 mg/g", 500, 50),
+   275→    ("FER-200", "Sulfate de fer 200 mg", "ANTIANÉMIQUE", "comprimé", "200 mg", 3000, 300),
+   276→    ("FOLIC-5", "Acide folique 5 mg", "ANTIANÉMIQUE", "comprimé", "5 mg", 2000, 200),
+   277→    ("VITA-100000", "Vitamine A 100 000 UI", "VITAMINE", "gélule", "100 000 UI", 2000, 200),
+   278→    ("BENZ-PEN", "Benzylpénicilline 1 MUI", "ANTIBIOTIQUE", "flacon", "1 MUI", 500, 50),
+   279→    ("GENTA-80", "Gentamicine 80 mg/2ml", "ANTIBIOTIQUE", "ampoule", "80 mg/2ml", 400, 40),
+   280→    ("LIDO-2", "Lidocaïne 2%", "ANESTHÉSIQUE", "flacon", "2%", 300, 30),
+   281→    ("KETAM-50", "Kétamine 50 mg/ml", "ANESTHÉSIQUE", "flacon", "50 mg/ml", 100, 10),
+   282→    ("OXY-10", "Ocytocine 10 UI/ml", "UTÉROTONIQUE", "ampoule", "10 UI/ml", 500, 50),
+   283→    ("MISOP-200", "Misoprostol 200 µg", "UTÉROTONIQUE", "comprimé", "200 µg", 300, 30),
+   284→    ("ERGY-MAG", "Sulfate de magnésium 50%", "ANTICONVULSANT", "ampoule", "50%", 200, 20),
+   285→    ("RINGER-500", "Ringer Lactate 500 ml", "PERFUSION", "poche", "500 ml", 1000, 100),
+   286→    ("NACL-500", "Sérum physiologique 0.9% 500 ml", "PERFUSION", "poche", "500 ml", 1500, 150),
+   287→    ("GLUC5-500", "Glucose 5% 500 ml", "PERFUSION", "poche", "500 ml", 1000, 100),
+   288→    ("GLUC10-500", "Glucose 10% 500 ml", "PERFUSION", "poche", "500 ml", 500, 50),
+   289→    ("GLUC30-500", "Glucose 30% 500 ml", "PERFUSION", "poche", "500 ml", 100, 10),
+   290→]
+   291→
+   292→LAB_TESTS_DATA = [
+   293→    # (code, name, category, sample_type)
+   294→    ("NFS", "Numération formule sanguine", "HÉMATOLOGIE", "sang"),
+   295→    ("HGB", "Hémoglobine", "HÉMATOLOGIE", "sang"),
+   296→    ("HCT", "Hématocrite", "HÉMATOLOGIE", "sang"),
+   297→    ("PLQ", "Plaquettes", "HÉMATOLOGIE", "sang"),
+   298→    ("GLY", "Glycémie", "BIOCHIMIE", "sang"),
+   299→    ("UREE", "Urée", "BIOCHIMIE", "sang"),
+   300→    ("CREAT", "Créatinine", "BIOCHIMIE", "sang"),
+   301→    ("ALAT", "ALAT (SGPT)", "BIOCHIMIE", "sang"),
+   302→    ("ASAT", "ASAT (SGOT)", "BIOCHIMIE", "sang"),
+   303→    ("BILIT", "Bilirubine totale", "BIOCHIMIE", "sang"),
+   304→    ("BILID", "Bilirubine directe", "BIOCHIMIE", "sang"),
+   305→    ("TP", "Taux de prothrombine", "HÉMOSTASE", "sang"),
+   306→    ("TCA", "TCA", "HÉMOSTASE", "sang"),
+   307→    ("GE", "Goutte épaisse", "PARASITOLOGIE", "sang"),
+   308→    ("TDR-PALU", "TDR Paludisme", "PARASITOLOGIE", "sang"),
+   309→    ("CRP", "CRP", "BIOCHIMIE", "sang"),
+   310→    ("VS", "Vitesse de sédimentation", "HÉMATOLOGIE", "sang"),
+   311→    ("GROUP", "Groupe sanguin", "HÉMATOLOGIE", "sang"),
+   312→    ("RHSUS", "Rhésus", "HÉMATOLOGIE", "sang"),
+   313→    ("Urinaire", "Examen cytobactériologique des urines", "BACTÉRIOLOGIE", "urine"),
+   314→    ("ECBU", "ECBU", "BACTÉRIOLOGIE", "urine"),
+   315→    ("SELLES", "Coproculture", "BACTÉRIOLOGIE", "selles"),
+   316→    ("HIV", "Sérologie VIH", "SÉROLOGIE", "sang"),
+   317→    ("HBV", "Sérologie Hépatite B", "SÉROLOGIE", "sang"),
+   318→    ("HCV", "Sérologie Hépatite C", "SÉROLOGIE", "sang"),
+   319→    ("VDRL", "VDRL (Syphilis)", "SÉROLOGIE", "sang"),
+   320→    ("WIDAL", "Widal (Fièvre typhoïde)", "SÉROLOGIE", "sang"),
+   321→    ("GS", "Gramme/6h", "BIOCHIMIE", "urine"),
+   322→    ("ALB", "Albumine", "BIOCHIMIE", "urine"),
+   323→    ("LACT", "Lactates", "BIOCHIMIE", "sang"),
+   324→    ("IONO", "Ionogramme (Na, K, Cl)", "BIOCHIMIE", "sang"),
+   325→    ("GAZ", "Gaz du sang", "BIOCHIMIE", "sang artériel"),
+   326→]
+   327→
+   328→TARIFF_ITEMS_DATA = [
+   329→    # (code, name, category, unit_price GNF)
+   330→    ("CONS-GEN", "Consultation médecine générale", "CONSULTATION", 50000),
+   331→    ("CONS-SPEC", "Consultation spécialiste", "CONSULTATION", 75000),
+   332→    ("CONS-URG", "Consultation urgence", "URGENCE", 75000),
+   333→    ("VISITE", "Visite de suivi", "CONSULTATION", 25000),
+   334→    ("CERT-MED", "Certificat médical", "ADMINISTRATIF", 30000),
+   335→    ("ARRET-TRAV", "Arrêt de travail", "ADMINISTRATIF", 25000),
+   336→    ("LAB-NFS", "NFS", "LABORATOIRE", 35000),
+   337→    ("LAB-GLY", "Glycémie", "LABORATOIRE", 20000),
+   338→    ("LAB-CREAT", "Créatinine", "LABORATOIRE", 25000),
+   339→    ("LAB-UREE", "Urée", "LABORATOIRE", 20000),
+   340→    ("LAB-GE", "Goutte épaisse", "LABORATOIRE", 15000),
+   341→    ("LAB-TDR", "TDR Paludisme", "LABORATOIRE", 15000),
+   342→    ("LAB-ECBU", "ECBU", "LABORATOIRE", 25000),
+   343→    ("LAB-GROUP", "Groupe sanguin + Rhésus", "LABORATOIRE", 20000),
+   344→    ("LAB-SERO-HIV", "Sérologie VIH", "LABORATOIRE", 30000),
+   345→    ("LAB-SERO-HBV", "Sérologie Hépatite B", "LABORATOIRE", 30000),
+   346→    ("LAB-IONO", "Ionogramme", "LABORATOIRE", 40000),
+   347→    ("IMG-RX-THX", "Radiographie thorax", "IMAGERIE", 50000),
+   348→    ("IMG-RX-ABD", "Radiographie abdomen", "IMAGERIE", 50000),
+   349→    ("IMG-RX-OS", "Radiographie os", "IMAGERIE", 50000),
+   350→    ("IMG-ECHO", "Échographie", "IMAGERIE", 75000),
+   351→    ("IMG-SCANNER", "Scanner", "IMAGERIE", 500000),
+   352→    ("IMG-IRM", "IRM", "IMAGERIE", 800000),
+   353→    ("CHIR-APPEN", "Appendicectomie", "CHIRURGIE", 2000000),
+   354→    ("CHIR-HERNIE", "Cure de hernie", "CHIRURGIE", 1500000),
+   355→    ("CHIR-CESAR", "Césarienne", "CHIRURGIE", 2500000),
+   356→    ("CHIR-LAP", "Laparotomie", "CHIRURGIE", 3000000),
+   357→    ("CHIR-OSTEO", "Ostéosynthèse", "CHIRURGIE", 2500000),
+   358→    ("HOSP-JOUR", "Hospitalisation / jour", "HOSPITALISATION", 75000),
+   359→    ("HOSP-REANIM", "Réanimation / jour", "HOSPITALISATION", 200000),
+   360→    ("ACC-NORM", "Accouchement normal", "MATERNITÉ", 500000),
+   361→    ("ACC-CESAR", "Césarienne (forfait)", "MATERNITÉ", 2500000),
+   362→    ("CPN", "Consultation prénatale", "MATERNITÉ", 25000),
+   363→]
+   364→
+   365→QUALITY_INDICATORS_DATA = [
+   366→    # (code, name, category, description, unit, target_value, frequency)
+   367→    ("IPS", "Indicateur de Performance et de Sécurité", "SAFETY", "Score global de performance et sécurité", "score", "≥80", "MONTHLY"),
+   368→    ("TMR24", "Taux de mortalité à 24h", "CLINICAL_OUTCOME", "Mortalité dans les 24h après admission", "%", "<2", "MONTHLY"),
+   369→    ("SAT_PAT", "Satisfaction patient", "PATIENT_EXPERIENCE", "Taux de satisfaction des patients", "%", "≥85", "QUARTERLY"),
+   370→    ("TAUX_OCC", "Taux d'occupation des lits", "EFFICIENCY", "Pourcentage d'occupation des lits", "%", "70-85", "MONTHLY"),
+   371→    ("DMS", "Durée moyenne de séjour", "EFFICIENCY", "Nombre moyen de jours d'hospitalisation", "jours", "≤5", "MONTHLY"),
+   372→    ("INOSO", "Taux d'infections nosocomiales", "SAFETY", "Infections acquises à l'hôpital", "%", "<5", "QUARTERLY"),
+   373→    ("ERR_MED", "Taux d'erreurs médicamenteuses", "SAFETY", "Erreurs de médication signalées", "taux", "<1", "MONTHLY"),
+   374→    ("CHUTE", "Taux de chutes", "SAFETY", "Chutes de patients hospitalisés", "taux", "<2", "MONTHLY"),
+   375→    ("DELAI_URG", "Délai prise en charge urgence", "EFFICIENCY", "Temps d'attente aux urgences", "minutes", "<30", "MONTHLY"),
+   376→    ("TRANSFUS", "Conformité transfusion", "SAFETY", "Respect procédures transfusion", "%", "100", "QUARTERLY"),
+   377→    ("DOSSIER", "Complétude des dossiers", "EFFICIENCY", "Dossiers patients complets", "%", "≥90", "MONTHLY"),
+   378→    ("VACC", "Couverture vaccinale", "CLINICAL_OUTCOME", "Taux de vaccination", "%", "≥95", "QUARTERLY"),
+   379→]
+   380→
+   381→PASSWORDS = {
+   382→    "SUPER_ADMIN": "admin123",
+   383→    "ADMIN": "admin123",
+   384→    "DOCTOR": "doctor123",
+   385→    "NURSE": "nurse123",
+   386→    "PHARMACIST": "pharma123",
+   387→    "LAB_TECH": "labtech123",
+   388→    "CASHIER": "caisse123",
+   389→    "MIDWIFE": "sagefemme123",
+   390→}
+   391→
+   392→
+   393→def _now():
+   394→    return datetime.utcnow()
+   395→
+   396→
+   397→def _days_ago(n):
+   398→    return _now() - timedelta(days=n)
+   399→
+   400→
+   401→def _hours_ago(n):
+   402→    return _now() - timedelta(hours=n)
+   403→
+   404→
+   405→def run_seed():
+   406→    db = SessionLocal()
+   407→    try:
+   408→        _run_seed_inner(db)
+   409→    except Exception as e:
+   410→        db.rollback()
+   411→        print(f"❌ Seed error: {e}")
+   412→        import traceback
+   413→        traceback.print_exc()
+   414→        # Don't re-raise — app should still start
+   415→    finally:
+   416→        db.close()
+   417→
+   418→
+   419→def _run_seed_inner(db):
+   420→    # ═══════════════════════════════════════
+   421→    # 1. FACILITIES
+   422→    # ═══════════════════════════════════════
+   423→    facilities = {}
+   424→    for code, name, category, region, prefecture in FACILITIES_DATA:
+   425→        f = db.query(Facility).filter(Facility.code == code).first()
+   426→        if not f:
+   427→            f = Facility(
+   428→                code=code,
+   429→                name=name,
+   430→                category=category,
+   431→                region=region,
+   432→                prefecture=prefecture,
+   433→                status="ACTIVE",
+   434→            )
+   435→            db.add(f)
+   436→            db.flush()
+   437→        facilities[code] = f
+   438→
+   439→    # ═══════════════════════════════════════
+   440→    # 2. DEPARTMENTS per facility
+   441→    db.commit()
+   442→    print(f'  ✅ Sections 1-1 committed')
+   443→
+   444→    # ═══════════════════════════════════════
+   445→    departments = {}
+   446→    for code, facility in facilities.items():
+   447→        dept_list = DEPARTMENTS_DATA.get(facility.category, DEPARTMENTS_DATA["CSI"])
+   448→        for dept_code, dept_name, dept_cat in dept_list:
+   449→            d = db.query(Department).filter(
+   450→                Department.facility_id == facility.id,
+   451→                Department.code == dept_code,
+   452→            ).first()
+   453→            if not d:
+   454→                d = Department(
+   455→                    facility_id=facility.id,
+   456→                    code=dept_code,
+   457→                    name=dept_name,
+   458→                    category=dept_cat,
+   459→                    status="ACTIVE",
+   460→                )
+   461→                db.add(d)
+   462→                db.flush()
+   463→            departments[(code, dept_code)] = d
+   464→
+   465→    # ═══════════════════════════════════════
+   466→    # 3. USERS
+   467→    db.commit()
+   468→    print(f'  ✅ Sections 1-2 committed')
+   469→
+   470→    # ═══════════════════════════════════════
+   471→    users = {}
+   472→    for email, first_name, last_name, role, facility_code in USERS_DATA:
+   473→        u = db.query(User).filter(User.email == email).first()
+   474→        if not u:
+   475→            pw = PASSWORDS.get(role, "guineecare123")
+   476→            u = User(
+   477→                facility_id=facilities[facility_code].id,
+   478→                email=email,
+   479→                password_hash=hash_password(pw),
+   480→                first_name=first_name,
+   481→                last_name=last_name,
+   482→                role=role,
+   483→                is_active=True,
+   484→            )
+   485→            db.add(u)
+   486→            db.flush()
+   487→        users[email] = u
+   488→
+   489→    # ═══════════════════════════════════════
+   490→    # 4. STAFF MEMBERS
+   491→    db.commit()
+   492→    print(f'  ✅ Sections 1-3 committed')
+   493→
+   494→    # ═══════════════════════════════════════
+   495→    staff = {}
+   496→    prof_map = {
+   497→        "DOCTOR": ("MEDECIN", None),
+   498→        "NURSE": ("INFIRMIER", None),
+   499→        "MIDWIFE": ("SAGE_FEMME", None),
+   500→        "PHARMACIST": ("PHARMACIEN", None),
+   501→        "LAB_TECH": ("LABORANTIN", None),
+   502→        "CASHIER": ("ADMINISTRATIF", "Caisse"),
+   503→        "ADMIN": ("ADMINISTRATIF", "Direction"),
+   504→    }
+   505→    specialty_map = {
+   506→        "dr.diallo@chu-donka.gn": "Médecine interne",
+   507→        "dr.bah@chu-donka.gn": "Chirurgie générale",
+   508→        "dr.sow@chu-donka.gn": "Cardiologie",
+   509→        "dr.keita@chu-donka.gn": "Pédiatrie",
+   510→        "dr.toure@chu-donka.gn": "Gynécologie-obstétrique",
+   511→        "dr.conde@chu-donka.gn": "Neurologie",
+   512→        "dr.coulibaly@chu-ignace.gn": "Chirurgie générale",
+   513→        "dr.camara@chu-ignace.gn": "Médecine interne",
+   514→        "dr.diallo2@chu-ignace.gn": "ORL",
+   515→        "dr.sylla@hgr-kindia.gn": "Médecine générale",
+   516→        "dr.kaba@hgr-kindia.gn": "Chirurgie",
+   517→        "dr.barry@hgr-labe.gn": "Médecine générale",
+   518→        "dr.diallo3@hgr-kankan.gn": "Médecine générale",
+   519→        "dr.gbou@hgr-nzerekore.gn": "Médecine générale",
+   520→        "dr.traore@clinique-pasteur.gn": "Chirurgie générale",
+   521→        "dr.ndiaye@clinique-esperance.gn": "Médecine interne",
+   522→        "dr.yansane@hgr-boke.gn": "Médecine générale",
+   523→        "dr.dem@hgr-mamou.gn": "Médecine générale",
+   524→        "dr.sagna@hgr-faranah.gn": "Médecine générale",
+   525→    }
+   526→    staff_counter = 0
+   527→    for email, user in users.items():
+   528→        if user.role == "SUPER_ADMIN":
+   529→            continue
+   530→        emp_num = f"GC-EMP-{staff_counter:05d}"
+   531→        existing = db.query(StaffMember).filter(StaffMember.employee_number == emp_num).first()
+   532→        if existing:
+   533→            staff[email] = existing
+   534→            continue
+   535→        prof_info = prof_map.get(user.role, ("AUTRE", None))
+   536→        spec = specialty_map.get(email, prof_info[1])
+   537→        # Find department based on role
+   538→        dept_id = None
+   539→        dept_code_map = {
+   540→            "DOCTOR": "MED",
+   541→            "MIDWIFE": "MAT",
+   542→            "PHARMACIST": "PHA",
+   543→            "LAB_TECH": "LAB",
+   544→            "CASHIER": "CAI",
+   545→            "ADMIN": "ADM",
+   546→            "NURSE": "MED",
+   547→        }
+   548→        target_dept_code = dept_code_map.get(user.role, "MED")
+   549→        for fc, fac in facilities.items():
+   550→            if fac.id == user.facility_id:
+   551→                dept = departments.get((fc, target_dept_code))
+   552→                if dept:
+   553→                    dept_id = dept.id
+   554→                break
+   555→
+   556→        sm = StaffMember(
+   557→            facility_id=user.facility_id,
+   558→            user_id=user.id,
+   559→            employee_number=emp_num,
+   560→            first_name=user.first_name,
+   561→            last_name=user.last_name,
+   562→            profession=prof_info[0],
+   563→            specialty=spec,
+   564→            department_id=dept_id,
+   565→            phone=f"+224 6{randint(10,99)} {randint(10,99)} {randint(10,99)} {randint(10,99)}",
+   566→            email=user.email,
+   567→            hire_date=_days_ago(randint(365, 3650)),
+   568→            status="ACTIVE",
+   569→        )
+   570→        db.add(sm)
+   571→        db.flush()
+   572→        staff[email] = sm
+   573→        staff_counter += 1
+   574→
+   575→    # ═══════════════════════════════════════
+   576→    # 5. PATIENTS — 50 patients across facilities
+   577→    db.commit()
+   578→    print(f'  ✅ Sections 1-4 committed')
+   579→
+   580→    # ═══════════════════════════════════════
+   581→    patients = []
+   582→    facility_codes_list = list(facilities.keys())
+   583→    for i in range(1, 51):
+   584→        pat_num = f"GC-PAT-{i:06d}"
+   585→        existing = db.query(Patient).filter(Patient.patient_number == pat_num).first()
+   586→        if existing:
+   587→            patients.append(existing)
+   588→            continue
+   589→
+   590→        is_male = i % 2 == 0
+   591→        if is_male:
+   592→            first = choice(PATIENT_FIRST_NAMES_M)
+   593→        else:
+   594→            first = choice(PATIENT_FIRST_NAMES_F)
+   595→        last = choice(PATIENT_LAST_NAMES)
+   596→
+   597→        # Distribute across facilities
+   598→        fc = facility_codes_list[i % len(facility_codes_list)]
+   599→        fac = facilities[fc]
+   600→
+   601→        # Age distribution
+   602→        age = randint(1, 85)
+   603→        dob = _days_ago(age * 365 + randint(0, 364))
+   604→        gender = "M" if is_male else "F"
+   605→
+   606→        # Address
+   607→        if fac.region == "Conakry":
+   608→            address = f"{randint(1,500)} Quartier {choice(PREFECTURES_CONAKRY)}, Conakry"
+   609→        else:
+   610→            address = f"Ville de {fac.prefecture}, Région de {fac.region}"
+   611→
+   612→        # Insurance
+   613→        has_insurance = randint(1, 10) > 6
+   614→        insurance = None
+   615→        if has_insurance:
+   616→            insurance = f"INAM-GN-{randint(100000, 999999)}"
+   617→
+   618→        # National ID
+   619→        national_id = f"GN-{randint(100000000, 999999999)}"
+   620→
+   621→        p = Patient(
+   622→            facility_id=fac.id,
+   623→            patient_number=pat_num,
+   624→            first_name=first,
+   625→            last_name=last,
+   626→            date_of_birth=dob.date() if callable(getattr(dob, 'date', None)) else dob,
+   627→            gender=gender,
+   628→            phone=f"+224 6{randint(10,99)} {randint(10,99)} {randint(10,99)} {randint(10,99)}",
+   629→            address=address,
+   630→            national_id=national_id,
+   631→            insurance_number=insurance,
+   632→            emergency_contact_name=f"{choice(PATIENT_LAST_NAMES)} {choice(PATIENT_FIRST_NAMES_M + PATIENT_FIRST_NAMES_F)}",
+   633→            emergency_contact_phone=f"+224 6{randint(10,99)} {randint(10,99)} {randint(10,99)} {randint(10,99)}",
+   634→            status="ACTIVE",
+   635→        )
+   636→        db.add(p)
+   637→        db.flush()
+   638→        patients.append(p)
+   639→
+   640→    # ═══════════════════════════════════════
+   641→    # 6. ROOMS & BEDS for main facilities
+   642→    db.commit()
+   643→    print(f'  ✅ Sections 1-5 committed')
+   644→
+   645→    # ═══════════════════════════════════════
+   646→    rooms = {}
+   647→    beds = {}
+   648→    for fc in ["CHU-DONKA", "CHU-IGNACE-DEEN", "HGR-KINDIA", "HGR-KANKAN", "HGR-LABE", "CLINIQUE-PASTEUR"]:
+   649→        fac = facilities[fc]
+   650→        room_types = {
+   651→            "MED": ("MED", [("INDIVIDUELLE", 4), ("DOUBLE", 6), ("COLLECTIVE", 4)]),
+   652→            "CHIR": ("CHIR", [("INDIVIDUELLE", 2), ("DOUBLE", 4), ("COLLECTIVE", 3)]),
+   653→            "MAT": ("MAT", [("INDIVIDUELLE", 3), ("DOUBLE", 4), ("COLLECTIVE", 2)]),
+   654→            "PED": ("PED", [("DOUBLE", 3), ("COLLECTIVE", 3)]),
+   655→            "REANIM": ("REANIM", [("INDIVIDUELLE", 4), ("ICU", 4)]),
+   656→        }
+   657→        for dept_code, (prefix, types) in room_types.items():
+   658→            dept = departments.get((fc, dept_code))
+   659→            if not dept:
+   660→                continue
+   661→            for room_type, count in types:
+   662→                for r_idx in range(1, count + 1):
+   663→                    room_code = f"{prefix}-{room_type[:3].upper()}-{r_idx:02d}"
+   664→                    room_name = f"Chambre {room_code}"
+   665→                    existing_room = db.query(Room).filter(
+   666→                        Room.facility_id == fac.id,
+   667→                        Room.code == room_code,
+   668→                    ).first()
+   669→                    if not existing_room:
+   670→                        existing_room = Room(
+   671→                            facility_id=fac.id,
+   672→                            department_id=dept.id,
+   673→                            code=room_code,
+   674→                            name=room_name,
+   675→                            room_type=room_type.upper(),
+   676→                            status="ACTIVE",
+   677→                        )
+   678→                        db.add(existing_room)
+   679→                        db.flush()
+   680→                    rooms[(fc, room_code)] = existing_room
+   681→
+   682→                    # Add beds per room
+   683→                    bed_count = 1 if room_type == "INDIVIDUELLE" else (2 if room_type == "DOUBLE" else randint(4, 8))
+   684→                    if room_type == "ICU":
+   685→                        bed_count = 4
+   686→                    for b_idx in range(1, bed_count + 1):
+   687→                        bed_number = f"{room_code}-L{b_idx}"
+   688→                        existing_bed = db.query(Bed).filter(
+   689→                            Bed.facility_id == fac.id,
+   690→                            Bed.room_id == existing_room.id,
+   691→                            Bed.bed_number == bed_number,
+   692→                        ).first()
+   693→                        if not existing_bed:
+   694→                            existing_bed = Bed(
+   695→                                facility_id=fac.id,
+   696→                                room_id=existing_room.id,
+   697→                                bed_number=bed_number,
+   698→                                bed_status="AVAILABLE",
+   699→                            )
+   700→                            db.add(existing_bed)
+   701→                            db.flush()
+   702→                        beds[(fc, bed_number)] = existing_bed
+   703→
+   704→    # ═══════════════════════════════════════
+   705→    # 7. OPERATING ROOMS
+   706→    db.commit()
+   707→    print(f'  ✅ Sections 1-6 committed')
+   708→
+   709→    # ═══════════════════════════════════════
+   710→    op_rooms = {}
+   711→    for fc, room_defs in [
+   712→        ("CHU-DONKA", [("BLOC-01", "Salle 1 - Chirurgie générale", "GENERAL"), ("BLOC-02", "Salle 2 - Orthopédie", "ORTHOPEDIC"), ("BLOC-03", "Salle 3 - Urgences", "GENERAL"), ("BLOC-04", "Salle 4 - Cardiaque", "CARDIAC")]),
+   713→        ("CHU-IGNACE-DEEN", [("BLOC-01", "Salle 1", "GENERAL"), ("BLOC-02", "Salle 2 - Pédiatrique", "PEDIATRIC")]),
+   714→        ("HGR-KINDIA", [("BLOC-01", "Salle 1", "GENERAL")]),
+   715→        ("HGR-KANKAN", [("BLOC-01", "Salle 1", "GENERAL")]),
+   716→        ("CLINIQUE-PASTEUR", [("BLOC-01", "Salle 1", "GENERAL")]),
+   717→    ]:
+   718→        fac = facilities[fc]
+   719→        for code, name, rtype in room_defs:
+   720→            existing_or = db.query(OperatingRoom).filter(
+   721→                OperatingRoom.facility_id == fac.id,
+   722→                OperatingRoom.code == code,
+   723→            ).first()
+   724→            if not existing_or:
+   725→                existing_or = OperatingRoom(
+   726→                    facility_id=fac.id,
+   727→                    code=code,
+   728→                    name=name,
+   729→                    room_type=rtype,
+   730→                    status="AVAILABLE",
+   731→                )
+   732→                db.add(existing_or)
+   733→                db.flush()
+   734→            op_rooms[(fc, code)] = existing_or
+   735→
+   736→    # ═══════════════════════════════════════
+   737→    # 8. ADMISSIONS — 30 admissions with various statuses
+   738→    db.commit()
+   739→    print(f'  ✅ Sections 1-7 committed')
+   740→
+   741→    # ═══════════════════════════════════════
+   742→    admissions = []
+   743→    admission_types = ["CONSULTATION", "URGENCE", "HOSPITALISATION", "PROGRAMMÉ", "MATERNITÉ"]
+   744→    doctor_emails = [e for e, u in users.items() if u.role == "DOCTOR"]
+   745→    for i in range(30):
+   746→        pat = patients[i % len(patients)]
+   747→        fc = None
+   748→        for fcode, fac in facilities.items():
+   749→            if fac.id == pat.facility_id:
+   750→                fc = fcode
+   751→                break
+   752→        if not fc:
+   753→            fc = "CHU-DONKA"
+   754→
+   755→        # Find department for this facility
+   756→        dept_options = [dk for dk in departments.keys() if dk[0] == fc]
+   757→        dept = departments[choice(dept_options)] if dept_options else None
+   758→
+   759→        adm_type = choice(admission_types)
+   760→        is_open = randint(1, 10) > 4
+   761→        days_back = randint(1, 90)
+   762→
+   763→        a = Admission(
+   764→            facility_id=pat.facility_id,
+   765→            patient_id=pat.id,
+   766→            department_id=dept.id if dept else None,
+   767→            admission_type=adm_type,
+   768→            status="OPEN" if is_open else "CLOSED",
+   769→            admitted_at=_days_ago(days_back),
+   770→            closed_at=None if is_open else _days_ago(max(1, days_back - randint(1, 14))),
+   771→        )
+   772→        db.add(a)
+   773→        db.flush()
+   774→        admissions.append(a)
+   775→
+   776→    # ═══════════════════════════════════════
+   777→    # 9. EMERGENCY VISITS — 20 visits
+   778→    db.commit()
+   779→    print(f'  ✅ Sections 1-8 committed')
+   780→
+   781→    # ═══════════════════════════════════════
+   782→    emergency_statuses = ["WAITING", "BEING_SEEN", "ORIENTED", "DISCHARGED", "HOSPITALIZED", "TRANSFERRED"]
+   783→    priority_levels = ["CRITICAL", "URGENT", "NORMAL", "LOW"]
+   784→    chief_complaints = [
+   785→        "Douleurs abdominales aiguës", "Fièvre élevée depuis 3 jours", "Céphalées intenses avec vomissements",
+   786→        "Dyspnée", "Traumatisme membre inférieur", "Hémorragie post-partum", "Crise convulsive",
+   787→        "Douleur thoracique", "Brûlure 2ème degré", "Intoxication alimentaire",
+   788→        "Paludisme grave", "Diarrhée profuse avec déshydratation", "Fracture ouverte",
+   789→        "Accouchement imminent", "Choc anaphylactique", "Morsure de serpent",
+   790→        "Crise drépanocytaire", "Insuffisance rénale aiguë", "Pneumopathie sévère",
+   791→        "Hémorragie digestive",
+   792→    ]
+   793→    orientations = ["MÉDECINE", "CHIRURGIE", "RÉANIMATION", "MATERNITÉ", "PÉDIATRIE", "DOMICILE", "TRANSFERT"]
+   794→    for i in range(20):
+   795→        pat = patients[i % len(patients)]
+   796→        fc = None
+   797→        for fcode, fac in facilities.items():
+   798→            if fac.id == pat.facility_id:
+   799→                fc = fcode
+   800→                break
+   801→        if not fc:
+   802→            fc = "CHU-DONKA"
+   803→
+   804→        adm = admissions[i] if i < len(admissions) else None
+   805→        priority = choice(priority_levels)
+   806→        status = emergency_statuses[min(i, len(emergency_statuses) - 1)]
+   807→        doctor = users.get(choice(doctor_emails))
+   808→
+   809→        hours_back = randint(1, 168)  # last 7 days
+   810→        arrived = _hours_ago(hours_back)
+   811→        seen = arrived + timedelta(minutes=randint(15, 120)) if status != "WAITING" else None
+   812→        discharged = seen + timedelta(hours=randint(1, 24)) if status in ("DISCHARGED", "HOSPITALIZED", "TRANSFERRED") else None
+   813→
+   814→        ev = EmergencyVisit(
+   815→            facility_id=pat.facility_id,
+   816→            patient_id=pat.id,
+   817→            admission_id=adm.id if adm else None,
+   818→            priority_level=priority,
+   819→            chief_complaint=chief_complaints[i % len(chief_complaints)],
+   820→            status=status,
+   821→            orientation=choice(orientations) if status in ("ORIENTED", "DISCHARGED", "HOSPITALIZED") else None,
+   822→            attending_doctor_id=doctor.id if doctor else None,
+   823→            vital_signs=json.dumps({
+   824→                "temperature": f"{randint(36, 40)}.{randint(0,9)}°C",
+   825→                "blood_pressure": f"{randint(90,180)}/{randint(60,100)} mmHg",
+   826→                "heart_rate": f"{randint(60,130)} bpm",
+   827→                "oxygen_sat": f"{randint(85,100)}%",
+   828→                "weight": f"{randint(40,110)} kg",
+   829→            }),
+   830→            treatment_notes=f"Traitement initié aux urgences. Surveillance clinique." if status != "WAITING" else None,
+   831→            discharge_summary="Patient stabilisé et orienté." if status in ("DISCHARGED",) else None,
+   832→            discharge_destination=choice(["HOME", "HOSPITALIZATION", "TRANSFER"]) if status in ("DISCHARGED", "HOSPITALIZED") else None,
+   833→            seen_at=seen,
+   834→            discharged_at=discharged,
+   835→            arrived_at=arrived,
+   836→            updated_at=_now(),
+   837→        )
+   838→        db.add(ev)
+   839→    db.flush()
+   840→
+   841→    # ═══════════════════════════════════════
+   842→    # 10. HOSPITAL STAYS — 15 active stays
+   843→    db.commit()
+   844→    print(f'  ✅ Sections 1-9 committed')
+   845→
+   846→    # ═══════════════════════════════════════
+   847→    hospital_stays = []
+   848→    available_beds = [b for b in beds.values() if b.bed_status == "AVAILABLE"]
+   849→    for i in range(min(15, len(admissions), len(available_beds))):
+   850→        adm = admissions[i]
+   851→        bed = available_beds[i]
+   852→        stay_reasons = [
+   853→            "Paludisme grave", "Appendicite aiguë", "Pneumopathie", "Insuffisance cardiaque",
+   854→            "Accouchement compliqué", "Fracture fémur", "Hémorragie digestive", "Crise drépanocytaire",
+   855→            "AVC", "Diabète déséquilibré", "Néphrite aiguë", "Choc septique",
+   856→            "Intoxication médicamenteuse", "Césarienne", "Traumatisme crânien",
+   857→        ]
+   858→        is_active = randint(1, 10) > 3
+   859→        hs = HospitalStay(
+   860→            facility_id=adm.facility_id,
+   861→            patient_id=adm.patient_id,
+   862→            admission_id=adm.id,
+   863→            bed_id=bed.id,
+   864→            reason=stay_reasons[i % len(stay_reasons)],
+   865→            status="ACTIVE" if is_active else "DISCHARGED",
+   866→            admitted_at=adm.admitted_at,
+   867→            discharged_at=None if is_active else _days_ago(randint(1, 14)),
+   868→        )
+   869→        db.add(hs)
+   870→        db.flush()
+   871→        hospital_stays.append(hs)
+   872→
+   873→        # Mark bed as occupied
+   874→        if is_active:
+   875→            bed.bed_status = "OCCUPIED"
+   876→            db.flush()
+   877→
+   878→    # ═══════════════════════════════════════
+   879→    # 11. PHARMACY PRODUCTS & STOCK
+   880→    db.commit()
+   881→    print(f'  ✅ Sections 1-10 committed')
+   882→
+   883→    # ═══════════════════════════════════════
+   884→    products = {}
+   885→    pharmacy_facilities = [fc for fc, f in facilities.items() if f.category in ("CHU", "HGR", "PRIVE", "PHARMACIE")]
+   886→    for fc in pharmacy_facilities:
+   887→        fac = facilities[fc]
+   888→        for code, name, category, form, dosage, qty, threshold in PHARMACY_PRODUCTS_DATA:
+   889→            # Smaller stock for HGR and pharmacies
+   890→            if fac.category == "PHARMACIE":
+   891→                qty_mult = 3
+   892→            elif fac.category == "HGR":
+   893→                qty_mult = 0.5
+   894→            else:
+   895→                qty_mult = 1
+   896→
+   897→            p = db.query(PharmacyProduct).filter(
+   898→                PharmacyProduct.facility_id == fac.id,
+   899→                PharmacyProduct.code == code,
+   900→            ).first()
+   901→            if not p:
+   902→                p = PharmacyProduct(
+   903→                    facility_id=fac.id,
+   904→                    code=code,
+   905→                    name=name,
+   906→                    category=category,
+   907→                    form=form,
+   908→                    dosage=dosage,
+   909→                    status="ACTIVE",
+   910→                )
+   911→                db.add(p)
+   912→                db.flush()
+   913→            products[(fc, code)] = p
+   914→
+   915→            stock = db.query(PharmacyStock).filter(
+   916→                PharmacyStock.facility_id == fac.id,
+   917→                PharmacyStock.product_id == p.id,
+   918→            ).first()
+   919→            if not stock:
+   920→                db.add(PharmacyStock(
+   921→                    facility_id=fac.id,
+   922→                    product_id=p.id,
+   923→                    quantity_available=int(qty * qty_mult),
+   924→                    min_threshold=threshold,
+   925→                ))
+   926→
+   927→    # Stock movements
+   928→    movement_types = ["ENTRY", "EXIT", "ADJUSTMENT", "RETURN"]
+   929→    for fc in ["CHU-DONKA", "CHU-IGNACE-DEEN", "PHARMA-CENTRALE", "HGR-KINDIA"]:
+   930→        fac = facilities[fc]
+   931→        prods = db.query(PharmacyProduct).filter(PharmacyProduct.facility_id == fac.id).all()
+   932→        for j, prod in enumerate(prods[:10]):
+   933→            for k in range(randint(2, 5)):
+   934→                sm = StockMovement(
+   935→                    facility_id=fac.id,
+   936→                    product_id=prod.id,
+   937→                    movement_type=choice(movement_types),
+   938→                    quantity=randint(10, 500),
+   939→                    reason=choice(["Réapprovisionnement", "Dispensation patient", "Ajustement inventaire", "Retour fournisseur", "Transfert inter-service"]),
+   940→                    performed_by=list(users.values())[0].id if users else None,
+   941→                    performed_at=_days_ago(randint(1, 60)),
+   942→                )
+   943→                db.add(sm)
+   944→    db.flush()
+   945→
+   946→    # ═══════════════════════════════════════
+   947→    # 12. LAB TESTS, ORDERS & RESULTS
+   948→    db.commit()
+   949→    print(f'  ✅ Sections 1-11 committed')
+   950→
+   951→    # ═══════════════════════════════════════
+   952→    lab_tests = {}
+   953→    for fc in ["CHU-DONKA", "CHU-IGNACE-DEEN", "HGR-KINDIA", "HGR-KANKAN", "HGR-LABE"]:
+   954→        fac = facilities[fc]
+   955→        for code, name, category, sample in LAB_TESTS_DATA:
+   956→            lt = db.query(LabTest).filter(
+   957→                LabTest.facility_id == fac.id,
+   958→                LabTest.code == code,
+   959→            ).first()
+   960→            if not lt:
+   961→                lt = LabTest(
+   962→                    facility_id=fac.id,
+   963→                    code=code,
+   964→                    name=name,
+   965→                    category=category,
+   966→                    sample_type=sample,
+   967→                    status="ACTIVE",
+   968→                )
+   969→                db.add(lt)
+   970→                db.flush()
+   971→            lab_tests[(fc, code)] = lt
+   972→
+   973→    # Lab orders for first 20 patients
+   974→    lab_tech_emails = [e for e, u in users.items() if u.role == "LAB_TECH"]
+   975→    for i in range(20):
+   976→        pat = patients[i % len(patients)]
+   977→        fc = None
+   978→        for fcode, fac in facilities.items():
+   979→            if fac.id == pat.facility_id:
+   980→                fc = fcode
+   981→                break
+   982→        if not fc or fc not in facilities:
+   983→            fc = "CHU-DONKA"
+   984→
+   985→        test_keys = [k for k in lab_tests.keys() if k[0] == fc]
+   986→        if not test_keys:
+   987→            test_keys = list(lab_tests.keys())[:5]
+   988→        test_key = choice(test_keys)
+   989→        lt = lab_tests[test_key]
+   990→        doctor = users.get(choice(doctor_emails))
+   991→
+   992→        priority = choice(["NORMAL", "URGENT"])
+   993→        order_status = choice(["ORDERED", "IN_PROGRESS", "COMPLETED"])
+   994→
+   995→        lo = LabOrder(
+   996→            facility_id=pat.facility_id,
+   997→            patient_id=pat.id,
+   998→            admission_id=admissions[i].id if i < len(admissions) else None,
+   999→            test_id=lt.id,
+  1000→            priority=priority,
+  1001→            status=order_status,
+  1002→            ordered_by=doctor.id if doctor else None,
+  1003→            ordered_at=_days_ago(randint(1, 30)),
+  1004→        )
+  1005→        db.add(lo)
+  1006→        db.flush()
+  1007→
+  1008→        # Add result for completed orders
+  1009→        if order_status == "COMPLETED":
+  1010→            result_map = {
+  1011→                "NFS": ("GB: 8.5 G/L, GR: 4.8 T/L, Hb: 14.2 g/dL, Ht: 42%, Plq: 250 G/L", "NFS normale"),
+  1012→                "HGB": ("14.2 g/dL", "Hémoglobine normale"),
+  1013→                "GLY": (f"{randint(70,250)} mg/dL", "Glycémie" + (" normale" if randint(1,2)==1 else " élevée - diabète suspecté")),
+  1014→                "GE": ("Positive - Plasmodium falciparum", "Paludisme confirmé"),
+  1015→                "TDR-PALU": ("Positif", "Paludisme à P. falciparum"),
+  1016→                "CREAT": (f"{randint(5,25)} mg/L", "Créatinine" + (" normale" if randint(1,3)>1 else " élevée - insuffisance rénale")),
+  1017→                "UREE": (f"{randint(1,8)/10:.1f} g/L", "Urée normale"),
+  1018→                "GROUP": (choice(["O+", "A+", "B+", "AB+", "O-", "A-"]), "Groupe déterminé"),
+  1019→                "CRP": (f"{randint(1,100)} mg/L", "CRP" + (" normale" if randint(1,3)>1 else " élevée - syndrome inflammatoire")),
+  1020→                "ECBU": ("E. coli 10^5 UFC/ml", "Infection urinaire à E. coli"),
+  1021→                "HIV": (choice(["Négatif", "Positif"]), "Sérologie VIH"),
+  1022→                "HBV": (choice(["Négatif", "Positif - Ag HBs"]), "Sérologie Hépatite B"),
+  1023→            }
+  1024→            result_data = result_map.get(test_key[1], (f"{randint(10,200)} unités", "Résultat en cours d'interprétation"))
+  1025→            lab_tech = users.get(choice(lab_tech_emails)) if lab_tech_emails else None
+  1026→
+  1027→            lr = LabResult(
+  1028→                facility_id=pat.facility_id,
+  1029→                order_id=lo.id,
+  1030→                result_value=result_data[0],
+  1031→                interpretation=result_data[1],
+  1032→                status="VALIDATED" if randint(1, 3) > 1 else "DRAFT",
+  1033→                entered_by=lab_tech.id if lab_tech else None,
+  1034→                validated_by=lab_tech.id if lab_tech and randint(1, 3) > 1 else None,
+  1035→                entered_at=_days_ago(randint(1, 20)),
+  1036→                validated_at=_days_ago(randint(0, 15)) if randint(1, 3) > 1 else None,
+  1037→            )
+  1038→            db.add(lr)
+  1039→    db.flush()
+  1040→
+  1041→    # ═══════════════════════════════════════
+  1042→    # 13. IMAGING ORDERS & RESULTS
+  1043→    db.commit()
+  1044→    print(f'  ✅ Sections 1-12 committed')
+  1045→
+  1046→    # ═══════════════════════════════════════
+  1047→    imaging_data = [
+  1048→        ("RADIOGRAPHIE", "Thorax", "Toux persistante, fièvre", "ROUTINE"),
+  1049→        ("RADIOGRAPHIE", "Abdomen sans préparation", "Douleurs abdominales", "URGENT"),
+  1050→        ("RADIOGRAPHIE", "Bassin de face", "Traumatisme du bassin", "URGENT"),
+  1051→        ("ÉCHOGRAPHIE", "Abdomen", "Douleurs hypocondre droit", "ROUTINE"),
+  1052→        ("ÉCHOGRAPHIE", "Pelvienne", "Grossesse - suivi", "ROUTINE"),
+  1053→        ("ÉCHOGRAPHIE", "Obstétricale", "CPN - évaluation croissance", "ROUTINE"),
+  1054→        ("SCANNER", "Cérébral", "Céphalées avec signes de focalité", "EMERGENCY"),
+  1055→        ("SCANNER", "Thoraco-abdominal", "Traumatisme polyviscéral", "EMERGENCY"),
+  1056→        ("RADIOGRAPHIE", "Rachis lombaire", "Lombalgie chronique", "ROUTINE"),
+  1057→        ("ÉCHOGRAPHIE", "Cardiaque", "Dyspnée, souffle cardiaque", "URGENT"),
+  1058→    ]
+  1059→    for i, (exam_type, body_region, clinical_info, urgency) in enumerate(imaging_data):
+  1060→        pat = patients[i % len(patients)]
+  1061→        fc = None
+  1062→        for fcode, fac in facilities.items():
+  1063→            if fac.id == pat.facility_id:
+  1064→                fc = fcode
+  1065→                break
+  1066→        if not fc:
+  1067→            fc = "CHU-DONKA"
+  1068→        doctor = users.get(choice(doctor_emails))
+  1069→        img_status = choice(["PENDING", "IN_PROGRESS", "COMPLETED"])
+  1070→
+  1071→        io = ImagingOrder(
+  1072→            facility_id=pat.facility_id,
+  1073→            patient_id=pat.id,
+  1074→            requesting_doctor_id=doctor.id if doctor else None,
+  1075→            exam_type=exam_type,
+  1076→            body_region=body_region,
+  1077→            clinical_info=clinical_info,
+  1078→            urgency=urgency,
+  1079→            status=img_status,
+  1080→            ordered_at=_days_ago(randint(1, 30)),
+  1081→            performed_at=_days_ago(randint(0, 20)) if img_status != "PENDING" else None,
+  1082→            reported_at=_days_ago(randint(0, 15)) if img_status == "COMPLETED" else None,
+  1083→        )
+  1084→        db.add(io)
+  1085→        db.flush()
+  1086→
+  1087→        if img_status == "COMPLETED":
+  1088→            findings_map = {
+  1089→                "Thorax": "Syndrome alvéolo-interstitiel bilatéral. Pas d'épanchement pleural.",
+  1090→                "Abdomen sans préparation": "Pas de pneumopéritoine. Niveaux hydro-aériques évocateurs d'occlusion.",
+  1091→                "Bassin de face": "Fracture du cotyle droit sans déplacement.",
+  1092→                "Abdomen": "Lithiase vésiculaire. Vésicule distendue. Pas de signe de cholécystite aiguë.",
+  1093→                "Pelvienne": "Masse annexielle droite de 5 cm, d'allure kystique.",
+  1094→                "Obstétricale": "Grossesse monofoetale en présentation céphalique. BIP normal. Liquide amniotique normal.",
+  1095→                "Cérébral": "Hypodensité sylvienne gauche - AVC ischémique récent.",
+  1096→                "Thoraco-abdominal": "Épanchement pleural droit. Lésion hépatique suspecte segment VI.",
+  1097→                "Rachis lombaire": "Discopathie L4-L5 avec protrusion discale. Pas de hernie compressive.",
+  1098→                "Cardiaque": "FEVG conservée à 60%. IM minime. Pas d'hypertrophie ventriculaire.",
+  1099→            }
+  1100→            ir = ImagingResult(
+  1101→                facility_id=pat.facility_id,
+  1102→                order_id=io.id,
+  1103→                patient_id=pat.id,
+  1104→                radiologist_id=doctor.id if doctor else None,
+  1105→                findings=findings_map.get(body_region, "Examen réalisé. Constatations en cours de rédaction."),
+  1106→                conclusion="Compte rendu validé par le radiologue." if randint(1,3)>1 else "En attente de validation.",
+  1107→                recommendation="Contrôle recommandé dans 3 mois." if randint(1,2)==1 else None,
+  1108→                status="VALIDATED" if randint(1, 3) > 1 else "DRAFT",
+  1109→                validated_at=_days_ago(randint(0, 10)) if randint(1, 3) > 1 else None,
+  1110→            )
+  1111→            db.add(ir)
+  1112→    db.flush()
+  1113→
+  1114→    # ═══════════════════════════════════════
+  1115→    # 14. CLINICAL NOTES, MEASUREMENTS, DIAGNOSES
+  1116→    db.commit()
+  1117→    print(f'  ✅ Sections 1-13 committed')
+  1118→
+  1119→    # ═══════════════════════════════════════
+  1120→    for i in range(25):
+  1121→        pat = patients[i % len(patients)]
+  1122→        adm = admissions[i] if i < len(admissions) else None
+  1123→        doctor = users.get(choice(doctor_emails))
+  1124→
+  1125→        # Clinical note
+  1126→        note_types = ["OBSERVATION", "CONSULTATION", "PRESCRIPTION", "NOTE"]
+  1127→        notes_content = [
+  1128→            "Patient admis pour paludisme grave. Traitement: Coartem + quinine IV. Surveillance clinique rapprochée.",
+  1129→            "Consultation de suivi. Amélioration des symptômes sous traitement. Poursuivre le même schéma thérapeutique.",
+  1130→            "Prescription: Amoxicilline 1g x3/jour pendant 7 jours, Paracétamol 1g si douleur/fièvre, Oméprazole 20mg/jour.",
+  1131→            "Bilan biologique demandé: NFS, CRP, Glycémie, Créatinine. Résultats attendus pour adaptation thérapeutique.",
+  1132→            "Patient stable sur le plan hémodynamique. Apyrétique depuis 48h. Reprise du transit. Sortie envisagée.",
+  1133→            "Examen clinique: PA 120/80, FC 78, T° 37.2°C. Auscultation cardiaque: pas de souffle. Abdomen souple.",
+  1134→            "Avis cardiologique demandé pour suspicion d'insuffisance cardiaque. ECG réalisé: AC/FA à 90/min.",
+  1135→            "Réévaluation du traitement antihypertenseur. Amlodipine 10mg + Captopril 50mg. Objectif PA < 140/90.",
+  1136→            "Douleur contrôlée par palier 2. Pas d'effet indésirable. Poursuivre surveillance rénale.",
+  1137→            "Patient vu en consultation prénatale. Grossesse évolutive. Bébé en bonne santé. Prochain RDV dans 1 mois.",
+  1138→        ]
+  1139→        cn = ClinicalNote(
+  1140→            facility_id=pat.facility_id,
+  1141→            patient_id=pat.id,
+  1142→            admission_id=adm.id if adm else None,
+  1143→            note_type=choice(note_types),
+  1144→            content=choice(notes_content),
+  1145→            created_by=doctor.id if doctor else None,
+  1146→            created_at=_days_ago(randint(1, 30)),
+  1147→        )
+  1148→        db.add(cn)
+  1149→
+  1150→        # Measurements
+  1151→        measurements = [
+  1152→            ("TEMPERATURE", f"{randint(36,40)}.{randint(0,9)}", "°C"),
+  1153→            ("BLOOD_PRESSURE", f"{randint(90,180)}/{randint(60,100)}", "mmHg"),
+  1154→            ("HEART_RATE", f"{randint(55,130)}", "bpm"),
+  1155→            ("WEIGHT", f"{randint(40,120)}", "kg"),
+  1156→            ("OXYGEN_SAT", f"{randint(88,100)}", "%"),
+  1157→        ]
+  1158→        for m_type, val, unit in measurements:
+  1159→            pm = PatientMeasurement(
+  1160→                facility_id=pat.facility_id,
+  1161→                patient_id=pat.id,
+  1162→                admission_id=adm.id if adm else None,
+  1163→                measurement_type=m_type,
+  1164→                value=val,
+  1165→                unit=unit,
+  1166→                recorded_by=users.get(choice([e for e in users if users[e].role in ("NURSE", "DOCTOR")] or list(users.keys()))).id if users else None,
+  1167→                recorded_at=_days_ago(randint(1, 14)),
+  1168→            )
+  1169→            db.add(pm)
+  1170→
+  1171→        # Diagnoses (for first 15 patients)
+  1172→        if i < 15:
+  1173→            diag = COMMON_DIAGNOSES[i % len(COMMON_DIAGNOSES)]
+  1174→            d = Diagnosis(
+  1175→                facility_id=pat.facility_id,
+  1176→                patient_id=pat.id,
+  1177→                admission_id=adm.id if adm else None,
+  1178→                diagnosis_code=diag[0],
+  1179→                diagnosis_label=diag[1],
+  1180→                diagnosis_type=diag[2],
+  1181→                status=choice(["ACTIVE", "RESOLVED", "CHRONIC"]),
+  1182→                created_by=doctor.id if doctor else None,
+  1183→                created_at=_days_ago(randint(1, 30)),
+  1184→            )
+  1185→            db.add(d)
+  1186→    db.flush()
+  1187→
+  1188→    # ═══════════════════════════════════════
+  1189→    # 15. MATERNITY RECORDS
+  1190→    db.commit()
+  1191→    print(f'  ✅ Sections 1-14 committed')
+  1192→
+  1193→    # ═══════════════════════════════════════
+  1194→    female_patients = [p for p in patients if p.gender == "F"]
+  1195→    midwife_emails = [e for e, u in users.items() if u.role == "MIDWIFE"]
+  1196→    maternity_records = []
+  1197→
+  1198→    # Prenatal records for 8 patients
+  1199→    for i in range(min(8, len(female_patients))):
+  1200→        pat = female_patients[i]
+  1201→        fc = None
+  1202→        for fcode, fac in facilities.items():
+  1203→            if fac.id == pat.facility_id:
+  1204→                fc = fcode
+  1205→                break
+  1206→        if not fc:
+  1207→            fc = "CHU-DONKA"
+  1208→
+  1209→        blood_types = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"]
+  1210→        risk_levels = ["LOW", "MEDIUM", "HIGH"]
+  1211→
+  1212→        mr = MaternityRecord(
+  1213→            facility_id=pat.facility_id,
+  1214→            patient_id=pat.id,
+  1215→            gravidity=str(randint(1, 7)),
+  1216→            parity=str(randint(0, 5)),
+  1217→            last_menstrual_period=_days_ago(randint(60, 250)),
+  1218→            expected_due_date=_days_ago(randint(0, 90)),
+  1219→            blood_type=choice(blood_types[:6]),
+  1220→            rh_factor=choice(["Positif", "Négatif"]),
+  1221→            allergies=choice(["Aucune", "Pénicilline", "Sulfamides", "Aucune", "Aucune"]),
+  1222→            risk_level=choice(risk_levels),
+  1223→            status=choice(["ACTIVE", "DELIVERED", "ACTIVE", "ACTIVE"]),
+  1224→            created_by=users.get(midwife_emails[0]).id if midwife_emails else None,
+  1225→            created_at=_days_ago(randint(30, 180)),
+  1226→        )
+  1227→        db.add(mr)
+  1228→        db.flush()
+  1229→        maternity_records.append(mr)
+  1230→
+  1231→        # Add 2-4 prenatal consultations per record
+  1232→        for j in range(randint(2, 4)):
+  1233→            mc = MaternityConsultation(
+  1234→                facility_id=pat.facility_id,
+  1235→                record_id=mr.id,
+  1236→                consultation_type=choice(["PRENATAL", "PRENATAL", "FOLLOW_UP"]),
+  1237→                gestational_age_weeks=float(randint(12, 38)),
+  1238→                weight_kg=float(randint(50, 95)),
+  1239→                blood_pressure=f"{randint(100,140)}/{randint(60,90)}",
+  1240→                fetal_heart_rate=float(randint(120, 160)),
+  1241→                fundal_height_cm=float(randint(20, 36)),
+  1242→                notes="Grossesse évolutive. Pas de signe d'alerte." if randint(1,3)>1 else "Surveillance renforcée recommandée.",
+  1243→                consulted_by=users.get(choice(midwife_emails)).id if midwife_emails else None,
+  1244→                consulted_at=_days_ago(randint(7, 120)),
+  1245→            )
+  1246→            db.add(mc)
+  1247→
+  1248→    # Delivery records for 3 patients
+  1249→    for i in range(min(3, len(maternity_records))):
+  1250→        mr = maternity_records[i]
+  1251→        midwife = users.get(choice(midwife_emails)) if midwife_emails else None
+  1252→        delivery_types = ["VAGINAL", "CESAREAN", "ASSISTED"]
+  1253→        dt = delivery_types[i % len(delivery_types)]
+  1254→        dr = DeliveryRecord(
+  1255→            facility_id=mr.facility_id,
+  1256→            record_id=mr.id,
+  1257→            delivery_type=dt,
+  1258→            delivery_date=_days_ago(randint(5, 60)),
+  1259→            gestational_age_weeks=float(randint(37, 42)),
+  1260→            complications=None if dt == "VAGINAL" else "Dystocie - indication de césarienne",
+  1261→            baby_gender=choice(["M", "F"]),
+  1262→            baby_weight_kg=float(randint(2500, 4200)) / 1000,
+  1263→            baby_apgar_1=str(randint(6, 10)),
+  1264→            baby_apgar_5=str(randint(8, 10)),
+  1265→            baby_health_status="BON" if randint(1,5)>1 else "SURVEILLANCE",
+  1266→            performed_by=midwife.id if midwife else None,
+  1267→            notes="Accouchement sans complication." if dt == "VAGINAL" else "Césarienne réalisée en urgence. Bébé en bonne santé.",
+  1268→        )
+  1269→        db.add(dr)
+  1270→    db.flush()
+  1271→
+  1272→    # ═══════════════════════════════════════
+  1273→    # 16. SURGERY SCHEDULES & REPORTS
+  1274→    db.commit()
+  1275→    print(f'  ✅ Sections 1-15 committed')
+  1276→
+  1277→    # ═══════════════════════════════════════
+  1278→    surgery_data = [
+  1279→        ("Appendicectomie", "CHIR-APPEN", "NOT_APPLICABLE", "PLANNED"),
+  1280→        ("Cure de hernie inguinale", "CHIR-HERNIE", "LEFT", "PLANNED"),
+  1281→        ("Césarienne", "CHIR-CESAR", "NOT_APPLICABLE", "URGENT"),
+  1282→        ("Ostéosynthèse fracture tibia", "CHIR-OSTEO", "RIGHT", "PLANNED"),
+  1283→        ("Laparotomie exploratrice", "CHIR-LAP", "NOT_APPLICABLE", "EMERGENCY"),
+  1284→        ("Thyroidectomie totale", "CHIR-THYR", "NOT_APPLICABLE", "PLANNED"),
+  1285→        ("Cholécystectomie", "CHIR-CHOLE", "NOT_APPLICABLE", "PLANNED"),
+  1286→        ("Prostatectomie", "CHIR-PROST", "NOT_APPLICABLE", "PLANNED"),
+  1287→    ]
+  1288→    surgery_schedules = []
+  1289→    for i, (proc_name, proc_code, laterality, urgency) in enumerate(surgery_data):
+  1290→        pat = patients[i % len(patients)]
+  1291→        fc = None
+  1292→        for fcode, fac in facilities.items():
+  1293→            if fac.id == pat.facility_id:
+  1294→                fc = fcode
+  1295→                break
+  1296→        if not fc:
+  1297→            fc = "CHU-DONKA"
+  1298→
+  1299→        # Find OR and surgeon
+  1300→        or_key = [k for k in op_rooms.keys() if k[0] == fc]
+  1301→        opr = op_rooms[or_key[0]] if or_key else None
+  1302→        surgeon = users.get(choice(doctor_emails))
+  1303→        anesth = users.get(choice(doctor_emails))
+  1304→
+  1305→        sched_status = choice(["SCHEDULED", "IN_PROGRESS", "COMPLETED", "COMPLETED", "POSTPONED"])
+  1306→        sched_date = _days_ago(randint(0, 14))
+  1307→
+  1308→        ss = SurgerySchedule(
+  1309→            facility_id=pat.facility_id,
+  1310→            patient_id=pat.id,
+  1311→            operating_room_id=opr.id if opr else None,
+  1312→            surgeon_id=surgeon.id if surgeon else None,
+  1313→            anesthesiologist_id=anesth.id if anesth and anesth.id != (surgeon.id if surgeon else None) else None,
+  1314→            procedure_name=proc_name,
+  1315→            procedure_code=proc_code,
+  1316→            laterality=laterality,
+  1317→            urgency=urgency,
+  1318→            status=sched_status,
+  1319→            scheduled_date=sched_date,
+  1320→            started_at=sched_date if sched_status != "SCHEDULED" else None,
+  1321→            ended_at=sched_date + timedelta(hours=randint(1, 4)) if sched_status == "COMPLETED" else None,
+  1322→            notes=f"Intervention programmée. Bilan pré-opératoire réalisé." if urgency == "PLANNED" else "Intervention en urgence.",
+  1323→        )
+  1324→        db.add(ss)
+  1325→        db.flush()
+  1326→        surgery_schedules.append(ss)
+  1327→
+  1328→        # Surgery team
+  1329→        roles = ["SURGEON", "ANESTHESIOLOGIST", "NURSE_INSTRUMENTIST", "NURSE_ANESTHETIST", "AIDE_OPERATOR", "CIRCULATING_NURSE"]
+  1330→        for role in roles[:randint(3, 5)]:
+  1331→            stm = SurgeryTeamMember(
+  1332→                schedule_id=ss.id,
+  1333→                user_id=surgeon.id if role == "SURGEON" and surgeon else (anesth.id if role == "ANESTHESIOLOGIST" and anesth else list(users.values())[0].id if users else None),
+  1334→                role=role,
+  1335→            )
+  1336→            db.add(stm)
+  1337→
+  1338→        # Surgery report for completed
+  1339→        if sched_status == "COMPLETED":
+  1340→            sr = SurgeryReport(
+  1341→                facility_id=pat.facility_id,
+  1342→                schedule_id=ss.id,
+  1343→                patient_id=pat.id,
+  1344→                surgeon_id=surgeon.id if surgeon else None,
+  1345→                operative_findings=f"Constatations per-opératoires: {proc_name} réalisée sans complication majeure.",
+  1346→                procedure_performed=proc_name + " - geste réalisé conformément au programme opératoire.",
+  1347→                complications="Aucune complication per-opératoire." if randint(1, 4) > 1 else "Saignement per-opératoire contrôlé.",
+  1348→                specimens="Pièce opératoire envoyée en anatomopathologie." if randint(1, 3) > 1 else None,
+  1349→                blood_loss=f"{randint(50, 500)} ml",
+  1350→                anesthesia_type=choice(["GÉNÉRALE", "RACHIANESTHÉSIE", "LOCORÉGIONALE"]),
+  1351→                status="VALIDATED" if randint(1, 3) > 1 else "DRAFT",
+  1352→                validated_at=_days_ago(randint(0, 7)) if randint(1, 3) > 1 else None,
+  1353→            )
+  1354→            db.add(sr)
+  1355→    db.flush()
+  1356→
+  1357→    # ═══════════════════════════════════════
+  1358→    # 17. BILLING — Tariffs, Invoices, Payments
+  1359→    db.commit()
+  1360→    print(f'  ✅ Sections 1-16 committed')
+  1361→
+  1362→    # ═══════════════════════════════════════
+  1363→    for fc in ["CHU-DONKA", "CHU-IGNACE-DEEN", "HGR-KINDIA", "HGR-KANKAN", "HGR-LABE", "CLINIQUE-PASTEUR", "CLINIQUE-ESPERANCE"]:
+  1364→        fac = facilities[fc]
+  1365→        # Price adjustment for private clinics
+  1366→        price_mult = 2.0 if fac.category == "PRIVE" else 1.0
+  1367→        for code, name, category, unit_price in TARIFF_ITEMS_DATA:
+  1368→            ti = db.query(TariffItem).filter(
+  1369→                TariffItem.facility_id == fac.id,
+  1370→                TariffItem.code == code,
+  1371→            ).first()
+  1372→            if not ti:
+  1373→                ti = TariffItem(
+  1374→                    facility_id=fac.id,
+  1375→                    code=code,
+  1376→                    name=name,
+  1377→                    category=category,
+  1378→                    unit_price=int(unit_price * price_mult),
+  1379→                    status="ACTIVE",
+  1380→                )
+  1381→                db.add(ti)
+  1382→    db.flush()
+  1383→
+  1384→    # Invoices for 20 patients
+  1385→    cashier_emails = [e for e, u in users.items() if u.role == "CASHIER"]
+  1386→    for i in range(20):
+  1387→        pat = patients[i % len(patients)]
+  1388→        adm = admissions[i] if i < len(admissions) else None
+  1389→
+  1390→        # Random invoice amount
+  1391→        net = choice([25000, 50000, 75000, 100000, 150000, 200000, 350000, 500000, 750000, 1500000, 2500000])
+  1392→        paid = int(net * choice([1.0, 1.0, 1.0, 0.5, 0.75, 0.3]))  # some partial payments
+  1393→        inv_status = "PAID" if paid >= net else ("PARTIAL" if paid > 0 else "DRAFT")
+  1394→
+  1395→        inv = Invoice(
+  1396→            facility_id=pat.facility_id,
+  1397→            patient_id=pat.id,
+  1398→            admission_id=adm.id if adm else None,
+  1399→            invoice_number=f"GC-FAC-{_now().year}-{i+1:05d}-{uuid4().hex[:6]}",
+  1400→            description=choice(["Consultation + examens", "Hospitalisation + chirurgie", "Accouchement", "Examens laboratoire", "Urgences + imagerie", "Consultation prénatale + accouchement", "Bilan complet"]),
+  1401→            net_amount=net,
+  1402→            paid_amount=paid,
+  1403→            balance_due=net - paid,
+  1404→            status=inv_status,
+  1405→            created_at=_days_ago(randint(1, 30)),
+  1406→        )
+  1407→        db.add(inv)
+  1408→        db.flush()
+  1409→
+  1410→        # Payment for paid invoices
+  1411→        if paid > 0:
+  1412→            p = Payment(
+  1413→                facility_id=pat.facility_id,
+  1414→                invoice_id=inv.id,
+  1415→                amount=paid,
+  1416→                payment_method=choice(["CASH", "MOBILE_MONEY", "VIREMENT", "CARTE"]),
+  1417→                status="COMPLETED",
+  1418→                received_by=users.get(choice(cashier_emails)).id if cashier_emails and users.get(choice(cashier_emails)) else None,
+  1419→                received_at=_days_ago(randint(0, 25)),
+  1420→            )
+  1421→            db.add(p)
+  1422→    db.flush()
+  1423→
+  1424→    # ═══════════════════════════════════════
+  1425→    # 18. QUALITY INDICATORS & INCIDENTS
+  1426→    db.commit()
+  1427→    print(f'  ✅ Sections 1-17 committed')
+  1428→
+  1429→    # ═══════════════════════════════════════
+  1430→    for fc in ["CHU-DONKA", "CHU-IGNACE-DEEN", "HGR-KINDIA", "HGR-KANKAN"]:
+  1431→        fac = facilities[fc]
+  1432→        qi_records = {}
+  1433→        for code, name, category, desc, unit, target, freq in QUALITY_INDICATORS_DATA:
+  1434→            qi = db.query(QualityIndicator).filter(
+  1435→                QualityIndicator.facility_id == fac.id,
+  1436→                QualityIndicator.code == code,
+  1437→            ).first()
+  1438→            if not qi:
+  1439→                qi = QualityIndicator(
+  1440→                    facility_id=fac.id,
+  1441→                    code=code,
+  1442→                    name=name,
+  1443→                    category=category,
+  1444→                    description=desc,
+  1445→                    unit=unit,
+  1446→                    target_value=target,
+  1447→                    frequency=freq,
+  1448→                )
+  1449→                db.add(qi)
+  1450→                db.flush()
+  1451→            qi_records[code] = qi
+  1452→
+  1453→        # Quality measurements for last 6 months
+  1454→        for code, qi in qi_records.items():
+  1455→            for month in range(6):
+  1456→                period_start = datetime(2026, month + 1, 1)
+  1457→                period_end = datetime(2026, month + 1, 28) if month < 11 else datetime(2026, 12, 31)
+  1458→
+  1459→                val_map = {
+  1460→                    "IPS": str(randint(65, 95)),
+  1461→                    "TMR24": f"{randint(1,5)}.{randint(0,9)}",
+  1462→                    "SAT_PAT": str(randint(70, 98)),
+  1463→                    "TAUX_OCC": str(randint(55, 95)),
+  1464→                    "DMS": str(randint(3, 10)),
+  1465→                    "INOSO": f"{randint(1,8)}.{randint(0,9)}",
+  1466→                    "ERR_MED": f"{randint(0,3)}.{randint(0,9)}",
+  1467→                    "CHUTE": f"{randint(0,4)}.{randint(0,9)}",
+  1468→                    "DELAI_URG": str(randint(15, 60)),
+  1469→                    "TRANSFUS": str(randint(85, 100)),
+  1470→                    "DOSSIER": str(randint(70, 99)),
+  1471→                    "VACC": str(randint(75, 99)),
+  1472→                }
+  1473→
+  1474→                qm = QualityMeasurement(
+  1475→                    facility_id=fac.id,
+  1476→                    indicator_id=qi.id,
+  1477→                    period_start=period_start,
+  1478→                    period_end=period_end,
+  1479→                    value=val_map.get(code, str(randint(50, 100))),
+  1480→                    numerator=str(randint(50, 200)),
+  1481→                    denominator=str(randint(100, 300)),
+  1482→                    notes="Données SNIS mensuelles",
+  1483→                    recorded_by=list(users.values())[0].id if users else None,
+  1484→                )
+  1485→                db.add(qm)
+  1486→
+  1487→    # Incident reports
+  1488→    incidents = [
+  1489→        ("CHUTE", "MODERATE", "Patient âgé chute au service de médecine", "Barrières de lit installées", "Absence de barrières de lit", "Installation de barrières sur tous les lits"),
+  1490→        ("MEDICATION_ERROR", "MINOR", "Erreur de dosage de paracétamol en pédiatrie", "Dose corrigée immédiatement", "Confusion concentration sirop/adulte", "Étiquetage différencié et double vérification"),
+  1491→        ("NOSOCOMIAL_INFECTION", "MAJOR", "Infection du site opératoire post-appendicectomie", "Antibiothérapie adaptée, isolement", "Non-respect protocole asepsie", "Formation équipe bloc, audit pratiques"),
+  1492→        ("EQUIPMENT_FAILURE", "MODERATE", "Panne du générateur lors d'une intervention", "Transfert patient en salle 2", "Maintenance préventive non effectuée", "Plan de maintenance renforcé"),
+  1493→        ("FALL", "MINOR", "Chute dans les toilettes du service maternité", "Examen clinique - pas de lésion", "Sol mouillé, absence de barre d'appui", "Installation de barres d'appui, signalétique"),
+  1494→        ("MEDICATION_ERROR", "CRITICAL", "Administration de potassium à la place de sérum physiologique", "Arrêt immédiat, prise en charge réanimation", "Erreur d'étiquetage flacon", "Procédure de double vérification systématique"),
+  1495→        ("NOSOCOMIAL_INFECTION", "MODERATE", "Cas de COVID-19 nosocomial en chirurgie", "Isolement du patient, dépistage contacts", "Visiteurs non dépistés", "Renforcement des mesures barrières"),
+  1496→    ]
+  1497→    for i, (inc_type, severity, desc, actions, root, corrective) in enumerate(incidents):
+  1498→        pat = patients[i % len(patients)] if i < len(patients) else None
+  1499→        fc = None
+  1500→        if pat:
+  1501→            for fcode, fac in facilities.items():
+  1502→                if fac.id == pat.facility_id:
+  1503→                    fc = fcode
+  1504→                    break
+  1505→        if not fc:
+  1506→            fc = "CHU-DONKA"
+  1507→
+  1508→        ir = IncidentReport(
+  1509→            facility_id=facilities[fc].id,
+  1510→            reported_by=list(users.values())[0].id if users else None,
+  1511→            patient_id=pat.id if pat else None,
+  1512→            incident_date=_days_ago(randint(1, 60)),
+  1513→            incident_type=inc_type,
+  1514→            severity=severity,
+  1515→            description=desc,
+  1516→            immediate_actions=actions,
+  1517→            root_cause=root,
+  1518→            corrective_actions=corrective,
+  1519→            status=choice(["REPORTED", "UNDER_INVESTIGATION", "RESOLVED", "CLOSED"]),
+  1520→        )
+  1521→        db.add(ir)
+  1522→    db.flush()
+  1523→
+  1524→    # ═══════════════════════════════════════
+  1525→    # 19. REPORTING — National Reports & Epidemic Alerts
+  1526→    db.commit()
+  1527→    print(f'  ✅ Sections 1-18 committed')
+  1528→
+  1529→    # ═══════════════════════════════════════
+  1530→    for fc in ["CHU-DONKA", "CHU-IGNACE-DEEN", "HGR-KINDIA", "HGR-KANKAN", "HGR-LABE", "HGR-BOKE", "HGR-MAMOU", "HGR-NZEREKORE", "HGR-FARANAH"]:
+  1531→        fac = facilities[fc]
+  1532→        # Monthly national report
+  1533→        nr = NationalReport(
+  1534→            facility_id=fac.id,
+  1535→            report_type="MONTHLY",
+  1536→            period_start=datetime(2026, 5, 1),
+  1537→            period_end=datetime(2026, 5, 31),
+  1538→            total_admissions=str(randint(200, 1500)),
+  1539→            total_discharges=str(randint(180, 1400)),
+  1540→            total_deaths=str(randint(5, 45)),
+  1541→            total_births=str(randint(50, 400)),
+  1542→            total_surgeries=str(randint(30, 200)),
+  1543→            total_emergency_visits=str(randint(300, 2000)),
+  1544→            bed_occupancy_rate=f"{randint(55, 95)}%",
+  1545→            average_stay_days=f"{randint(3, 8)}",
+  1546→            disease_distribution=json.dumps({
+  1547→                "paludisme": randint(80, 400),
+  1548→                "diarrhée": randint(50, 200),
+  1549→                "infection_respiratoire": randint(40, 300),
+  1550→                "hypertension": randint(30, 150),
+  1551→                "diabète": randint(20, 100),
+  1552→                "grossesse": randint(40, 200),
+  1553→            }),
+  1554→            status=choice(["DRAFT", "SUBMITTED", "VALIDATED"]),
+  1555→            submitted_by=list(users.values())[0].id if users else None,
+  1556→            submitted_at=_days_ago(randint(1, 10)),
+  1557→        )
+  1558→        db.add(nr)
+  1559→
+  1560→        # Health statistics
+  1561→        stat_categories = [
+  1562→            ("CONSULTATION", "Nombre total consultations", str(randint(500, 3000))),
+  1563→            ("HOSPITALIZATION", "Taux d'occupation lits", f"{randint(55, 95)}%"),
+  1564→            ("MATERNITY", "Nombre accouchements", str(randint(50, 400))),
+  1565→            ("MATERNITY", "Mortalité maternelle", str(randint(0, 5))),
+  1566→            ("SURGERY", "Nombre interventions", str(randint(30, 200))),
+  1567→            ("EMERGENCY", "Passages urgences", str(randint(300, 2000))),
+  1568→            ("PHARMACY", "Ordonnances dispensées", str(randint(400, 2500))),
+  1569→            ("CONSULTATION", "Vaccinations", str(randint(100, 800))),
+  1570→        ]
+  1571→        for cat, metric, value in stat_categories:
+  1572→            hs = HealthStatistic(
+  1573→                facility_id=fac.id,
+  1574→                category=cat,
+  1575→                metric_name=metric,
+  1576→                metric_value=value,
+  1577→                period_start=datetime(2026, 5, 1),
+  1578→                period_end=datetime(2026, 5, 31),
+  1579→                unit="count" if "Nombre" in metric else ("rate" if "Taux" in metric else "percentage"),
+  1580→                source=choice(["SNIS", "DHIS2", "MANUAL"]),
+  1581→            )
+  1582→            db.add(hs)
+  1583→
+  1584→    # Epidemic alerts
+  1585→    alerts = [
+  1586→        ("Choléra", "12", "WARNING", "Conakry", "Apparition de cas groupés dans la commune de Matam", "Chloration de l'eau, sensibilisation communautaire"),
+  1587→        ("Paludisme", "45", "ALERT", "Kindia", "Augmentation des cas de paludisme grave", "Distribution de moustiquaires imprégnées, TDR systématique"),
+  1588→        ("Fièvre de Lassa", "3", "EMERGENCY", "N'Zérékoré", "Cas suspects de fièvre de Lassa en zone forestière", "Isolement des cas, investigation sur le terrain"),
+  1589→        ("Rougeole", "8", "WARNING", "Kankan", "Cas de rougeole signalés en milieu scolaire", "Campagne de vaccination de riposte"),
+  1590→        ("COVID-19", "5", "WATCH", "Conakry", "Resurgence de cas COVID-19", "Renforcement dépistage, port du masque"),
+  1591→    ]
+  1592→    for disease, count, level, region, desc, measures in alerts:
+  1593→        ea = EpidemicAlert(
+  1594→            facility_id=facilities["CHU-DONKA"].id,
+  1595→            disease_name=disease,
+  1596→            case_count=count,
+  1597→            threshold_exceeded="YES",
+  1598→            alert_level=level,
+  1599→            region=region,
+  1600→            description=desc,
+  1601→            measures_taken=measures,
+  1602→            status=choice(["ACTIVE", "ACTIVE", "UNDER_CONTROL"]),
+  1603→            reported_by=list(users.values())[0].id if users else None,
+  1604→            created_at=_days_ago(randint(1, 30)),
+  1605→        )
+  1606→        db.add(ea)
+  1607→    db.flush()
+  1608→
+  1609→    # ═══════════════════════════════════════
+  1610→    # 20. ON-CALL SCHEDULES (garde)
+  1611→    db.commit()
+  1612→    print(f'  ✅ Sections 1-19 committed')
+  1613→
+  1614→    # ═══════════════════════════════════════
+  1615→    for fc in ["CHU-DONKA", "CHU-IGNACE-DEEN", "HGR-KINDIA"]:
+  1616→        fac = facilities[fc]
+  1617→        staff_list = [s for s in staff.values() if s.facility_id == fac.id]
+  1618→        if not staff_list:
+  1619→            continue
+  1620→        for day in range(1, 16):  # Next 15 days
+  1621→            on_call_date = _now().replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=day)
+  1622→            for shift in ["DAY", "NIGHT"]:
+  1623→                s = choice(staff_list)
+  1624→                ocs = OnCallSchedule(
+  1625→                    facility_id=fac.id,
+  1626→                    department_id=s.department_id,
+  1627→                    staff_id=s.id,
+  1628→                    on_call_date=on_call_date,
+  1629→                    shift_type=shift,
+  1630→                    notes=f"Garde {shift.lower()} - {s.first_name} {s.last_name}",
+  1631→                    created_by=list(users.values())[0].id if users else None,
+  1632→                )
+  1633→                db.add(ocs)
+  1634→    db.flush()
+  1635→
+  1636→    # ═══════════════════════════════════════
+  1637→    # 21. ACTIVITY LOG ENTRIES
+  1638→    db.commit()
+  1639→    print(f'  ✅ Sections 1-20 committed')
+  1640→
+  1641→    # ═══════════════════════════════════════
+  1642→    activity_actions = [
+  1643→        ("LOGIN", "users", None, "NORMAL", "Connexion utilisateur"),
+  1644→        ("PATIENT_CREATED", "patients", None, "NORMAL", "Création dossier patient"),
+  1645→        ("ADMISSION_CREATED", "admissions", None, "NORMAL", "Nouvelle admission"),
+  1646→        ("PRESCRIPTION_CREATED", "clinical", None, "NORMAL", "Prescription médicale"),
+  1647→        ("LAB_ORDER_CREATED", "laboratory", None, "NORMAL", "Demande d'examen labo"),
+  1648→        ("EMERGENCY_TRIAGE", "emergency", None, "URGENT", "Triage urgence réalisé"),
+  1649→        ("INVOICE_CREATED", "billing", None, "NORMAL", "Facture émise"),
+  1650→        ("PAYMENT_RECEIVED", "billing", None, "NORMAL", "Paiement encaissé"),
+  1651→        ("SURGERY_SCHEDULED", "surgery", None, "NORMAL", "Intervention programmée"),
+  1652→        ("INCIDENT_REPORTED", "quality", None, "WARNING", "Événement indésirable signalé"),
+  1653→    ]
+  1654→    for i in range(50):
+  1655→        action = choice(activity_actions)
+  1656→        user_list = list(users.values())
+  1657→        ae = ActivityEntry(
+  1658→            actor_id=choice(user_list).id,
+  1659→            action_name=action[0],
+  1660→            entity_type=action[1],
+  1661→            entity_id=choice(patients).id if action[1] in ("patients", "clinical", "laboratory", "emergency") else None,
+  1662→            level=action[3],
+  1663→            notes=action[4],
+  1664→            created_at=_days_ago(randint(0, 7)),
+  1665→        )
+  1666→        db.add(ae)
+  1667→
+  1668→    db.commit()
+  1669→    print("✅ Seed completed successfully with comprehensive Guinea data!")
+  1670→    print(f"   - {len(facilities)} établissements")
+  1671→    print(f"   - {len(users)} utilisateurs")
+  1672→    print(f"   - {len(patients)} patients")
+  1673→    print(f"   - {len(admissions)} admissions")
+  1674→    print(f"   - {len(beds)} lits")
+  1675→    print(f"   - {len(products)} produits pharmaceutiques")
+  1676→    print(f"   - {len(lab_tests)} examens de laboratoire")
+  1677→
+  1678→
+  1679→if __name__ == "__main__":
+  1680→    run_seed()
+  1681→

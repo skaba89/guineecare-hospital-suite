@@ -1,0 +1,774 @@
+     1→import { useCallback, useEffect, useState } from "react";
+     2→import { apiRequest } from "../services/api";
+     3→import { LookupData, Row } from "../types";
+     4→import { showToast } from "../components/Toast";
+     5→import { buildOptions, firstValue } from "../utils/options";
+     6→
+     7→type TabKey = "indicators" | "measurements" | "incidents";
+     8→
+     9→const TABS: { key: TabKey; label: string }[] = [
+    10→  { key: "indicators", label: "Indicateurs" },
+    11→  { key: "measurements", label: "Mesures" },
+    12→  { key: "incidents", label: "Événements indésirables" },
+    13→];
+    14→
+    15→const CATEGORY_OPTIONS: { value: string; label: string }[] = [
+    16→  { value: "SAFETY", label: "Sécurité" },
+    17→  { value: "EFFICIENCY", label: "Efficacité" },
+    18→  { value: "PATIENT_EXPERIENCE", label: "Expérience patient" },
+    19→  { value: "CLINICAL_OUTCOME", label: "Résultat clinique" },
+    20→];
+    21→
+    22→const FREQUENCY_OPTIONS: { value: string; label: string }[] = [
+    23→  { value: "DAILY", label: "Quotidien" },
+    24→  { value: "WEEKLY", label: "Hebdomadaire" },
+    25→  { value: "MONTHLY", label: "Mensuel" },
+    26→  { value: "QUARTERLY", label: "Trimestriel" },
+    27→  { value: "YEARLY", label: "Annuel" },
+    28→];
+    29→
+    30→const INCIDENT_TYPE_OPTIONS: { value: string; label: string }[] = [
+    31→  { value: "FALL", label: "Chute" },
+    32→  { value: "MEDICATION_ERROR", label: "Erreur médicamenteuse" },
+    33→  { value: "NOSOCOMIAL_INFECTION", label: "Infection nosocomiale" },
+    34→  { value: "EQUIPMENT_FAILURE", label: "Défaillance équipement" },
+    35→  { value: "OTHER", label: "Autre" },
+    36→];
+    37→
+    38→const INCIDENT_TYPE_LABEL: Record<string, string> = {
+    39→  FALL: "Chute",
+    40→  MEDICATION_ERROR: "Erreur médicamenteuse",
+    41→  NOSOCOMIAL_INFECTION: "Infection nosocomiale",
+    42→  EQUIPMENT_FAILURE: "Défaillance équipement",
+    43→  OTHER: "Autre",
+    44→};
+    45→
+    46→const SEVERITY_OPTIONS: { value: string; label: string }[] = [
+    47→  { value: "NEAR_MISS", label: "Presque incident" },
+    48→  { value: "MINOR", label: "Mineur" },
+    49→  { value: "MODERATE", label: "Modéré" },
+    50→  { value: "MAJOR", label: "Majeur" },
+    51→  { value: "CRITICAL", label: "Critique" },
+    52→];
+    53→
+    54→const SEVERITY_BADGE: Record<string, string> = {
+    55→  NEAR_MISS: "badge-green",
+    56→  MINOR: "badge-yellow",
+    57→  MODERATE: "badge-yellow",
+    58→  MAJOR: "badge-red",
+    59→  CRITICAL: "badge-red",
+    60→};
+    61→
+    62→const SEVERITY_LABEL: Record<string, string> = {
+    63→  NEAR_MISS: "Presque incident",
+    64→  MINOR: "Mineur",
+    65→  MODERATE: "Modéré",
+    66→  MAJOR: "Majeur",
+    67→  CRITICAL: "Critique",
+    68→};
+    69→
+    70→const INCIDENT_STATUS_BADGE: Record<string, string> = {
+    71→  REPORTED: "badge-yellow",
+    72→  UNDER_INVESTIGATION: "badge-blue",
+    73→  RESOLVED: "badge-green",
+    74→};
+    75→
+    76→const INCIDENT_STATUS_LABEL: Record<string, string> = {
+    77→  REPORTED: "Signalé",
+    78→  UNDER_INVESTIGATION: "En investigation",
+    79→  RESOLVED: "Résolu",
+    80→};
+    81→
+    82→const CATEGORY_LABEL: Record<string, string> = {
+    83→  SAFETY: "Sécurité",
+    84→  EFFICIENCY: "Efficacité",
+    85→  PATIENT_EXPERIENCE: "Expérience patient",
+    86→  CLINICAL_OUTCOME: "Résultat clinique",
+    87→};
+    88→
+    89→const FREQUENCY_LABEL: Record<string, string> = {
+    90→  DAILY: "Quotidien",
+    91→  WEEKLY: "Hebdomadaire",
+    92→  MONTHLY: "Mensuel",
+    93→  QUARTERLY: "Trimestriel",
+    94→  YEARLY: "Annuel",
+    95→};
+    96→
+    97→export function QualityPage({ lookups }: { lookups: LookupData }) {
+    98→  const [activeTab, setActiveTab] = useState<TabKey>("indicators");
+    99→
+   100→  return (
+   101→    <section>
+   102→      <h1>Qualité / Pilotage</h1>
+   103→      <p className="muted">Gestion des indicateurs qualité, mesures et événements indésirables.</p>
+   104→
+   105→      <div className="tab-bar">
+   106→        {TABS.map((tab) => (
+   107→          <button
+   108→            key={tab.key}
+   109→            className={`tab-button ${activeTab === tab.key ? "active" : ""}`}
+   110→            onClick={() => setActiveTab(tab.key)}
+   111→          >
+   112→            {tab.label}
+   113→          </button>
+   114→        ))}
+   115→      </div>
+   116→
+   117→      {activeTab === "indicators" && <IndicatorsTab lookups={lookups} />}
+   118→      {activeTab === "measurements" && <MeasurementsTab lookups={lookups} />}
+   119→      {activeTab === "incidents" && <IncidentsTab lookups={lookups} />}
+   120→    </section>
+   121→  );
+   122→}
+   123→
+   124→/* ─── Indicators Tab ──────────────────────────────────────────── */
+   125→
+   126→function IndicatorsTab({ lookups }: { lookups: LookupData }) {
+   127→  const [indicators, setIndicators] = useState<Row[]>([]);
+   128→  const [loading, setLoading] = useState(true);
+   129→  const [error, setError] = useState("");
+   130→  const [showForm, setShowForm] = useState(false);
+   131→  const [submitting, setSubmitting] = useState(false);
+   132→
+   133→  // Form state
+   134→  const [code, setCode] = useState("");
+   135→  const [name, setName] = useState("");
+   136→  const [category, setCategory] = useState("SAFETY");
+   137→  const [description, setDescription] = useState("");
+   138→  const [unit, setUnit] = useState("");
+   139→  const [targetValue, setTargetValue] = useState("");
+   140→  const [frequency, setFrequency] = useState("MONTHLY");
+   141→
+   142→  const loadIndicators = useCallback(async () => {
+   143→    setLoading(true);
+   144→    setError("");
+   145→    try {
+   146→      const payload = await apiRequest<any>("/quality/indicators?page_size=1000");
+   147→      setIndicators(Array.isArray(payload.data) ? payload.data : []);
+   148→    } catch {
+   149→      setError("Impossible de charger les indicateurs.");
+   150→    } finally {
+   151→      setLoading(false);
+   152→    }
+   153→  }, []);
+   154→
+   155→  useEffect(() => {
+   156→    loadIndicators();
+   157→    const handler = () => loadIndicators();
+   158→    window.addEventListener("refresh-resource", handler);
+   159→    return () => window.removeEventListener("refresh-resource", handler);
+   160→  }, [loadIndicators]);
+   161→
+   162→  async function handleSubmit(e: React.FormEvent) {
+   163→    e.preventDefault();
+   164→    if (!code || !name) return;
+   165→    setSubmitting(true);
+   166→    try {
+   167→      await apiRequest("/quality/indicators", {
+   168→        method: "POST",
+   169→        body: JSON.stringify({
+   170→          code: code.trim(),
+   171→          name: name.trim(),
+   172→          category,
+   173→          description: description.trim() || undefined,
+   174→          unit: unit.trim() || undefined,
+   175→          target_value: targetValue.trim() || undefined,
+   176→          frequency,
+   177→        }),
+   178→      });
+   179→      setCode("");
+   180→      setName("");
+   181→      setCategory("SAFETY");
+   182→      setDescription("");
+   183→      setUnit("");
+   184→      setTargetValue("");
+   185→      setFrequency("MONTHLY");
+   186→      setShowForm(false);
+   187→      loadIndicators();
+   188→      showToast("Indicateur créé avec succès.", "success");
+   189→    } catch {
+   190→      showToast("Erreur lors de la création de l'indicateur.", "error");
+   191→    } finally {
+   192→      setSubmitting(false);
+   193→    }
+   194→  }
+   195→
+   196→  return (
+   197→    <>
+   198→      <div className="section-header">
+   199→        <h2 style={{ margin: 0 }}>Indicateurs qualité</h2>
+   200→        <button className="primary-button" onClick={() => setShowForm(!showForm)}>
+   201→          {showForm ? "Annuler" : "Nouvel indicateur"}
+   202→        </button>
+   203→      </div>
+   204→
+   205→      {showForm && (
+   206→        <div className="card form-card">
+   207→          <h3>Nouvel indicateur qualité</h3>
+   208→          <form onSubmit={handleSubmit} className="form-grid">
+   209→            <label className="form-control">
+   210→              Code
+   211→              <input
+   212→                type="text"
+   213→                value={code}
+   214→                onChange={(e) => setCode(e.target.value)}
+   215→                placeholder="Code de l'indicateur"
+   216→                required
+   217→              />
+   218→            </label>
+   219→            <label className="form-control">
+   220→              Nom
+   221→              <input
+   222→                type="text"
+   223→                value={name}
+   224→                onChange={(e) => setName(e.target.value)}
+   225→                placeholder="Nom de l'indicateur"
+   226→                required
+   227→              />
+   228→            </label>
+   229→            <label className="form-control">
+   230→              Catégorie
+   231→              <select value={category} onChange={(e) => setCategory(e.target.value)}>
+   232→                {CATEGORY_OPTIONS.map((c) => (
+   233→                  <option key={c.value} value={c.value}>{c.label}</option>
+   234→                ))}
+   235→              </select>
+   236→            </label>
+   237→            <label className="form-control">
+   238→              Unité
+   239→              <input
+   240→                type="text"
+   241→                value={unit}
+   242→                onChange={(e) => setUnit(e.target.value)}
+   243→                placeholder="Unité de mesure"
+   244→              />
+   245→            </label>
+   246→            <label className="form-control">
+   247→              Valeur cible
+   248→              <input
+   249→                type="text"
+   250→                value={targetValue}
+   251→                onChange={(e) => setTargetValue(e.target.value)}
+   252→                placeholder="Objectif"
+   253→              />
+   254→            </label>
+   255→            <label className="form-control">
+   256→              Fréquence
+   257→              <select value={frequency} onChange={(e) => setFrequency(e.target.value)}>
+   258→                {FREQUENCY_OPTIONS.map((f) => (
+   259→                  <option key={f.value} value={f.value}>{f.label}</option>
+   260→                ))}
+   261→              </select>
+   262→            </label>
+   263→            <label className="form-control" style={{ gridColumn: "1 / -1" }}>
+   264→              Description
+   265→              <textarea
+   266→                value={description}
+   267→                onChange={(e) => setDescription(e.target.value)}
+   268→                placeholder="Description de l'indicateur..."
+   269→                rows={2}
+   270→              />
+   271→            </label>
+   272→            <div className="form-actions">
+   273→              <button className="primary-button" type="submit" disabled={submitting}>
+   274→                {submitting ? "Création..." : "Créer l'indicateur"}
+   275→              </button>
+   276→            </div>
+   277→          </form>
+   278→        </div>
+   279→      )}
+   280→
+   281→      {loading ? (
+   282→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   283→          <div className="spinner" />
+   284→        </div>
+   285→      ) : error ? (
+   286→        <p style={{ color: "crimson" }}>{error}</p>
+   287→      ) : indicators.length === 0 ? (
+   288→        <div className="card">
+   289→          <p className="muted">Aucun indicateur trouvé.</p>
+   290→        </div>
+   291→      ) : (
+   292→        <div className="card">
+   293→          <div className="table-wrapper">
+   294→            <table className="table">
+   295→              <thead>
+   296→                <tr>
+   297→                  <th>Code</th>
+   298→                  <th>Nom</th>
+   299→                  <th>Catégorie</th>
+   300→                  <th>Unité</th>
+   301→                  <th>Cible</th>
+   302→                  <th>Fréquence</th>
+   303→                </tr>
+   304→              </thead>
+   305→              <tbody>
+   306→                {indicators.map((ind) => (
+   307→                  <tr key={ind.id}>
+   308→                    <td style={{ fontWeight: 600 }}>{ind.code || "—"}</td>
+   309→                    <td>{ind.name || "—"}</td>
+   310→                    <td>
+   311→                      <span className="badge badge-blue">
+   312→                        {CATEGORY_LABEL[ind.category] || ind.category || "—"}
+   313→                      </span>
+   314→                    </td>
+   315→                    <td>{ind.unit || "—"}</td>
+   316→                    <td>{ind.target_value ?? "—"}</td>
+   317→                    <td>{FREQUENCY_LABEL[ind.frequency] || ind.frequency || "—"}</td>
+   318→                  </tr>
+   319→                ))}
+   320→              </tbody>
+   321→            </table>
+   322→          </div>
+   323→        </div>
+   324→      )}
+   325→    </>
+   326→  );
+   327→}
+   328→
+   329→/* ─── Measurements Tab ──────────────────────────────────────────── */
+   330→
+   331→function MeasurementsTab({ lookups }: { lookups: LookupData }) {
+   332→  const [measurements, setMeasurements] = useState<Row[]>([]);
+   333→  const [indicators, setIndicators] = useState<Row[]>([]);
+   334→  const [loading, setLoading] = useState(true);
+   335→  const [error, setError] = useState("");
+   336→  const [showForm, setShowForm] = useState(false);
+   337→  const [submitting, setSubmitting] = useState(false);
+   338→
+   339→  // Form state
+   340→  const [indicatorId, setIndicatorId] = useState("");
+   341→  const [periodStart, setPeriodStart] = useState("");
+   342→  const [periodEnd, setPeriodEnd] = useState("");
+   343→  const [value, setValue] = useState("");
+   344→  const [numerator, setNumerator] = useState("");
+   345→  const [denominator, setDenominator] = useState("");
+   346→  const [notes, setNotes] = useState("");
+   347→
+   348→  const loadMeasurements = useCallback(async () => {
+   349→    setLoading(true);
+   350→    setError("");
+   351→    try {
+   352→      const payload = await apiRequest<any>("/quality/measurements?page_size=1000");
+   353→      setMeasurements(Array.isArray(payload.data) ? payload.data : []);
+   354→    } catch {
+   355→      setError("Impossible de charger les mesures.");
+   356→    } finally {
+   357→      setLoading(false);
+   358→    }
+   359→  }, []);
+   360→
+   361→  const loadIndicators = useCallback(async () => {
+   362→    try {
+   363→      const payload = await apiRequest<any>("/quality/indicators?page_size=1000");
+   364→      setIndicators(Array.isArray(payload.data) ? payload.data : []);
+   365→    } catch {
+   366→      // Silently fail
+   367→    }
+   368→  }, []);
+   369→
+   370→  useEffect(() => {
+   371→    loadMeasurements();
+   372→    const handler = () => loadMeasurements();
+   373→    window.addEventListener("refresh-resource", handler);
+   374→    return () => window.removeEventListener("refresh-resource", handler);
+   375→  }, [loadMeasurements]);
+   376→
+   377→  useEffect(() => {
+   378→    if (showForm) {
+   379→      loadIndicators();
+   380→    }
+   381→  }, [showForm, loadIndicators]);
+   382→
+   383→  async function handleSubmit(e: React.FormEvent) {
+   384→    e.preventDefault();
+   385→    if (!indicatorId || !periodStart) return;
+   386→    setSubmitting(true);
+   387→    try {
+   388→      await apiRequest("/quality/measurements", {
+   389→        method: "POST",
+   390→        body: JSON.stringify({
+   391→          indicator_id: indicatorId,
+   392→          period_start: periodStart,
+   393→          period_end: periodEnd || undefined,
+   394→          value: value.trim() || undefined,
+   395→          numerator: numerator.trim() || undefined,
+   396→          denominator: denominator.trim() || undefined,
+   397→          notes: notes.trim() || undefined,
+   398→        }),
+   399→      });
+   400→      setIndicatorId("");
+   401→      setPeriodStart("");
+   402→      setPeriodEnd("");
+   403→      setValue("");
+   404→      setNumerator("");
+   405→      setDenominator("");
+   406→      setNotes("");
+   407→      setShowForm(false);
+   408→      loadMeasurements();
+   409→      showToast("Mesure créée avec succès.", "success");
+   410→    } catch {
+   411→      showToast("Erreur lors de la création de la mesure.", "error");
+   412→    } finally {
+   413→      setSubmitting(false);
+   414→    }
+   415→  }
+   416→
+   417→  const indicatorOptions = indicators.map((ind) => ({
+   418→    value: ind.id,
+   419→    label: `${ind.code || "IND"} - ${ind.name || ind.id}`,
+   420→  }));
+   421→
+   422→  return (
+   423→    <>
+   424→      <div className="section-header">
+   425→        <h2 style={{ margin: 0 }}>Mesures</h2>
+   426→        <button className="primary-button" onClick={() => setShowForm(!showForm)}>
+   427→          {showForm ? "Annuler" : "Nouvelle mesure"}
+   428→        </button>
+   429→      </div>
+   430→
+   431→      {showForm && (
+   432→        <div className="card form-card">
+   433→          <h3>Nouvelle mesure</h3>
+   434→          <form onSubmit={handleSubmit} className="form-grid">
+   435→            <label className="form-control">
+   436→              Indicateur
+   437→              <select value={indicatorId} onChange={(e) => setIndicatorId(e.target.value)} required>
+   438→                <option value="">-- Choisir un indicateur --</option>
+   439→                {indicatorOptions.map((o) => (
+   440→                  <option key={o.value} value={o.value}>{o.label}</option>
+   441→                ))}
+   442→              </select>
+   443→            </label>
+   444→            <label className="form-control">
+   445→              Début de période
+   446→              <input
+   447→                type="date"
+   448→                value={periodStart}
+   449→                onChange={(e) => setPeriodStart(e.target.value)}
+   450→                required
+   451→              />
+   452→            </label>
+   453→            <label className="form-control">
+   454→              Fin de période
+   455→              <input
+   456→                type="date"
+   457→                value={periodEnd}
+   458→                onChange={(e) => setPeriodEnd(e.target.value)}
+   459→              />
+   460→            </label>
+   461→            <label className="form-control">
+   462→              Valeur
+   463→              <input
+   464→                type="text"
+   465→                value={value}
+   466→                onChange={(e) => setValue(e.target.value)}
+   467→                placeholder="Valeur mesurée"
+   468→              />
+   469→            </label>
+   470→            <label className="form-control">
+   471→              Numérateur
+   472→              <input
+   473→                type="text"
+   474→                value={numerator}
+   475→                onChange={(e) => setNumerator(e.target.value)}
+   476→                placeholder="Numérateur"
+   477→              />
+   478→            </label>
+   479→            <label className="form-control">
+   480→              Dénominateur
+   481→              <input
+   482→                type="text"
+   483→                value={denominator}
+   484→                onChange={(e) => setDenominator(e.target.value)}
+   485→                placeholder="Dénominateur"
+   486→              />
+   487→            </label>
+   488→            <label className="form-control" style={{ gridColumn: "1 / -1" }}>
+   489→              Notes
+   490→              <textarea
+   491→                value={notes}
+   492→                onChange={(e) => setNotes(e.target.value)}
+   493→                placeholder="Notes complémentaires..."
+   494→                rows={2}
+   495→              />
+   496→            </label>
+   497→            <div className="form-actions">
+   498→              <button className="primary-button" type="submit" disabled={submitting}>
+   499→                {submitting ? "Création..." : "Créer la mesure"}
+   500→              </button>
+   501→            </div>
+   502→          </form>
+   503→        </div>
+   504→      )}
+   505→
+   506→      {loading ? (
+   507→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   508→          <div className="spinner" />
+   509→        </div>
+   510→      ) : error ? (
+   511→        <p style={{ color: "crimson" }}>{error}</p>
+   512→      ) : measurements.length === 0 ? (
+   513→        <div className="card">
+   514→          <p className="muted">Aucune mesure trouvée.</p>
+   515→        </div>
+   516→      ) : (
+   517→        <div className="card">
+   518→          <div className="table-wrapper">
+   519→            <table className="table">
+   520→              <thead>
+   521→                <tr>
+   522→                  <th>Indicateur</th>
+   523→                  <th>Période</th>
+   524→                  <th>Valeur</th>
+   525→                  <th>Numérateur</th>
+   526→                  <th>Dénominateur</th>
+   527→                </tr>
+   528→              </thead>
+   529→              <tbody>
+   530→                {measurements.map((m) => (
+   531→                  <tr key={m.id}>
+   532→                    <td style={{ fontWeight: 600 }}>{m.indicator_id || "—"}</td>
+   533→                    <td style={{ whiteSpace: "nowrap" }}>
+   534→                      {m.period_start ? new Date(m.period_start).toLocaleDateString("fr-FR") : "—"}
+   535→                      {m.period_end ? ` — ${new Date(m.period_end).toLocaleDateString("fr-FR")}` : ""}
+   536→                    </td>
+   537→                    <td>{m.value ?? "—"}</td>
+   538→                    <td>{m.numerator ?? "—"}</td>
+   539→                    <td>{m.denominator ?? "—"}</td>
+   540→                  </tr>
+   541→                ))}
+   542→              </tbody>
+   543→            </table>
+   544→          </div>
+   545→        </div>
+   546→      )}
+   547→    </>
+   548→  );
+   549→}
+   550→
+   551→/* ─── Incidents Tab ──────────────────────────────────────────── */
+   552→
+   553→function IncidentsTab({ lookups }: { lookups: LookupData }) {
+   554→  const [incidents, setIncidents] = useState<Row[]>([]);
+   555→  const [loading, setLoading] = useState(true);
+   556→  const [error, setError] = useState("");
+   557→  const [showForm, setShowForm] = useState(false);
+   558→  const [submitting, setSubmitting] = useState(false);
+   559→
+   560→  // Form state
+   561→  const [incidentDate, setIncidentDate] = useState("");
+   562→  const [incidentType, setIncidentType] = useState("OTHER");
+   563→  const [severity, setSeverity] = useState("MINOR");
+   564→  const [description, setDescription] = useState("");
+   565→  const [immediateActions, setImmediateActions] = useState("");
+   566→
+   567→  const loadIncidents = useCallback(async () => {
+   568→    setLoading(true);
+   569→    setError("");
+   570→    try {
+   571→      const payload = await apiRequest<any>("/quality/incidents?page_size=1000");
+   572→      setIncidents(Array.isArray(payload.data) ? payload.data : []);
+   573→    } catch {
+   574→      setError("Impossible de charger les événements indésirables.");
+   575→    } finally {
+   576→      setLoading(false);
+   577→    }
+   578→  }, []);
+   579→
+   580→  useEffect(() => {
+   581→    loadIncidents();
+   582→    const handler = () => loadIncidents();
+   583→    window.addEventListener("refresh-resource", handler);
+   584→    return () => window.removeEventListener("refresh-resource", handler);
+   585→  }, [loadIncidents]);
+   586→
+   587→  async function handleSubmit(e: React.FormEvent) {
+   588→    e.preventDefault();
+   589→    if (!description) return;
+   590→    setSubmitting(true);
+   591→    try {
+   592→      await apiRequest("/quality/incidents", {
+   593→        method: "POST",
+   594→        body: JSON.stringify({
+   595→          incident_date: incidentDate || undefined,
+   596→          incident_type: incidentType,
+   597→          severity,
+   598→          description: description.trim(),
+   599→          immediate_actions: immediateActions.trim() || undefined,
+   600→        }),
+   601→      });
+   602→      setIncidentDate("");
+   603→      setIncidentType("OTHER");
+   604→      setSeverity("MINOR");
+   605→      setDescription("");
+   606→      setImmediateActions("");
+   607→      setShowForm(false);
+   608→      loadIncidents();
+   609→      showToast("Événement indésirable signalé avec succès.", "success");
+   610→    } catch {
+   611→      showToast("Erreur lors du signalement.", "error");
+   612→    } finally {
+   613→      setSubmitting(false);
+   614→    }
+   615→  }
+   616→
+   617→  async function handleInvestigate(incidentId: string) {
+   618→    try {
+   619→      await apiRequest(`/quality/incidents/${incidentId}/investigate`, { method: "POST" });
+   620→      loadIncidents();
+   621→      showToast("Investigation ouverte.", "success");
+   622→    } catch {
+   623→      showToast("Erreur lors de l'ouverture de l'investigation.", "error");
+   624→    }
+   625→  }
+   626→
+   627→  async function handleResolve(incidentId: string) {
+   628→    try {
+   629→      await apiRequest(`/quality/incidents/${incidentId}/resolve`, { method: "POST" });
+   630→      loadIncidents();
+   631→      showToast("Événement résolu.", "success");
+   632→    } catch {
+   633→      showToast("Erreur lors de la résolution.", "error");
+   634→    }
+   635→  }
+   636→
+   637→  return (
+   638→    <>
+   639→      <div className="section-header">
+   640→        <h2 style={{ margin: 0 }}>Événements indésirables</h2>
+   641→        <button className="primary-button" onClick={() => setShowForm(!showForm)}>
+   642→          {showForm ? "Annuler" : "Signaler un événement"}
+   643→        </button>
+   644→      </div>
+   645→
+   646→      {showForm && (
+   647→        <div className="card form-card">
+   648→          <h3>Signaler un événement indésirable</h3>
+   649→          <form onSubmit={handleSubmit} className="form-grid">
+   650→            <label className="form-control">
+   651→              Date de l'événement
+   652→              <input
+   653→                type="date"
+   654→                value={incidentDate}
+   655→                onChange={(e) => setIncidentDate(e.target.value)}
+   656→              />
+   657→            </label>
+   658→            <label className="form-control">
+   659→              Type
+   660→              <select value={incidentType} onChange={(e) => setIncidentType(e.target.value)}>
+   661→                {INCIDENT_TYPE_OPTIONS.map((t) => (
+   662→                  <option key={t.value} value={t.value}>{t.label}</option>
+   663→                ))}
+   664→              </select>
+   665→            </label>
+   666→            <label className="form-control">
+   667→              Sévérité
+   668→              <select value={severity} onChange={(e) => setSeverity(e.target.value)}>
+   669→                {SEVERITY_OPTIONS.map((s) => (
+   670→                  <option key={s.value} value={s.value}>{s.label}</option>
+   671→                ))}
+   672→              </select>
+   673→            </label>
+   674→            <label className="form-control" style={{ gridColumn: "1 / -1" }}>
+   675→              Description
+   676→              <textarea
+   677→                value={description}
+   678→                onChange={(e) => setDescription(e.target.value)}
+   679→                placeholder="Description de l'événement..."
+   680→                rows={3}
+   681→                required
+   682→              />
+   683→            </label>
+   684→            <label className="form-control" style={{ gridColumn: "1 / -1" }}>
+   685→              Actions immédiates
+   686→              <textarea
+   687→                value={immediateActions}
+   688→                onChange={(e) => setImmediateActions(e.target.value)}
+   689→                placeholder="Actions immédiates prises..."
+   690→                rows={2}
+   691→              />
+   692→            </label>
+   693→            <div className="form-actions">
+   694→              <button className="primary-button" type="submit" disabled={submitting}>
+   695→                {submitting ? "Envoi..." : "Signaler"}
+   696→              </button>
+   697→            </div>
+   698→          </form>
+   699→        </div>
+   700→      )}
+   701→
+   702→      {loading ? (
+   703→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   704→          <div className="spinner" />
+   705→        </div>
+   706→      ) : error ? (
+   707→        <p style={{ color: "crimson" }}>{error}</p>
+   708→      ) : incidents.length === 0 ? (
+   709→        <div className="card">
+   710→          <p className="muted">Aucun événement indésirable trouvé.</p>
+   711→        </div>
+   712→      ) : (
+   713→        <div className="card">
+   714→          <div className="table-wrapper">
+   715→            <table className="table">
+   716→              <thead>
+   717→                <tr>
+   718→                  <th>Date</th>
+   719→                  <th>Type</th>
+   720→                  <th>Sévérité</th>
+   721→                  <th>Description</th>
+   722→                  <th>Statut</th>
+   723→                  <th>Actions</th>
+   724→                </tr>
+   725→              </thead>
+   726→              <tbody>
+   727→                {incidents.map((inc) => (
+   728→                  <tr key={inc.id}>
+   729→                    <td style={{ whiteSpace: "nowrap" }}>
+   730→                      {inc.incident_date ? new Date(inc.incident_date).toLocaleDateString("fr-FR") : "—"}
+   731→                    </td>
+   732→                    <td>{INCIDENT_TYPE_LABEL[inc.incident_type] || inc.incident_type || "—"}</td>
+   733→                    <td>
+   734→                      <span className={`badge ${SEVERITY_BADGE[inc.severity] || "badge-gray"}`} style={inc.severity === "CRITICAL" ? { fontWeight: 700 } : undefined}>
+   735→                        {SEVERITY_LABEL[inc.severity] || inc.severity || "—"}
+   736→                      </span>
+   737→                    </td>
+   738→                    <td>{inc.description || "—"}</td>
+   739→                    <td>
+   740→                      <span className={`badge ${INCIDENT_STATUS_BADGE[inc.status] || "badge-gray"}`}>
+   741→                        {INCIDENT_STATUS_LABEL[inc.status] || inc.status}
+   742→                      </span>
+   743→                    </td>
+   744→                    <td>
+   745→                      {inc.status === "REPORTED" && (
+   746→                        <button
+   747→                          className="secondary-button"
+   748→                          style={{ padding: "6px 14px", fontSize: "13px" }}
+   749→                          onClick={() => handleInvestigate(inc.id)}
+   750→                        >
+   751→                          Investiguer
+   752→                        </button>
+   753→                      )}
+   754→                      {inc.status === "UNDER_INVESTIGATION" && (
+   755→                        <button
+   756→                          className="secondary-button"
+   757→                          style={{ padding: "6px 14px", fontSize: "13px" }}
+   758→                          onClick={() => handleResolve(inc.id)}
+   759→                        >
+   760→                          Résoudre
+   761→                        </button>
+   762→                      )}
+   763→                    </td>
+   764→                  </tr>
+   765→                ))}
+   766→              </tbody>
+   767→            </table>
+   768→          </div>
+   769→        </div>
+   770→      )}
+   771→    </>
+   772→  );
+   773→}
+   774→

@@ -1,0 +1,587 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 277a06f..b7ae918 100755
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,201 @@
+ # Changelog
+ 
++## [1.4.0] — 2026-06-21
++
++### Added — Notifications SMS réelles (Orange/MTN/Moov) + tableau de bord qualité avancé
++
++Cette release livre les **2 premières évolutions moyen terme** identifiées
++dans `docs/post-pilot/EVOLUTIONS_POST_PILOTE.md` : le **(10) système de
++notifications SMS réelles via opérateurs locaux** et le **(9) tableau de
++bord qualité avancé** avec seuils d'alerte automatiques. Les 3 évolutions
++moyen terme restantes (app mobile React Native, HL7 FHIR R4, module RH v2)
++sont reportées à v1.5.
++
++#### Module backend `notifications/sms` — providers multicanal + routing
++
++3 nouvelles tables (migration Alembic `0017_sms_v14`) :
++
++- **`sms_providers`** — configuration des opérateurs (code, credentials
++  chiffrés via Fernet optionnel, sender ID, coût/SMS en GNF, quotas).
++- **`sms_messages`** — journal complet de chaque SMS envoyé (statut
++  PENDING/SENT/DELIVERED/FAILED/REJECTED, operator_message_id, coût,
++  tentatives, timestamps).
++- **`sms_routing_rules`** — règles de routage par catégorie de
++  notification (ex: `lab_critical` → `in_app,sms` avec `min_priority=urgent`).
++
++**Provider abstraction** (`backend/app/modules/notifications/sms_provider.py`) :
++
++- `SmsProviderBase` — interface commune, validation E.164, timeout 10s.
++- `MockSmsProvider` — toujours succès, log JSONL optionnel (`SMS_MOCK_LOG`).
++- `OrangeSmsProvider` — OAuth2 client_credentials → POST
++  `/smsmessaging/v1/outbound/{sender}/requests` (doc Orange API).
++- `MtnSmsProvider` — POST HTTP simple avec Bearer token.
++- `MoovSmsProvider` — POST HTTP avec clé API dans le body + signature.
++- `normalize_phone_gn()` — normalise les numéros guinéens (622334455 → +224622334455).
++- `encrypt_credential()` / `decrypt_credential()` — chiffrement Fernet
++  optionnel (fallback clair en dev/test).
++
++**Service** (`backend/app/modules/notifications/sms_service.py`) :
++
++- `send_sms()` — orchestration complète : normalisation → sélection
++  provider (règle de routage → provider préféré → provider par défaut →
++  mock implicite) → envoi → journalisation `SmsMessage`. Ne lève jamais
++  d'exception.
++- `get_routing_rule()` — résolution avec priorité facility-spécifique
++  surclasse la règle globale.
++- `should_send_sms_for_rule()` — vérifie que la priorité atteint le seuil.
++- `retry_failed_sms()` — retry avec max 3 tentatives cumulées.
++- `get_sms_stats()` — agrégats par provider / catégorie sur une période.
++- `seed_default_providers()` — crée un provider mock au premier accès
++  (dev convenience).
++- `seed_default_routing_rules()` — 8 règles par défaut (`lab_critical`,
++  `incident_critical`, `appointment_reminder`, `medication_dispensed`,
++  `admission_created`, `invoice_ready`, `quality_alert`, `system`).
++
++**Routes** (`/api/v1/notifications/sms/*` — tag OpenAPI `notifications-sms`) :
++
++- `GET /providers` — liste (credentials masqués, flags `has_api_key`/`has_api_secret`).
++- `GET /providers/supported` — catalogue statique (mock/orange/mtn/moov).
++- `POST /providers` — création (credentials chiffrés avant stockage).
++- `PATCH /providers/{id}` — mise à jour partielle.
++- `DELETE /providers/{id}` — suppression (mock protégé).
++- `POST /providers/{id}/test` — envoi d'un SMS de test (coût réel).
++- `GET /rules` — liste des règles de routage (multi-tenant).
++- `POST /rules` — création (409 si catégorie déjà enabled).
++- `PATCH /rules/{id}` — mise à jour.
++- `DELETE /rules/{id}` — suppression.
++- `POST /send` — envoi manuel (admin only, `notification.send`).
++- `POST /messages/{id}/retry` — retry d'un SMS échoué.
++- `GET /messages` — historique paginé (filtres `status`, `provider_code`,
++  `category`, `recipient_phone`).
++- `GET /stats?days=30` — statistiques agrégées.
++
++**Permissions RBAC** (2 nouvelles) :
++
++- `notification.manage` — CRUD providers + règles (SUPER_ADMIN/ADMIN bypass).
++- `notification.send` — envoi manuel + retry (déjà existant, étendu au SMS).
++
++Tests (`backend/tests/test_sms.py`) — **27 tests** : CRUD providers, règles
++de routage, envoi mock, normalisation téléphone, retry, stats, permissions
++RBAC, helpers unitaires.
++
++#### Module backend `quality/dashboard` — tableau de bord qualité avancé
++
++2 nouvelles tables (migration Alembic `0018_quality_dashboard`) :
++
++- **`quality_thresholds`** — seuils d'alerte par indicateur (comparateur
++  LT/LE/GT/GE/EQ, valeur, sévérité LOW/MEDIUM/HIGH/CRITICAL, cooldown,
++  notify_roles, channels).
++- **`quality_alerts`** — alertes concrètes levées quand une mesure franchit
++  un seuil. Cycle : OPEN → ACKNOWLEDGED → RESOLVED → CLOSED.
++
++**Catalogue d'indicateurs prédéfinis** (10 indicateurs OMS/HAS) :
++
++- `INOSO_RATE` — taux d'infections nosocomiales (cible OMS : < 5%).
++- `READMIT_30D` — taux de réadmissions à 30 jours (cible HAS : < 10%).
++- `SAT_PATIENT` — satisfaction patient (cible : > 80%).
++- `ED_WAIT_4H` — délai moyen prise en charge urgences (cible : < 4h).
++- `MORTALITY_24H` — mortalité 24h post-admission (cible : < 2%).
++- `MED_ERROR_RATE` — erreurs médicamenteuses (cible : < 1/1000).
++- `SURG_SITE_INFECTION` — infections site opératoire (cible OMS : < 3%).
++- `BED_OCCUPANCY` — taux d'occupation des lits (cible : ≤ 85%).
++- `FALL_RATE` — taux de chutes patient (cible HAS : < 3/1000).
++- `VAGINAL_DELIVERY_RATE` — taux d'accouchements voie basse (cible OMS : > 80%).
++
++**Seuils par défaut** (10 thresholds liés aux indicateurs ci-dessus) :
++seedés via `POST /quality/seed-defaults?facility_id=...` (idempotent).
++
++**Service** (`backend/app/modules/quality/dashboard_service.py`) :
++
++- `compute_dashboard()` — agrège KPIs (dernière valeur par indicateur),
++  incidents (par type/sévérité/statut, délai moyen résolution), alertes
++  (open/acknowledged/resolved + 10 récentes), tendances (5 premiers
++  indicateurs, séries temporelles).
++- `check_thresholds()` — évalue toutes les mesures récentes contre les
++  thresholds actifs. Lève une `QualityAlert` si franchissement + cooldown
++  respecté. Notifie via `notify()` du module notifications (multi-canal,
++  la catégorie `quality_alert` déclenche SMS via la règle de routage).
++- `evaluate_threshold()` — comparaison numérique ou string (EQ sur
++  catégories qualitatives).
++- `acknowledge_alert()` / `resolve_alert()` / `close_alert()` — cycle de
++  vie humain.
++
++**Routes** (`/api/v1/quality/*` — tag OpenAPI `quality-dashboard`) :
++
++- `GET /dashboard?days=30` — dashboard agrégé (multi-tenant).
++- `GET /indicators/catalog` — catalogue statique OMS/HAS (documentation).
++- `POST /seed-defaults?facility_id=...` — insertion indicateurs + seuils.
++- `GET /thresholds` — liste paginée.
++- `POST /thresholds` — création.
++- `PATCH /thresholds/{id}` — mise à jour.
++- `DELETE /thresholds/{id}` — suppression.
++- `GET /alerts?status=...` — liste paginée.
++- `POST /alerts/check` — déclenche l'évaluation manuelle des seuils.
++- `POST /alerts/{id}/acknowledge` — prise en charge.
++- `POST /alerts/{id}/resolve` — résolution avec note.
++- `POST /alerts/{id}/close` — clôture.
++
++**Permission RBAC** (1 nouvelle) :
++
++- `quality.dashboard` — consultation dashboard avancé (étendue à DOCTOR
++  et NURSE en plus de ADMIN/SUPER_ADMIN).
++
++Tests (`backend/tests/test_quality_dashboard.py`) — **22 tests** : CRUD
++thresholds, dashboard agrégé, seed defaults, check_thresholds (lève une
++alerte si franchissement, respecte le cooldown), lifecycle complet des
++alertes (open → ack → resolve → close), comparateurs (LT/LE/GT/GE/EQ),
++valeurs avec `%`, comparaison non numérique (EQ only).
++
++#### Frontend — nouvelles pages et onglets
++
++- **`SmsAdminPage.tsx`** (nouvelle page, route `/sms-admin`) — 4 onglets :
++  - **Providers** : liste + formulaire de création (code/name/credentials/
++    coût/SMS), toggle enable/disable, test provider (modal), suppression
++    (mock protégé).
++  - **Règles de routage** : liste des règles par catégorie, badges canaux
++    (sms/email/in_app), toggle enable/disable.
++  - **Historique** : tableau paginé des SMS envoyés, filtre par statut,
++    envoi manuel (formulaire), retry des échecs.
++  - **Statistiques** : 5 KPI cards (total, succès, échecs, taux, coût GNF)
++    + tables agrégées par provider et par catégorie.
++- **`QualityDashboardTab.tsx`** (nouvel onglet dans `QualityPage`) —
++  Dashboard agrégé : 5 stat cards, tableau KPIs (dernière valeur vs cible
++  avec statut coloré), agrégats incidents (par type/sévérité/statut),
++  tendances SVG (5 indicateurs principaux avec ligne de cible), boutons
++  "Seed OMS/HAS" et "Check seuils".
++- **`QualityAlertsTab.tsx`** (nouvel onglet dans `QualityPage`) — 2
++  sous-onglets : Alertes (liste avec filtre statut, actions ack/resolve/
++  close, modal de résolution avec note) + Seuils (CRUD complet avec
++  formulaire de création).
++- **Sidebar** — nouvelle entrée "SMS Admin" sous la section SYSTÈME
++  (icône `MessageSquare`, visible ADMIN/SUPER_ADMIN uniquement).
++- **`useLookupData`** — fetch également `/quality/indicators` pour le
++  dropdown de sélection d'indicateur dans le formulaire de seuil.
++- **`ProtectedRoute.useNavVisibility`** — nouveau flag `canSeeSmsAdmin`.
++
++#### Configuration et dépendances
++
++- **`backend/requirements.txt`** — ajout de `requests==2.32.3` (appels
++  HTTP aux opérateurs SMS Orange/MTN/Moov).
++- **`backend/app/main.py`** — version bump 1.3.0 → 1.4.0, nouveaux routers
++  `sms_router` et `quality_dashboard_router`, nouveaux tags OpenAPI
++  `notifications-sms` et `quality-dashboard`.
++- **`backend/tests/conftest.py`** — import des nouveaux modèles
++  (`SmsProvider`, `SmsMessage`, `SmsRoutingRule`, `QualityThreshold`,
++  `QualityAlert`) pour que `Base.metadata.create_all` les crée en SQLite.
++- **`backend/app/modules/rbac/seed.py`** — 2 nouvelles permissions
++  (`notification.manage`, `quality.dashboard`) + `quality.dashboard`
++  ajoutée à DOCTOR et NURSE.
++
++#### Variables d'environnement
++
++- `SMS_FERNET_KEY` (optionnel) — clé Fernet pour chiffrer les credentials
++  SMS. En dev/test sans cette clé, les credentials sont stockés en clair.
++- `SMS_MOCK_LOG` (optionnel) — chemin d'un fichier JSONL où le provider
++  mock journalise chaque SMS (utile pour audit local en démo).
++
++---
++
+ ## [1.3.0] — 2026-06-21
+ 
+ ### Added — Internationalisation EN/FR + dashboard temps réel (WebSocket) + mode hors-ligne PWA
+diff --git a/README.md b/README.md
+index b202b32..9ae213b 100755
+--- a/README.md
++++ b/README.md
+@@ -5,12 +5,12 @@
+ [![E2E admin pages](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-admin-pages.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-admin-pages.yml)
+ [![E2E Playwright](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-playwright.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-playwright.yml)
+ [![OpenAPI drift](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/openapi-check.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/openapi-check.yml)
+-[![Version](https://img.shields.io/badge/version-v1.3.0-blue.svg)](https://github.com/skaba89/guineecare-hospital-suite/releases)
++[![Version](https://img.shields.io/badge/version-v1.4.0-blue.svg)](https://github.com/skaba89/guineecare-hospital-suite/releases)
+ [![License](https://img.shields.io/badge/license-Private-red.svg)](#licence)
+ 
+ Plateforme hospitalière complète pour la Guinée, inspirée des meilleurs SIH modernes : dossier patient informatisé, maternité, urgences, hospitalisation, pharmacie, laboratoire, imagerie, facturation, bloc opératoire, RH, qualité, reporting national et architecture technique industrielle.
+ 
+-**Version actuelle :** `v1.3.0` — Internationalisation EN/FR (catalogues backend + Language Toggle frontend + détection automatique de la langue navigateur) + dashboard temps réel via WebSocket authentifié (KPI push sur admissions / paiements / résultats labo, broker in-process avec Redis optionnel pour multi-worker) + mode hors-ligne PWA (manifest, service worker stale-while-revalidate, icônes 192/512 générées par PIL)
++**Version actuelle :** `v1.4.0` — Notifications SMS réelles via opérateurs locaux guinéens (Orange / MTN / Moov / Mock) avec règles de routage par catégorie (`lab_critical` → SMS urgent, `quality_alert` → SMS+email à la direction, etc.) et journalisation complète (`sms_messages` : statut, coût GNF, opérateur, tentatives) + tableau de bord qualité avancé (10 indicateurs OMS/HAS prédéfinis, seuils d'alerte automatiques avec cooldown, lifecycle OPEN → ACKNOWLEDGED → RESOLVED → CLOSED, notifications multi-canal déclenchées sur franchissement de seuil)
+ 
+ ## Objectif
+ 
+diff --git a/backend/app/main.py b/backend/app/main.py
+index ab0e975..9a096e5 100755
+--- a/backend/app/main.py
++++ b/backend/app/main.py
+@@ -38,6 +38,8 @@ from app.modules.documents.routes import router as documents_router
+ from app.modules.search.routes import router as search_router
+ from app.modules.i18n.routes import router as i18n_router
+ from app.modules.realtime.routes import router as realtime_router
++from app.modules.notifications.sms_routes import router as sms_router
++from app.modules.quality.dashboard_routes import router as quality_dashboard_router
+ from app.modules.observability.routes import router as observability_router, metrics_router
+ from app.modules.observability.middleware import MetricsMiddleware
+ from app.modules.observability.logging import configure_logging
+@@ -46,7 +48,7 @@ from app.modules.observability.metrics import set_app_info
+ logger = logging.getLogger("guineecare")
+ 
+ API_PREFIX = "/api/v1"
+-APP_VERSION = "1.3.0"
++APP_VERSION = "1.4.0"
+ 
+ # --- OpenAPI documentation metadata (v0.10.0) ---
+ API_DESCRIPTION = """\
+@@ -121,6 +123,8 @@ OPENAPI_TAGS = [
+     {"name": "search", "description": "Recherche globale multi-ressources (v1.2.0)."},
+     {"name": "i18n", "description": "Internationalisation (catalogues de traduction EN/FR) — v1.3.0."},
+     {"name": "realtime", "description": "WebSocket temps réel (KPI push, dashboard live) — v1.3.0."},
++    {"name": "notifications-sms", "description": "Notifications SMS multicanal (Orange/MTN/Moov/Mock, règles de routage) — v1.4.0."},
++    {"name": "quality-dashboard", "description": "Dashboard qualité avancé (KPIs OMS/HAS, seuils, alertes automatiques) — v1.4.0."},
+     {"name": "health", "description": "Health checks (/health, /health/live, /health/ready)."},
+     {"name": "metrics", "description": "Métriques Prometheus (/metrics, token-gated)."},
+     {"name": "system", "description": "Endpoints racine et utilitaires système."},
+@@ -253,6 +257,8 @@ app.include_router(documents_router, prefix=API_PREFIX)
+ app.include_router(search_router, prefix=API_PREFIX)
+ app.include_router(i18n_router, prefix=API_PREFIX)
+ app.include_router(realtime_router, prefix=API_PREFIX)
++app.include_router(sms_router, prefix=API_PREFIX)
++app.include_router(quality_dashboard_router, prefix=API_PREFIX)
+ 
+ # Observability routes — mounted at root, NOT under /api/v1, so they match
+ # Prometheus and Kubernetes conventions (/metrics, /health, /health/live, /health/ready).
+@@ -272,6 +278,7 @@ def api_root():
+             "personnel", "imaging", "surgery", "quality", "reporting",
+             "audit", "notifications", "user-profile", "feedback",
+             "documents", "search", "i18n", "realtime", "observability",
++            "notifications-sms", "quality-dashboard",
+         ],
+     }
+ 
+diff --git a/backend/app/modules/rbac/seed.py b/backend/app/modules/rbac/seed.py
+index 75fd255..4b99261 100755
+--- a/backend/app/modules/rbac/seed.py
++++ b/backend/app/modules/rbac/seed.py
+@@ -60,6 +60,9 @@ DEFAULT_PERMISSIONS = [
+     # v1.1.0 — change-management feedback loop
+     ("feedback.read", "Consulter les retours utilisateurs", "feedback"),
+     ("feedback.resolve", "Trier et resoudre les retours utilisateurs", "feedback"),
++    # v1.4.0 — SMS + quality dashboard advanced
++    ("notification.manage", "Configurer providers SMS et regles de routage", "notifications"),
++    ("quality.dashboard", "Consulter le dashboard qualite avance", "quality"),
+ ]
+ 
+ ROLE_PERMISSION_MAP = {
+@@ -90,6 +93,7 @@ ROLE_PERMISSION_MAP = {
+         "surgery.read",
+         "surgery.manage",
+         "quality.read",
++        "quality.dashboard",
+         "reporting.read",
+     ],
+     "NURSE": [
+@@ -107,6 +111,7 @@ ROLE_PERMISSION_MAP = {
+         "maternity.read",
+         "imaging.read",
+         "quality.read",
++        "quality.dashboard",
+     ],
+     "PHARMACIST": [
+         "facility.read",
+diff --git a/backend/requirements.txt b/backend/requirements.txt
+index df786ec..147e28c 100755
+--- a/backend/requirements.txt
++++ b/backend/requirements.txt
+@@ -13,3 +13,4 @@ slowapi==0.1.9
+ pytest==8.3.4
+ httpx==0.28.1
+ reportlab==4.2.5
++requests==2.32.3
+diff --git a/backend/tests/conftest.py b/backend/tests/conftest.py
+index 816fb90..2031723 100755
+--- a/backend/tests/conftest.py
++++ b/backend/tests/conftest.py
+@@ -39,8 +39,10 @@ from app.modules.surgery.models import OperatingRoom, SurgerySchedule, SurgeryTe
+ from app.modules.quality.models import QualityIndicator, QualityMeasurement, IncidentReport
+ from app.modules.reporting.models import NationalReport, EpidemicAlert, HealthStatistic
+ from app.modules.notifications.models import Notification
++from app.modules.notifications.sms_models import SmsProvider, SmsMessage, SmsRoutingRule
+ from app.modules.user_profile.models import UserPreference, UserFeedback, UserRecentItem
+ from app.modules.documents.models import DocumentGenerated
++from app.modules.quality.dashboard_models import QualityThreshold, QualityAlert
+ 
+ # Use SQLite for tests
+ SQLALCHEMY_DATABASE_URL = "sqlite:///./test_guineecare.db"
+diff --git a/docs/post-pilot/EVOLUTIONS_POST_PILOTE.md b/docs/post-pilot/EVOLUTIONS_POST_PILOTE.md
+index f1e0733..0d30677 100644
+--- a/docs/post-pilot/EVOLUTIONS_POST_PILOTE.md
++++ b/docs/post-pilot/EVOLUTIONS_POST_PILOTE.md
+@@ -1,7 +1,7 @@
+ # Évolutions post-pilote — Roadmap v1.3 et au-delà
+ 
+ > Public : équipe projet, direction médicale, Ministère de la Santé
+-> Dernière mise à jour : 2026-06-21 (v1.3.0)
++> Dernière mise à jour : 2026-06-21 (v1.4.0)
+ > Statut : document **dynamique** — alimenté par les retours utilisateurs
+ > collectés via la boucle feedback de v1.1.0.
+ 
+@@ -10,7 +10,7 @@ Hospital Suite après le pilote CHU Donka. Il ne s'agit pas d'un
+ engagement formel : chaque évolution sera priorisée en fonction des
+ retours terrain, des contraintes budgétaires et des arbitrages
+ stratégiques. Le backlog est organisé en trois temps : **court terme**
+-(v1.2-v1.3 — 6 mois), **moyen terme** (v1.4 — 9 mois) et **long terme**
++(v1.2-v1.3 — 6 mois), **moyen terme** (v1.4-v1.5 — 9 mois) et **long terme**
+ (v2.0 — 12+ mois).
+ 
+ ---
+@@ -35,6 +35,103 @@ mois.
+ 
+ ---
+ 
++## v1.4 — Livré le 2026-06-21 (release v1.4.0)
++
++La release v1.4.0 livre les **2 premières évolutions moyen terme** :
++le système de notifications SMS réelles via opérateurs locaux
++(évolution 10) et le tableau de bord qualité avancé avec seuils
++d'alerte automatiques (évolution 9). Les 3 évolutions moyen terme
++restantes (app mobile React Native, HL7 FHIR R4, module RH v2) sont
++reportées à v1.5.
++
++### ✅ Évolution 10 — Système de notifications SMS multicanal étendu (LIVRÉ)
++
++Module backend `notifications/sms` avec 3 nouvelles tables (migration
++Alembic `0017_sms_v14`) : `sms_providers` (configuration des opérateurs
++avec credentials chiffrés via Fernet optionnel), `sms_messages`
++(journal de chaque SMS envoyé : statut, coût GNF, opérateur,
++tentatives), `sms_routing_rules` (règles de routage par catégorie de
++notification).
++
++**Provider abstraction** : 4 implémentations — `MockSmsProvider`
++(dev/test, toujours succès), `OrangeSmsProvider` (OAuth2
++client_credentials → Orange SMS Pro API), `MtnSmsProvider` (Bearer
++token), `MoovSmsProvider` (clé API dans le body + signature).
++Normalisation automatique des numéros guinéens (`622334455` →
++`+224622334455`). Aucune exception ne remonte à l'appelant — tous les
++échecs sont journalisés dans `SmsMessage`.
++
++**Service** : `send_sms()` orchestre normalisation → sélection
++provider (règle de routage → provider préféré → provider par défaut →
++mock implicite) → envoi → journalisation. `retry_failed_sms()` avec
++max 3 tentatives. `get_sms_stats()` agrège par provider/catégorie sur
++une période.
++
++**Routes** (14 endpoints sous `/api/v1/notifications/sms/*`) : CRUD
++providers, CRUD règles de routage, envoi manuel, retry, historique
++paginé (filtres `status`/`provider_code`/`category`/`recipient_phone`),
++statistiques agrégées (coût total GNF, taux de succès par provider et
++par catégorie).
++
++**8 règles de routage par défaut** seedées automatiquement :
++`lab_critical` (urgent → SMS+in_app), `incident_critical` (urgent →
++SMS+email+in_app), `appointment_reminder` (normal → SMS+in_app),
++`medication_dispensed` (in_app only), `admission_created` (in_app),
++`invoice_ready` (normal → SMS+in_app), `quality_alert` (high →
++SMS+email+in_app), `system` (in_app only).
++
++**Frontend** : nouvelle page `/sms-admin` (4 onglets : Providers,
++Règles de routage, Historique, Statistiques) accessible aux
++ADMIN/SUPER_ADMIN. 27 tests backend.
++
++### ✅ Évolution 9 — Tableau de bord qualité avancé (LIVRÉ)
++
++Module backend `quality/dashboard` avec 2 nouvelles tables (migration
++Alembic `0018_quality_dashboard`) : `quality_thresholds` (seuils
++d'alerte par indicateur avec comparateur LT/LE/GT/GE/EQ, sévérité
++LOW/MEDIUM/HIGH/CRITICAL, cooldown anti-spam, notify_roles,
++channels), `quality_alerts` (alertes concrètes avec lifecycle OPEN →
++ACKNOWLEDGED → RESOLVED → CLOSED).
++
++**Catalogue d'indicateurs prédéfinis OMS/HAS** (10 indicateurs) :
++`INOSO_RATE` (infections nosocomiales, cible < 5%), `READMIT_30D`
++(réadmissions 30j, < 10%), `SAT_PATIENT` (satisfaction, > 80%),
++`ED_WAIT_4H` (délai urgences, < 4h), `MORTALITY_24H` (mortalité 24h,
++< 2%), `MED_ERROR_RATE` (erreurs médicamenteuses, < 1/1000),
++`SURG_SITE_INFECTION` (infections site opératoire, < 3%),
++`BED_OCCUPANCY` (occupation lits, ≤ 85%), `FALL_RATE` (chutes, <
++3/1000), `VAGINAL_DELIVERY_RATE` (accouchements voie basse, > 80%).
++
++**Service** : `compute_dashboard()` agrège KPIs + incidents +
++alertes + tendances. `check_thresholds()` évalue les mesures récentes
++contre les seuils, lève des `QualityAlert` si franchissement (avec
++cooldown), notifie via `notify()` du module notifications (multi-canal
++— la catégorie `quality_alert` déclenche SMS via la règle de routage).
++`evaluate_threshold()` gère comparaisons numériques et qualitatives
++(EQ only).
++
++**Routes** (11 endpoints sous `/api/v1/quality/*`) : dashboard agrégé,
++catalogue statique, seed-defaults (idempotent), CRUD thresholds,
++liste alertes, check manuel, ack/resolve/close.
++
++**Frontend** : 2 nouveaux onglets dans `QualityPage` — Dashboard
++(5 stat cards, tableau KPIs avec statut coloré, agrégats incidents,
++tendances SVG avec ligne de cible) et Alertes (liste avec filtre
++statut, actions ack/resolve/close, modal de résolution, CRUD seuils).
++22 tests backend.
++
++### ⏭️ Évolutions moyen terme — Statut
++
++Avec v1.4.0, 2 des 5 évolutions moyen terme sont livrées :
++
++- ✅ Évolution 9 — Tableau de bord qualité avancé (v1.4.0)
++- ✅ Évolution 10 — Notifications SMS réelles (v1.4.0)
++- ⏭️ Évolution 6 — Application mobile Android (React Native) — reportée v1.5
++- ⏭️ Évolution 7 — Interopérabilité HL7 FHIR R4 — reportée v1.5
++- ⏭️ Évolution 8 — Module RH v2 (plannings/gardes) — reportée v1.5
++
++---
++
+ ## v1.3 — Livré le 2026-06-21 (release v1.3.0)
+ 
+ La release v1.3.0 livre les **3 évolutions court terme restantes**
+diff --git a/frontend/src/App.tsx b/frontend/src/App.tsx
+index 847dd44..05ad9fd 100755
+--- a/frontend/src/App.tsx
++++ b/frontend/src/App.tsx
+@@ -36,6 +36,7 @@ const FacilitiesPage = lazy(() => import("./pages/FacilitiesPage").then(m => ({
+ const DepartmentsPage = lazy(() => import("./pages/DepartmentsPage").then(m => ({ default: m.DepartmentsPage })));
+ const AuditPage = lazy(() => import("./pages/AuditPage").then(m => ({ default: m.AuditPage })));
+ const NotificationsPage = lazy(() => import("./pages/NotificationsPage").then(m => ({ default: m.NotificationsPage })));
++const SmsAdminPage = lazy(() => import("./pages/SmsAdminPage").then(m => ({ default: m.SmsAdminPage })));
+ 
+ function PageLoader() {
+   return (
+@@ -112,6 +113,7 @@ function AppInner() {
+             <Route path="/facilities" element={<ProtectedRoute roles={["SUPER_ADMIN", "ADMIN"]}><FacilitiesPage /></ProtectedRoute>} />
+             <Route path="/departments" element={<ProtectedRoute roles={["SUPER_ADMIN", "ADMIN"]}><DepartmentsPage /></ProtectedRoute>} />
+             <Route path="/audit" element={<ProtectedRoute roles={["SUPER_ADMIN", "ADMIN"]}><AuditPage /></ProtectedRoute>} />
++            <Route path="/sms-admin" element={<ProtectedRoute roles={["SUPER_ADMIN", "ADMIN"]}><SmsAdminPage /></ProtectedRoute>} />
+             <Route path="*" element={<Navigate to="/" replace />} />
+           </Routes>
+         </Suspense>
+diff --git a/frontend/src/components/ProtectedRoute.tsx b/frontend/src/components/ProtectedRoute.tsx
+index 5fbd78e..682db4d 100755
+--- a/frontend/src/components/ProtectedRoute.tsx
++++ b/frontend/src/components/ProtectedRoute.tsx
+@@ -50,6 +50,7 @@ export function useNavVisibility() {
+     canSeeBilling: hasPermission("billing.read"),
+     canSeePersonnel: hasPermission("personnel.read"),
+     canSeeQuality: hasPermission("quality.read"),
++    canSeeSmsAdmin: isSuperAdmin || isAdmin,
+     canSeeActivity: hasRole("SUPER_ADMIN", "ADMIN"),
+     canSeeNational: hasRole("SUPER_ADMIN", "ADMIN"),
+     canSeeReporting: hasPermission("reporting.read"),
+diff --git a/frontend/src/hooks/useLookupData.ts b/frontend/src/hooks/useLookupData.ts
+index a86af07..44e330a 100755
+--- a/frontend/src/hooks/useLookupData.ts
++++ b/frontend/src/hooks/useLookupData.ts
+@@ -24,6 +24,7 @@ export function useLookupData(enabled: boolean, version: number): LookupData {
+         apiRequest<any>(`/billing/invoices${ALL}`),
+         apiRequest<any>(`/maternity/records${ALL}`),
+         apiRequest<any>(`/personnel/staff${ALL}`),
++        apiRequest<any>(`/quality/indicators${ALL}`),
+       ]);
+ 
+       if (!mounted) return;
+@@ -42,6 +43,7 @@ export function useLookupData(enabled: boolean, version: number): LookupData {
+         invoices: data[7],
+         maternityRecords: data[8],
+         staff: data[9],
++        indicators: data[10],
+       });
+     }
+ 
+diff --git a/frontend/src/layout/Sidebar.tsx b/frontend/src/layout/Sidebar.tsx
+index 2faa747..4c796de 100755
+--- a/frontend/src/layout/Sidebar.tsx
++++ b/frontend/src/layout/Sidebar.tsx
+@@ -20,6 +20,7 @@ import {
+   Building2,
+   BarChart3,
+   Bell,
++  MessageSquare,
+   LogOut,
+   ChevronDown,
+   ChevronRight,
+@@ -94,6 +95,7 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void | Prom
+         { label: "Établissements", path: "/facilities", icon: Building2, visible: navVisibility.canSeeFacilities },
+         { label: "Départements", path: "/departments", icon: Building2, visible: navVisibility.canSeeDepartments },
+         { label: "Journal d'audit", path: "/audit", icon: Shield, visible: navVisibility.canSeeAudit },
++        { label: "SMS Admin", path: "/sms-admin", icon: MessageSquare, visible: navVisibility.canSeeSmsAdmin },
+       ],
+     },
+     {
+diff --git a/frontend/src/pages/QualityPage.tsx b/frontend/src/pages/QualityPage.tsx
+index f7b373c..de3f84c 100755
+--- a/frontend/src/pages/QualityPage.tsx
++++ b/frontend/src/pages/QualityPage.tsx
+@@ -3,10 +3,14 @@ import { apiRequest } from "../services/api";
+ import { LookupData, Row } from "../types";
+ import { showToast } from "../components/Toast";
+ import { buildOptions, firstValue } from "../utils/options";
++import { QualityDashboardTab } from "./QualityDashboardTab";
++import { QualityAlertsTab } from "./QualityAlertsTab";
+ 
+-type TabKey = "indicators" | "measurements" | "incidents";
++type TabKey = "dashboard" | "alerts" | "indicators" | "measurements" | "incidents";
+ 
+ const TABS: { key: TabKey; label: string }[] = [
++  { key: "dashboard", label: "Dashboard" },
++  { key: "alerts", label: "Alertes" },
+   { key: "indicators", label: "Indicateurs" },
+   { key: "measurements", label: "Mesures" },
+   { key: "incidents", label: "Événements indésirables" },
+@@ -95,12 +99,12 @@ const FREQUENCY_LABEL: Record<string, string> = {
+ };
+ 
+ export function QualityPage({ lookups }: { lookups: LookupData }) {
+-  const [activeTab, setActiveTab] = useState<TabKey>("indicators");
++  const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
+ 
+   return (
+     <section>
+       <h1>Qualité / Pilotage</h1>
+-      <p className="muted">Gestion des indicateurs qualité, mesures et événements indésirables.</p>
++      <p className="muted">Gestion des indicateurs qualité, mesures, événements indésirables et alertes automatiques.</p>
+ 
+       <div className="tab-bar">
+         {TABS.map((tab) => (
+@@ -114,6 +118,8 @@ export function QualityPage({ lookups }: { lookups: LookupData }) {
+         ))}
+       </div>
+ 
++      {activeTab === "dashboard" && <QualityDashboardTab lookups={lookups} />}
++      {activeTab === "alerts" && <QualityAlertsTab lookups={lookups} />}
+       {activeTab === "indicators" && <IndicatorsTab lookups={lookups} />}
+       {activeTab === "measurements" && <MeasurementsTab lookups={lookups} />}
+       {activeTab === "incidents" && <IncidentsTab lookups={lookups} />}
+diff --git a/frontend/src/types.ts b/frontend/src/types.ts
+index 3ae295d..46e1dbb 100755
+--- a/frontend/src/types.ts
++++ b/frontend/src/types.ts
+@@ -25,6 +25,7 @@ export type LookupData = {
+   invoices: Row[];
+   maternityRecords: Row[];
+   staff: Row[];
++  indicators: Row[];
+ };
+ 
+ export const emptyLookups: LookupData = {
+@@ -38,4 +39,5 @@ export const emptyLookups: LookupData = {
+   invoices: [],
+   maternityRecords: [],
+   staff: [],
++  indicators: [],
+ };
