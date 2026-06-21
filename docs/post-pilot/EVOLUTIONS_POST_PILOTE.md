@@ -1,7 +1,7 @@
 # Évolutions post-pilote — Roadmap v1.3 et au-delà
 
 > Public : équipe projet, direction médicale, Ministère de la Santé
-> Dernière mise à jour : 2026-06-21 (v1.4.0)
+> Dernière mise à jour : 2026-06-21 (v1.5.0)
 > Statut : document **dynamique** — alimenté par les retours utilisateurs
 > collectés via la boucle feedback de v1.1.0.
 
@@ -10,7 +10,7 @@ Hospital Suite après le pilote CHU Donka. Il ne s'agit pas d'un
 engagement formel : chaque évolution sera priorisée en fonction des
 retours terrain, des contraintes budgétaires et des arbitrages
 stratégiques. Le backlog est organisé en trois temps : **court terme**
-(v1.2-v1.3 — 6 mois), **moyen terme** (v1.4-v1.5 — 9 mois) et **long terme**
+(v1.2-v1.3 — 6 mois), **moyen terme** (v1.4-v1.6 — 9 mois) et **long terme**
 (v2.0 — 12+ mois).
 
 ---
@@ -32,6 +32,60 @@ décroissant. Seules les évolutions à score ≥ 60 entrent dans la
 roadmap suivante. Le comité de pilotage (équipe projet + direction
 médicale + représentant Ministère) révise les priorités tous les
 mois.
+
+---
+
+## v1.5 — Livré le 2026-06-21 (release v1.5.0)
+
+La release v1.5.0 livre la **3ᵉ évolution moyen terme** : le **module de
+planification des ressources (RH v2)** (évolution 8). Les 2 évolutions moyen
+terme restantes (app mobile React Native, HL7 FHIR R4) sont reportées à v1.6.
+
+### ✅ Évolution 8 — Module de planification des ressources (RH v2) (LIVRÉ)
+
+Module backend `personnel/rh_v2` avec 5 nouvelles tables (migration Alembic
+`0019_rh_v2`) :
+
+- **`shifts`** : templates récurrents (DAY/NIGHT/FULL_DAY/ON_CALL) avec
+  récurrence DAILY/WEEKDAYS/WEEKEND/CUSTOM.
+- **`shift_assignments`** : affectations concrètes d'un staff à un shift à
+  une date. Statut SCHEDULED → CONFIRMED → COMPLETED (ou ABSENT/CANCELLED).
+- **`leave_balances`** : soldes de congés par staff × année (accumulated,
+  used, carried_over, pending — remaining calculé à la volée).
+- **`on_call_duties`** : astreintes (TELEPHONIC/PHYSICAL/MIXED) avec
+  compensation en jours de récupération.
+- **`shift_swaps`** : demandes de remplacement entre staffs (workflow
+  REQUESTED → ACCEPTED → APPROVED → COMPLETED | REJECTED | CANCELLED).
+
+**Service** : `generate_assignments()` génère des affectations en masse
+(selon récurrence + skip options). `_find_eligible_staff()` sélectionne
+automatiquement un staff (même facility + department + profession,
+status=ACTIVE, pas en conflit ni en congé). `check_conflicts()` détecte
+les chevauchements. `recompute_leave_balance()` recalcule used/pending à
+partir des LeaveRequest. Workflow complet des swaps (accept/approve/reject/
+cancel) avec transfert automatique de l'affectation au remplaçant à
+l'approbation. `get_planning()` construit la vue planning (rows × cells).
+
+**Routes** (27 endpoints sous `/api/v1/personnel/*`) : planning hebdo
+(max 90 jours), CRUD shifts, génération en masse d'affectations, CRUD
+affectations + conflicts, CRUD soldes (avec auto-création), CRUD astreintes,
+workflow complet des swaps.
+
+**Frontend** : 2 nouvelles pages — `PersonnelPlanningPage` (5 onglets :
+planning hebdo calendrier avec navigation + filtre département, templates
+de shifts, affectations, astreintes, remplacements) et `LeaveManagementPage`
+(2 onglets : demandes de congé avec approbation, soldes avec barre de
+progression). 2 nouvelles entrées dans la sidebar. 30 tests backend.
+
+### ⏭️ Évolutions moyen terme — Statut
+
+Avec v1.5.0, 3 des 5 évolutions moyen terme sont livrées :
+
+- ✅ Évolution 8 — Module RH v2 (v1.5.0)
+- ✅ Évolution 9 — Tableau de bord qualité avancé (v1.4.0)
+- ✅ Évolution 10 — Notifications SMS réelles (v1.4.0)
+- ⏭️ Évolution 6 — Application mobile Android (React Native) — reportée v1.6
+- ⏭️ Évolution 7 — Interopérabilité HL7 FHIR R4 — reportée v1.6
 
 ---
 

@@ -1,5 +1,141 @@
 # Changelog
 
+## [1.5.0] — 2026-06-21
+
+### Added — Module RH v2 (plannings, gardes, congés, astreintes, remplacements)
+
+Cette release livre la **3ᵉ évolution moyen terme** identifiée dans
+`docs/post-pilot/EVOLUTIONS_POST_PILOTE.md` : le **(8) module de planification
+des ressources (RH v2)**. Les 2 évolutions moyen terme restantes (app mobile
+React Native, HL7 FHIR R4) sont reportées à v1.6.
+
+#### Module backend `personnel/rh_v2` — planification opérationnelle
+
+Le module RH v1 (StaffMember, OnCallSchedule, LeaveRequest, Contract) couvrait
+les effectifs et les congés basiques. Le RH v2 ajoute 5 nouvelles tables
+(migration Alembic `0019_rh_v2`) :
+
+- **`shifts`** : templates récurrents (DAY/NIGHT/FULL_DAY/ON_CALL) avec
+  récurrence DAILY/WEEKDAYS/WEEKEND/CUSTOM. Sert de base pour générer
+  massivement des affectations.
+- **`shift_assignments`** : affectations concrètes d'un staff à un shift à une
+  date. Statut SCHEDULED → CONFIRMED → COMPLETED (ou ABSENT/CANCELLED).
+- **`leave_balances`** : soldes de congés par staff × année (accumulated,
+  used, carried_over, pending — remaining calculé à la volée).
+- **`on_call_duties`** : astreintes (TELEPHONIC/PHYSICAL/MIXED) avec
+  compensation en jours de récupération.
+- **`shift_swaps`** : demandes de remplacement entre staffs (workflow REQUESTED
+  → ACCEPTED → APPROVED → COMPLETED | REJECTED | CANCELLED).
+
+**Service** (`backend/app/modules/personnel/rh_v2_service.py`) :
+
+- `generate_assignments()` — génère des ShiftAssignments pour un shift
+  récurrent sur une période (en respectant WEEKDAYS/WEEKEND/CUSTOM + skip
+  options).
+- `_find_eligible_staff()` — sélectionne automatiquement un staff éligible
+  (même facility + department + profession, status=ACTIVE, pas déjà affecté
+  ce jour, pas en congé approuvé).
+- `check_conflicts()` — détecte les conflits (staff déjà affecté le même
+  jour, avec chevauchement horaire optionnel).
+- `recompute_leave_balance()` — recalcule `used_days` et `pending_days` à
+  partir des LeaveRequest (APPROVED → used, PENDING → pending).
+- `get_or_create_balance()` — récupère ou crée un solde (défaut 26j/an,
+  norme légale guinéenne).
+- `create_swap() / accept_swap() / approve_swap() / reject_swap() /
+  cancel_swap()` — workflow complet de remplacement. À l'approbation,
+  l'affectation est transférée au remplaçant.
+- `get_planning()` — construit la vue planning (rows × cells) sur une
+  période, avec summary par statut et par staff.
+
+**Routes** (27 endpoints sous `/api/v1/personnel/*` — tag OpenAPI
+`personnel-rh-v2`) :
+
+- `GET /planning?start_date=...&end_date=...` — vue planning hebdo/mensuel
+  (max 90 jours, multi-tenant).
+- `GET /shifts` / `POST /shifts` / `PATCH /shifts/{id}` / `DELETE /shifts/{id}`
+  — CRUD templates.
+- `POST /shifts/{id}/generate` — génération en masse d'affectations.
+- `GET /assignments` / `POST /assignments` / `PATCH /assignments/{id}` /
+  `DELETE /assignments/{id}` — CRUD affectations (filtres staff/shift/date/status).
+- `GET /assignments/{id}/conflicts` — vérification des conflits.
+- `GET /leave-balances` / `POST /leave-balances` — CRUD soldes.
+- `GET /leave-balances/by-staff/{staff_id}?year=...` — solde auto-créé.
+- `GET /on-call-duties` / `POST /on-call-duties` / `PATCH /on-call-duties/{id}`
+  / `DELETE /on-call-duties/{id}` — CRUD astreintes.
+- `GET /swaps` / `POST /swaps` / `POST /swaps/{id}/accept` /
+  `POST /swaps/{id}/approve` / `POST /swaps/{id}/reject` /
+  `POST /swaps/{id}/cancel` — workflow complet des remplacements.
+
+**Permissions RBAC** (2 nouvelles) :
+
+- `personnel.planning` — consulter et gérer le planning hebdo (étendue à
+  DOCTOR et NURSE en plus de ADMIN/SUPER_ADMIN).
+- `personnel.leave_approve` — approuver les demandes de congé (ADMIN).
+
+Tests (`backend/tests/test_rh_v2.py`) — **30 tests** : CRUD shifts, génération
+d'affectations (weekdays/daily/skip_weekends/auto-staff), `_matches_recurrence`,
+CRUD affectations, `check_conflicts`, vue planning (valide + erreurs 400),
+CRUD soldes, `recompute_leave_balance` (avec congés APPROVED et PENDING), CRUD
+astreintes, workflow complet des swaps (REQUESTED → ACCEPTED → APPROVED avec
+transfert d'affectation, REJECTED, CANCELLED), permissions RBAC.
+
+#### Frontend — 2 nouvelles pages
+
+- **`PersonnelPlanningPage.tsx`** (route `/personnel/planning`) — 5 onglets :
+  - **Planning hebdo** : vue calendrier (rows = staffs, columns = jours de la
+    semaine), navigation semaines précédente/suivante, filtre par département,
+    badges colorés par type de shift, sticky première colonne, stats globales.
+  - **Templates de shifts** : liste + formulaire de création (code, nom, type,
+    horaires, récurrence, profession requise), bouton "📅" pour générer des
+    affectations en masse sur une période.
+  - **Affectations** : liste paginée avec filtre par statut, affichage staff +
+    shift + horaires + badge statut.
+  - **Astreintes** : liste + formulaire de création (staff, type
+    téléphonique/physique/mixte, période, raison, compensation), tableau des
+    astreintes existantes.
+  - **Remplacements** : liste filtrable des demandes de swap avec actions
+    contextuelles (accepter/refuser/approuver/annuler selon le statut).
+- **`LeaveManagementPage.tsx`** (route `/personnel/leaves`) — 2 onglets :
+  - **Demandes de congé** : liste filtrable par statut (PENDING/APPROVED/...),
+    affichage staff + type + période + jours calculés + raison, actions
+    approuver/refuser pour les managers.
+  - **Soldes** : tableau des soldes par staff pour l'année sélectionnable,
+    avec barre de progression du taux d'utilisation (vert/orange/rouge selon
+    seuils), colonnes droit annuel + report N-1 + pris + en attente + restant.
+- **Sidebar** — 2 nouvelles entrées sous la section ADMIN : "Planning & Gardes"
+  et "Congés" (icônes UserCog, visibles à tous les rôles ayant
+  `personnel.read`).
+- **`useLookupData`** — fetch également `/personnel/shifts` pour les badges du
+  planning.
+- **`types.ts`** — `shifts: Row[]` ajouté à `LookupData`.
+
+#### Configuration
+
+- **`backend/app/main.py`** — version bump 1.4.0 → 1.5.0, nouveau router
+  `rh_v2_router`, nouveau tag OpenAPI `personnel-rh-v2`.
+- **`backend/tests/conftest.py`** — import des 5 nouveaux modèles.
+- **`backend/app/modules/rbac/seed.py`** — 2 nouvelles permissions
+  (`personnel.planning`, `personnel.leave_approve`) + `personnel.planning`
+  ajoutée à DOCTOR et NURSE.
+
+#### Points d'attention
+
+1. **Solde par défaut** : 26 jours/an (norme légale guinéenne). Ajuster via
+   `POST /leave-balances` avec `accumulated_days` personnalisé si l'établissement
+   a une convention plus favorable.
+2. **Auto-staff** : `generate_assignments` choisit le premier staff éligible
+   (même facility + department + profession, status=ACTIVE, pas en congé). En
+   pratique, le chef de service préfèrera affecter manuellement le `staff_id`
+   pour respecter les rotations équitables.
+3. **Job Celery** : la transition automatique SCHEDULED → ABSENT (staff absent
+   non justifié) n'est pas implémentée — à automatiser via un job Celery
+   quotidien en v1.6 si besoin.
+4. **Notifications** : les notifications in-app à la création d'affectation
+   et à la demande de swap ne sont pas encore câblées (placeholder dans le
+   code). À brancher au module notifications existant en v1.6.
+
+---
+
 ## [1.4.0] — 2026-06-21
 
 ### Added — Notifications SMS réelles (Orange/MTN/Moov) + tableau de bord qualité avancé

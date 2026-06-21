@@ -40,6 +40,7 @@ from app.modules.i18n.routes import router as i18n_router
 from app.modules.realtime.routes import router as realtime_router
 from app.modules.notifications.sms_routes import router as sms_router
 from app.modules.quality.dashboard_routes import router as quality_dashboard_router
+from app.modules.personnel.rh_v2_routes import router as rh_v2_router
 from app.modules.observability.routes import router as observability_router, metrics_router
 from app.modules.observability.middleware import MetricsMiddleware
 from app.modules.observability.logging import configure_logging
@@ -48,7 +49,7 @@ from app.modules.observability.metrics import set_app_info
 logger = logging.getLogger("guineecare")
 
 API_PREFIX = "/api/v1"
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.5.0"
 
 # --- OpenAPI documentation metadata (v0.10.0) ---
 API_DESCRIPTION = """\
@@ -125,6 +126,7 @@ OPENAPI_TAGS = [
     {"name": "realtime", "description": "WebSocket temps réel (KPI push, dashboard live) — v1.3.0."},
     {"name": "notifications-sms", "description": "Notifications SMS multicanal (Orange/MTN/Moov/Mock, règles de routage) — v1.4.0."},
     {"name": "quality-dashboard", "description": "Dashboard qualité avancé (KPIs OMS/HAS, seuils, alertes automatiques) — v1.4.0."},
+    {"name": "personnel-rh-v2", "description": "RH v2 : plannings, gardes, congés, astreintes, remplacements — v1.5.0."},
     {"name": "health", "description": "Health checks (/health, /health/live, /health/ready)."},
     {"name": "metrics", "description": "Métriques Prometheus (/metrics, token-gated)."},
     {"name": "system", "description": "Endpoints racine et utilitaires système."},
@@ -259,6 +261,7 @@ app.include_router(i18n_router, prefix=API_PREFIX)
 app.include_router(realtime_router, prefix=API_PREFIX)
 app.include_router(sms_router, prefix=API_PREFIX)
 app.include_router(quality_dashboard_router, prefix=API_PREFIX)
+app.include_router(rh_v2_router, prefix=API_PREFIX)
 
 # Observability routes — mounted at root, NOT under /api/v1, so they match
 # Prometheus and Kubernetes conventions (/metrics, /health, /health/live, /health/ready).
@@ -279,6 +282,7 @@ def api_root():
             "audit", "notifications", "user-profile", "feedback",
             "documents", "search", "i18n", "realtime", "observability",
             "notifications-sms", "quality-dashboard",
+            "personnel-rh-v2",
         ],
     }
 
