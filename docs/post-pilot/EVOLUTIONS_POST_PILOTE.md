@@ -1,7 +1,7 @@
-# Évolutions post-pilote — Roadmap v1.2 et au-delà
+# Évolutions post-pilote — Roadmap v1.3 et au-delà
 
 > Public : équipe projet, direction médicale, Ministère de la Santé
-> Dernière mise à jour : 2026-06-21 (v1.2.0)
+> Dernière mise à jour : 2026-06-21 (v1.3.0)
 > Statut : document **dynamique** — alimenté par les retours utilisateurs
 > collectés via la boucle feedback de v1.1.0.
 
@@ -10,7 +10,7 @@ Hospital Suite après le pilote CHU Donka. Il ne s'agit pas d'un
 engagement formel : chaque évolution sera priorisée en fonction des
 retours terrain, des contraintes budgétaires et des arbitrages
 stratégiques. Le backlog est organisé en trois temps : **court terme**
-(v1.2 — 3 mois), **moyen terme** (v1.3 — 6 mois) et **long terme**
+(v1.2-v1.3 — 6 mois), **moyen terme** (v1.4 — 9 mois) et **long terme**
 (v2.0 — 12+ mois).
 
 ---
@@ -35,12 +35,73 @@ mois.
 
 ---
 
+## v1.3 — Livré le 2026-06-21 (release v1.3.0)
+
+La release v1.3.0 livre les **3 évolutions court terme restantes**
+reportées de v1.2 : i18n EN/FR, dashboard temps réel, et mode hors-ligne
+PWA. Avec cette release, les 5 évolutions court terme initialement
+planifiées sont toutes livrées.
+
+### ✅ Évolution 2 — Internationalisation EN/FR (LIVRÉE)
+
+Module backend `i18n` avec catalogue FR (par défaut) + EN baked into
+the source. Endpoint public `GET /api/v1/i18n/translations/{locale}`
+retourne le catalogue complet pour le frontend. Service `translate()`
+avec fallback sur FR puis sur la clé elle-même. 25 clés initiales
+couvrant les messages d'erreur auth, RBAC, multi-tenant, common,
+patients, documents, feedback, i18n.
+
+Frontend : `I18nProvider` (sans i18next, 100 lignes suffisent),
+`LanguageToggle` (dropdown compact avec drapeaux), `useI18n()` hook.
+Détection initiale : localStorage > `navigator.language` > `fr`. 23
+tests backend.
+
+### ✅ Évolution 3 — Dashboard temps réel (LIVRÉ)
+
+Module backend `realtime` avec broker pub/sub in-process (asyncio.Queue)
++ Redis optionnel pour multi-worker. WebSocket authentifié par JWT
+(query param `?token=...`) à `WS /api/v1/realtime/ws`. Filtrage par
+facility_id server-side (SUPER_ADMIN reçoit tout via canal `*`).
+Heartbeat 25s. 3 mutations publient des KPI events : admissions
+(+1), paiements (+amount), résultats labo validés (+1).
+
+Frontend : `useRealtimeKPIs()` hook (auto-reconnect exponential
+backoff), `RealtimeStatus` badge (🟢/🟡/🔴/⚪), DashboardPage
+incrémente les compteurs live sans refetch. 14 tests backend.
+
+### ✅ Évolution 5 — Mode hors-ligne PWA (LIVRÉ)
+
+Manifest (`manifest.webmanifest`) avec 2 icônes 192/512 maskable,
+3 raccourcis (admission, recherche patient, urgences), thème teal
+#0f766e. Service worker (`sw.js`) avec stratégies :
+- App shell : stale-while-revalidate.
+- API GET : network-first, fallback cache si offline.
+- API mutations : pass-through (503 si offline).
+- WebSocket : exclu du SW.
+
+Icônes générées par `scripts/generate_pwa_icons.py` (PIL, carré arrondi
+teal + monogramme "GC" blanc). SW enregistré uniquement en production
+(`import.meta.env.PROD`) pour éviter de cacher les fichiers HMR en dev.
+
+### ⏭️ Évolutions court terme — Terminées
+
+Avec v1.3.0, toutes les évolutions court terme (v1.2-v1.3) sont livrées :
+
+- ✅ Évolution 1 — Impression PDF des documents cliniques (v1.2.0)
+- ✅ Évolution 2 — Internationalisation EN/FR (v1.3.0)
+- ✅ Évolution 3 — Dashboard temps réel (v1.3.0)
+- ✅ Évolution 4 — Recherche globale Ctrl+K (v1.2.0)
+- ✅ Évolution 5 — Mode hors-ligne PWA (v1.3.0)
+
+---
+
 ## v1.2 — Livré le 2026-06-21 (release v1.2.0)
 
-La release v1.2.0 livre **2 des 5 évolutions court terme** planifiées :
+La release v1.2.0 a livré **2 des 5 évolutions court terme** planifiées :
 l'export PDF des documents cliniques (évolution 1) et la recherche
 globale Ctrl+K (évolution 4). Les 3 évolutions restantes (i18n,
-dashboard temps réel, mode hors-ligne PWA) sont reportées en v1.3.
+dashboard temps réel, mode hors-ligne PWA) ont été reportées en v1.3
+et sont désormais livrées (voir ci-dessus).
 
 ### ✅ Évolution 1 — Impression PDF des documents cliniques (LIVRÉE)
 
@@ -69,14 +130,15 @@ imagerie, notes cliniques. Recherche par préfixe (PAT-, INV-, LAB-,
 IMG-). Filtrage multi-tenant automatique. Frontend : Command Palette
 accessible via Ctrl+K avec navigation clavier. 21 tests backend.
 
-### ⏭️ Évolutions 2, 3 et 5 — Reportées en v1.3
+### ⏭️ Évolutions 2, 3 et 5 — Livrées en v1.3.0
 
-Les évolutions suivantes étaient planifiées pour v1.2 mais sont
-reportées en v1.3 (budget de développement limite sur le trimestre) :
+Les évolutions suivantes étaient planifiées pour v1.2 mais ont été
+reportées puis livrées en v1.3.0 (voir section v1.3 ci-dessus pour les
+détails d'implémentation) :
 
-- **Évolution 2 — Internationalisation EN/FR** (10 j-h).
-- **Évolution 3 — Dashboard temps réel** (12 j-h).
-- **Évolution 5 — Mode hors-ligne PWA** (20 j-h).
+- **Évolution 2 — Internationalisation EN/FR** ✅ LIVRÉ v1.3.0
+- **Évolution 3 — Dashboard temps réel** ✅ LIVRÉ v1.3.0
+- **Évolution 5 — Mode hors-ligne PWA** ✅ LIVRÉ v1.3.0
 
 ---
 
@@ -103,7 +165,7 @@ par les pharmaciens d'officine pour la délivrance).
 
 **Effort** : 8 jours-homme.
 
-#### 2. Internationalisation complète (i18n EN/FR)
+#### 2. Internationalisation complète (i18n EN/FR) ✅ LIVRÉ v1.3.0
 
 **Problème** : le backend et le frontend sont uniquement en français.
 Une partie du personnel soignant du CHU Donka est anglophone
@@ -124,7 +186,7 @@ recherche clinique doivent pouvoir être en anglais.
 
 **Effort** : 10 jours-homme (essentiellement traduction + tests).
 
-#### 3. Dashboard de pilotage temps réel
+#### 3. Dashboard de pilotage temps réel ✅ LIVRÉ v1.3.0
 
 **Problème** : la direction du CHU Donka et le Ministère ont besoin
 d'une vue agrégée temps réel. Les pages de reporting existantes sont
@@ -167,7 +229,7 @@ catégorisés. Implémentation :
 
 **Effort** : 6 jours-homme.
 
-#### 5. Mode hors-ligne partiel (PWA)
+#### 5. Mode hors-ligne partiel (PWA) ✅ LIVRÉ v1.3.0
 
 **Problème** : en cas de coupure réseau ou de panne serveur, plus
 aucune saisie n'est possible. La continuité de service est

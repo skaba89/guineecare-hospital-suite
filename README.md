@@ -5,12 +5,12 @@
 [![E2E admin pages](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-admin-pages.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-admin-pages.yml)
 [![E2E Playwright](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-playwright.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/e2e-playwright.yml)
 [![OpenAPI drift](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/openapi-check.yml/badge.svg)](https://github.com/skaba89/guineecare-hospital-suite/actions/workflows/openapi-check.yml)
-[![Version](https://img.shields.io/badge/version-v1.2.0-blue.svg)](https://github.com/skaba89/guineecare-hospital-suite/releases)
+[![Version](https://img.shields.io/badge/version-v1.3.0-blue.svg)](https://github.com/skaba89/guineecare-hospital-suite/releases)
 [![License](https://img.shields.io/badge/license-Private-red.svg)](#licence)
 
 Plateforme hospitalière complète pour la Guinée, inspirée des meilleurs SIH modernes : dossier patient informatisé, maternité, urgences, hospitalisation, pharmacie, laboratoire, imagerie, facturation, bloc opératoire, RH, qualité, reporting national et architecture technique industrielle.
 
-**Version actuelle :** `v1.2.0` — Export PDF des documents cliniques (ordonnances, comptes rendus d'imagerie, résultats de labo, factures via ReportLab) + recherche globale multi-ressources accessible via Ctrl+K (patients, factures, labo, imagerie, notes cliniques)
+**Version actuelle :** `v1.3.0` — Internationalisation EN/FR (catalogues backend + Language Toggle frontend + détection automatique de la langue navigateur) + dashboard temps réel via WebSocket authentifié (KPI push sur admissions / paiements / résultats labo, broker in-process avec Redis optionnel pour multi-worker) + mode hors-ligne PWA (manifest, service worker stale-while-revalidate, icônes 192/512 générées par PIL)
 
 ## Objectif
 

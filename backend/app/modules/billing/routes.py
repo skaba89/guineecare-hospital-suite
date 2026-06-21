@@ -8,6 +8,7 @@ from app.modules.activity.service import record_activity
 from app.modules.billing.models import Invoice, Payment, TariffItem
 from app.modules.billing.schemas import InvoiceCreate, PaymentCreate, TariffItemCreate
 from app.modules.rbac.dependencies import require_permission
+from app.modules.realtime import publish_kpi_update
 from app.modules.users.models import User
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -139,6 +140,14 @@ def create_payment(
     db.commit()
     db.refresh(payment)
     db.refresh(invoice)
+    # v1.3.0 — push realtime KPI update so the finance dashboard live-counts revenue
+    publish_kpi_update(
+        facility_id=invoice.facility_id,
+        kpi="billing.payments.today.amount",
+        value=float(payload.amount),
+        delta=float(payload.amount),
+        extra={"payment_id": payment.id, "invoice_id": invoice.id, "method": payload.payment_method},
+    )
     return {"data": {"payment": payment, "invoice": invoice}, "message": "payment created"}
 
 

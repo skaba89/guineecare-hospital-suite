@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.modules.laboratory.models import LabOrder, LabResult, LabTest
 from app.modules.laboratory.schemas import LabOrderCreate, LabResultCreate, LabTestCreate
 from app.modules.rbac.dependencies import require_permission
+from app.modules.realtime import publish_kpi_update
 from app.modules.users.models import User
 
 router = APIRouter(prefix="/laboratory", tags=["laboratory"])
@@ -122,6 +123,14 @@ def validate_result(
         order.status = "VALIDATED"
     db.commit()
     db.refresh(row)
+    # v1.3.0 — push realtime KPI update so the dashboard live-counts validated lab results
+    publish_kpi_update(
+        facility_id=row.facility_id or (order.facility_id if order else None) or "*",
+        kpi="lab.results.validated.count",
+        value=1,
+        delta=1,
+        extra={"result_id": row.id, "order_id": row.order_id},
+    )
     return {"data": row, "message": "result validated"}
 
 

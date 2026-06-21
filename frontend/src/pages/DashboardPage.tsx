@@ -3,6 +3,7 @@ import { apiRequest } from "../services/api";
 import { LookupData, Row } from "../types";
 import { buildOptions, firstValue } from "../utils/options";
 import { useNavigate } from "react-router-dom";
+import { useRealtimeKPIs } from "../hooks/useRealtimeKPIs";
 import {
   BarChart,
   Bar,
@@ -159,6 +160,21 @@ export function DashboardPage({ lookups }: { lookups: LookupData }) {
     window.addEventListener("refresh-resource", handler);
     return () => window.removeEventListener("refresh-resource", handler);
   }, [loadStats]);
+
+  // v1.3.0 — Realtime KPI push: increment counters live when a KPI event arrives.
+  // We don't refetch the whole dashboard — we just bump the relevant counter
+  // by the event's `delta`. A subsequent full refresh (manual or via the
+  // `refresh-resource` event) reconciles any drift.
+  const { lastEvent: liveKpi } = useRealtimeKPIs({ typePrefix: "kpi." });
+  useEffect(() => {
+    if (!liveKpi || !stats) return;
+    const { type, payload } = liveKpi;
+    if (type === "kpi.admissions.today.count" && typeof payload.delta === "number") {
+      setStats((prev) => prev ? { ...prev, admissions: prev.admissions + (payload.delta as number) } : prev);
+    } else if (type === "kpi.lab.results.validated.count" && typeof payload.delta === "number") {
+      setStats((prev) => prev ? { ...prev, pendingLabOrders: Math.max(0, prev.pendingLabOrders - (payload.delta as number)) } : prev);
+    }
+  }, [liveKpi, stats]);
 
   // Generate admission chart data from real admissions or mock
   const admissionChartData = useMemo(() => {

@@ -9,6 +9,7 @@ from app.core.tenant import tenant_query, enforce_facility_access
 from app.db.session import get_db
 from app.modules.activity.service import record_activity
 from app.modules.rbac.dependencies import require_permission
+from app.modules.realtime import publish_kpi_update
 from app.modules.users.models import User
 from app.modules.admissions.models import Admission
 from app.modules.admissions.schemas import AdmissionCreate
@@ -51,6 +52,14 @@ def create_admission(
     )
     db.commit()
     db.refresh(row)
+    # v1.3.0 — push realtime KPI update so the dashboard live-counts admissions
+    publish_kpi_update(
+        facility_id=row.facility_id,
+        kpi="admissions.today.count",
+        value=1,
+        delta=1,
+        extra={"admission_id": row.id, "admission_type": row.admission_type},
+    )
     return {"data": row, "message": "admission created"}
 
 

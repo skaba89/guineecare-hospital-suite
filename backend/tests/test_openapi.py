@@ -43,9 +43,9 @@ def test_openapi_version_is_3_1(spec):
     assert spec["openapi"].startswith("3.1"), "OpenAPI 3.1.x expected"
 
 
-def test_app_version_matches_v1_1(spec):
+def test_app_version_matches_current_release(spec):
     assert spec["info"]["version"] == APP_VERSION
-    assert APP_VERSION == "1.2.0"
+    assert APP_VERSION == "1.3.0"
 
 
 def test_app_has_description(spec):

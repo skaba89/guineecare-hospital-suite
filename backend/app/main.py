@@ -36,6 +36,8 @@ from app.modules.notifications.routes import router as notifications_router
 from app.modules.user_profile.routes import router as user_profile_router, feedback_router
 from app.modules.documents.routes import router as documents_router
 from app.modules.search.routes import router as search_router
+from app.modules.i18n.routes import router as i18n_router
+from app.modules.realtime.routes import router as realtime_router
 from app.modules.observability.routes import router as observability_router, metrics_router
 from app.modules.observability.middleware import MetricsMiddleware
 from app.modules.observability.logging import configure_logging
@@ -44,7 +46,7 @@ from app.modules.observability.metrics import set_app_info
 logger = logging.getLogger("guineecare")
 
 API_PREFIX = "/api/v1"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.3.0"
 
 # --- OpenAPI documentation metadata (v0.10.0) ---
 API_DESCRIPTION = """\
@@ -117,6 +119,8 @@ OPENAPI_TAGS = [
     {"name": "feedback", "description": "Retours utilisateurs : bug, suggestion, question, praise (v1.1.0)."},
     {"name": "documents", "description": "Génération PDF de documents cliniques et administratifs (v1.2.0)."},
     {"name": "search", "description": "Recherche globale multi-ressources (v1.2.0)."},
+    {"name": "i18n", "description": "Internationalisation (catalogues de traduction EN/FR) — v1.3.0."},
+    {"name": "realtime", "description": "WebSocket temps réel (KPI push, dashboard live) — v1.3.0."},
     {"name": "health", "description": "Health checks (/health, /health/live, /health/ready)."},
     {"name": "metrics", "description": "Métriques Prometheus (/metrics, token-gated)."},
     {"name": "system", "description": "Endpoints racine et utilitaires système."},
@@ -247,6 +251,8 @@ app.include_router(user_profile_router, prefix=API_PREFIX)
 app.include_router(feedback_router, prefix=API_PREFIX)
 app.include_router(documents_router, prefix=API_PREFIX)
 app.include_router(search_router, prefix=API_PREFIX)
+app.include_router(i18n_router, prefix=API_PREFIX)
+app.include_router(realtime_router, prefix=API_PREFIX)
 
 # Observability routes — mounted at root, NOT under /api/v1, so they match
 # Prometheus and Kubernetes conventions (/metrics, /health, /health/live, /health/ready).
@@ -265,7 +271,7 @@ def api_root():
             "billing", "hospitalization", "activity", "clinical", "maternity",
             "personnel", "imaging", "surgery", "quality", "reporting",
             "audit", "notifications", "user-profile", "feedback",
-            "documents", "search", "observability",
+            "documents", "search", "i18n", "realtime", "observability",
         ],
     }
 

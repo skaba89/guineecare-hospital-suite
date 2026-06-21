@@ -13,7 +13,7 @@
       "name": "Private — Usage réservé CHU Donka / Ministère Santé Guinée",
       "url": "https://github.com/skaba89/guineecare-hospital-suite/blob/main/LICENSE"
     },
-    "version": "1.2.0"
+    "version": "1.3.0"
   },
   "servers": [
     {
@@ -16687,6 +16687,339 @@
         }
       }
     },
+    "/api/v1/i18n/translations/{locale}": {
+      "get": {
+        "tags": [
+          "i18n"
+        ],
+        "summary": "Catalogue de traductions pour une langue",
+        "description": "Retourne l'ensemble des clés de traduction pour la langue demandée. Utilisé par le frontend au démarrage pour hydrater react-i18next avec `i18next.init({ resources: { [locale]: { translation: catalog } } })`.",
+        "operationId": "get_translations_api_v1_i18n_translations__locale__get",
+        "parameters": [
+          {
+            "name": "locale",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 2,
+              "description": "Code langue ISO 639-1 (fr, en).",
+              "title": "Locale"
+            },
+            "description": "Code langue ISO 639-1 (fr, en)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Not authenticated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Non autorisé — permission RBAC insuffisante ou accès cross-tenant (tentative de lecture d'un établissement non autorisé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Permission insuffisante : patients.write requis"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Too many requests"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur interne (cf. logs structurés JSON).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Internal Server Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/i18n/supported": {
+      "get": {
+        "tags": [
+          "i18n"
+        ],
+        "summary": "Langues supportées",
+        "description": "Liste des langues supportées par l'API + langue par défaut.",
+        "operationId": "list_supported_locales_api_v1_i18n_supported_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Not authenticated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Non autorisé — permission RBAC insuffisante ou accès cross-tenant (tentative de lecture d'un établissement non autorisé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Permission insuffisante : patients.write requis"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Too many requests"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur interne (cf. logs structurés JSON).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Internal Server Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/realtime/stats": {
+      "get": {
+        "tags": [
+          "realtime"
+        ],
+        "summary": "Statistiques du broker realtime",
+        "description": "Retourne le nombre d'abonnés par canal, le nombre total de connexions WebSocket actives, et l'état de la connexion Redis (si configurée). Nécessite la permission `metrics.read`.",
+        "operationId": "realtime_stats_api_v1_realtime_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Not authenticated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Non autorisé — permission RBAC insuffisante ou accès cross-tenant (tentative de lecture d'un établissement non autorisé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Permission insuffisante : patients.write requis"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Too many requests"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur interne (cf. logs structurés JSON).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Internal Server Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/realtime/test-broadcast": {
+      "post": {
+        "tags": [
+          "realtime"
+        ],
+        "summary": "Diffuser un événement de test (ADMIN+)",
+        "description": "Publie un événement `test.broadcast` sur le canal de l'établissement courant. Utile pour vérifier qu'un client WebSocket connecté reçoit bien les messages. Nécessite la permission `metrics.read`.",
+        "operationId": "test_broadcast_api_v1_realtime_test_broadcast_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Non authentifié — JWT manquant, expiré ou révoqué (jti blacklisté).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Not authenticated"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Non autorisé — permission RBAC insuffisante ou accès cross-tenant (tentative de lecture d'un établissement non autorisé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Permission insuffisante : patients.write requis"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit dépassé (5 logins/min sur /auth/login, 30 refreshs/min sur /auth/refresh).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Too many requests"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur serveur interne (cf. logs structurés JSON).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "example": {
+                  "detail": "Internal Server Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/health/live": {
       "get": {
         "tags": [
@@ -21179,6 +21512,14 @@
     {
       "name": "search",
       "description": "Recherche globale multi-ressources (v1.2.0)."
+    },
+    {
+      "name": "i18n",
+      "description": "Internationalisation (catalogues de traduction EN/FR) — v1.3.0."
+    },
+    {
+      "name": "realtime",
+      "description": "WebSocket temps réel (KPI push, dashboard live) — v1.3.0."
     },
     {
       "name": "health",

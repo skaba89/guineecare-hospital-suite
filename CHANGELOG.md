@@ -1,5 +1,256 @@
 # Changelog
 
+## [1.3.0] — 2026-06-21
+
+### Added — Internationalisation EN/FR + dashboard temps réel (WebSocket) + mode hors-ligne PWA
+
+Cette release livre les **3 évolutions court terme restantes** identifiées
+dans le document post-pilote (EVOLUTIONS_POST_PILOTE.md) :
+**(2) l'internationalisation complète EN/FR**, **(3) le dashboard temps
+réel via WebSocket**, et **(5) le mode hors-ligne PWA**. Avec cette
+release, les 5 évolutions court terme (v1.2) sont toutes livrées.
+
+#### Module backend `i18n` — internationalisation EN/FR
+
+Deux nouveaux endpoints publics (pas d'auth requise — le frontend en a
+besoin pour afficher la page de login dans la langue du navigateur) :
+
+- **`GET /api/v1/i18n/translations/{locale}`** — retourne le catalogue
+  de traductions pour la langue demandée (`fr` ou `en`). Le frontend
+  hydrate son provider i18n avec ce catalogue au démarrage.
+- **`GET /api/v1/i18n/supported`** — liste des langues supportées +
+  langue par défaut (`fr`).
+
+**Service de traduction** (`backend/app/modules/i18n/service.py`) :
+
+- Catalogues FR (par défaut) et EN baked into the source code (dicts
+  Python, pas de fichiers JSON externes — bénéficie du type checking).
+- Clés dotted (`auth.login.invalid_credentials`, `rbac.permission_denied`,
+  `tenant.access_denied`, `common.not_found`, etc.).
+- `translate(key, locale, **vars)` — résout la clé dans la catalogue
+  de la locale, fallback sur FR, fallback sur la clé elle-même si
+  manquante (avec log WARNING).
+- `negotiate_locale(accept_language)` — parse le header
+  `Accept-Language` et retourne la meilleure locale supportée
+  (tri par qualité décroissante, fallback sur `fr`).
+- Interpolation des variables via `str.format_map` avec un dict safe
+  (les variables manquantes rendent en chaîne vide, pas de KeyError).
+
+**Catalogue initial** : 25 clés couvrant les messages d'erreur auth,
+RBAC, multi-tenant, common, patients, documents, feedback, i18n. Le
+catalogue est extensible sans casser la rétro-compatibilité (les clés
+manquantes retournent la clé elle-même).
+
+Tests (`backend/tests/test_i18n.py`) — 23 tests en 3 classes :
+
+- `TestTranslate` (6) — FR default, EN, missing key fallback,
+  variable interpolation, missing variable, unsupported locale.
+- `TestNegotiateLocale` (12) — paramétré sur 11 cas
+  (`None`, `""`, `fr`, `fr-FR`, `fr-FR,fr;q=0.9,en;q=0.8`, `en`,
+  `en-US`, `en-US,en;q=0.9`, `de-DE,de;q=0.9,en;q=0.8`,
+  `de-DE,de;q=0.9,fr;q=0.8`, `zh-CN`) + test de tri par qualité.
+- `TestI18nRoutes` (5) — supported locales, translations FR,
+  translations EN, unsupported locale (404), pas d'auth requise.
+
+#### Module backend `realtime` — WebSocket temps réel
+
+Un endpoint WebSocket authentifié par JWT (passé en query param
+`?token=...`, convention navigateur car les WS ne supportent pas le
+header `Authorization`) :
+
+- **`WS /api/v1/realtime/ws?token=<JWT>`** — ouvre une connexion
+  persistante qui stream les events temps réel au client connecté.
+  - Authentification : décode le JWT, extrait `facility_id` et `role`.
+  - SUPER_ADMIN subscribe au canal broadcast `*` (reçoit tous les
+    events de tous les établissements).
+  - Autres rôles subscribe au canal de leur `facility_id` (reçoivent
+    uniquement les events de leur établissement).
+  - Heartbeat : le serveur envoie `{type: "ping"}` toutes les 25s
+    pour maintenir la connexion à travers les proxies nginx
+    (timeout par défaut 60s).
+  - À la connexion, le serveur envoie `{type: "connected", payload:
+    {facility_id, role, channel}}` pour confirmer l'authentification.
+
+- **`GET /api/v1/realtime/stats`** — statistiques du broker
+  (nombre d'abonnés par canal, nombre total de connexions, état Redis).
+  Nécessite `ADMIN+` ou `SUPER_ADMIN`.
+
+- **`POST /api/v1/realtime/test-broadcast`** — publie un event
+  `test.broadcast` sur le canal de l'établissement courant. Utile
+  pour vérifier qu'un client WS connecté reçoit bien les messages.
+  Nécessite `ADMIN+`.
+
+**Broker pub/sub** (`backend/app/modules/realtime/broker.py`) :
+
+- `InProcessBroker` — broker asyncio basé sur `asyncio.Queue`. Chaque
+  subscriber enregistre une queue pour un `facility_id` (ou `*` pour
+  le broadcast). `publish_event` pousse l'event dans toutes les queues
+  correspondantes + le canal broadcast.
+- Thread-safe via `loop.call_soon_threadsafe` — `publish_event` est
+  sync et peut être appelé depuis des handlers sync sans bloquer.
+- Queue size limitée à 100 — en cas de queue full, le plus ancien
+  event est drop (jamais le publisher ne bloque).
+- **Redis optionnel** : si `REDIS_URL` est set, le broker publie
+  également sur un channel Redis `guineecare:realtime:{facility_id}`
+  et subscribe au pattern `guineecare:realtime:*` pour fan-out
+  multi-worker. Redis est créé lazy et sa défaillance est non-fatale
+  (fallback in-process only, log WARNING).
+
+**Publication KPI sur mutations clés** — trois modules publient
+désormais des events temps réel quand une mutation affecte le
+dashboard :
+
+- **Admissions** (`POST /api/v1/admissions`) → `kpi.admissions.today.count`
+  avec `delta=+1`. Le dashboard live-counte les admissions.
+- **Billing** (`POST /api/v1/billing/invoices/{id}/payments`) →
+  `kpi.billing.payments.today.amount` avec `delta=+amount`. Le
+  dashboard finance live-totalise les encaissements.
+- **Laboratoire** (`POST /api/v1/laboratory/results/{id}/validate`) →
+  `kpi.lab.results.validated.count` avec `delta=+1`. Le dashboard
+  live-counte les résultats validés.
+
+Tests (`backend/tests/test_realtime.py`) — 14 tests en 4 classes :
+
+- `TestBrokerInProcess` (4) — publish single subscriber, multi-facility
+  isolation, broadcast channel `*` (SUPER_ADMIN), stats.
+- `TestRealtimeStatsRoute` (4) — requires auth, requires admin role,
+  admin success, test-broadcast.
+- `TestWebSocketAuth` (3) — missing token (close 4401), invalid token,
+  valid token receives `connected` event.
+- `TestWebSocketEventDelivery` (3) — same-facility delivery, SUPER_ADMIN
+  broadcast from any facility, cross-facility isolation (DOCTOR on
+  fac-A does not receive fac-B events).
+
+#### Frontend — i18n Provider + Language Toggle + Realtime Status
+
+**Provider i18n** (`frontend/src/i18n/index.tsx`) :
+
+- Implémentation lightweight (sans i18next) — 100 lignes suffisent
+  pour notre use case (lookup key→value + interpolation).
+- Fetch le catalogue depuis `/api/v1/i18n/translations/{locale}` au
+  démarrage. Fallback sur FR si le fetch échoue.
+- Locale persistée dans `localStorage` (`guineecare_locale`).
+- Détection initiale : localStorage > `navigator.language` > `fr`.
+- `useI18n()` hook expose `{ locale, setLocale, t, loading, supportedLocales }`.
+- `t(key, vars)` interpole `{vars}` via regex replacement (missing
+  vars → empty string).
+
+**LanguageToggle** (`frontend/src/components/LanguageToggle.tsx`) :
+
+- Dropdown compact avec drapeau + code locale (🇫🇷 FR / 🇬🇧 EN).
+- Menu déroulant avec les langues supportées, checkmark sur la
+  langue active.
+- Ferme le menu au clic en dehors ou sur une option.
+- Accessible : `aria-haspopup`, `aria-expanded`, `role="menu"`,
+  `role="menuitemradio"`, `aria-checked`.
+
+**RealtimeStatus** (`frontend/src/components/RealtimeStatus.tsx`) :
+
+- Badge dans le header de l'app montrant l'état de la connexion WS :
+  - 🟢 `Live` (connected)
+  - 🟡 `…` (connecting, animation pulse)
+  - 🔴 `Hors ligne` (disconnected, retrying)
+  - ⚪ `—` (idle / non connecté)
+- Tooltip affiche le dernier event reçu.
+- Auto-reconnect avec exponential backoff (1s → 2s → 4s → 8s → max 30s).
+
+**Hook useRealtimeKPIs** (`frontend/src/hooks/useRealtimeKPIs.ts`) :
+
+- Hook React qui gère la connexion WebSocket et expose `{ status,
+  lastEvent, events, disconnect, reconnect }`.
+- Filtre optionnel par `typePrefix` (ex: `kpi.admissions` pour ne
+  recevoir que les events KPI d'admissions).
+- Sliding window des 50 derniers events (pour debug / affichage
+  timeline).
+- Auto-reconnect avec exponential backoff. Skip les pings.
+
+**DashboardPage live** — le dashboard consomme désormais les events
+temps réel via `useRealtimeKPIs({ typePrefix: "kpi." })` :
+
+- `kpi.admissions.today.count` → incrémente `stats.admissions` live.
+- `kpi.lab.results.validated.count` → décrémente
+  `stats.pendingLabOrders` live.
+- Pas de refetch global — les compteurs sont ajustés localement et
+  reconciliés au prochain refresh manuel ou `refresh-resource`.
+
+#### Frontend — PWA (manifest + service worker + icônes)
+
+**Manifest** (`frontend/public/manifest.webmanifest`) :
+
+- `name`, `short_name`, `description`, `start_url=/`, `display=standalone`.
+- `theme_color=#0f766e` (teal, couleur de marque), `background_color=#ffffff`.
+- 2 icônes PNG (192×192 et 512×512) avec `purpose: "any maskable"`.
+- 3 raccourcis (Nouvelle admission, Recherche patient, Urgences) —
+  accessibles via le menu contextuel de l'icône sur Android.
+- Catégories : `medical`, `health`, `productivity`.
+
+**Service worker** (`frontend/public/sw.js`) :
+
+- **App shell** (HTML, JS, CSS, icons) — stratégie stale-while-revalidate :
+  sert depuis le cache immédiatement, rafraîchit en arrière-plan.
+- **API GET** — stratégie network-first : tente le réseau, fallback
+  sur le cache si offline. Réponses 200 seulement sont cachées.
+- **API mutations** (POST/PUT/DELETE) — pass-through (non cachées).
+  Si offline, retourne un 503 avec `{detail: "Offline — request
+  queued for sync"}`. L'UI affiche un toast d'erreur.
+- **WebSocket** — exclu du SW (les WS ne sont pas cachables).
+- Versionnage du cache via `CACHE_VERSION = "guineecare-v1.3.0"` —
+  bump à chaque release pour invalider les caches obsolètes au
+  prochain `activate`.
+
+**Icônes** — générées par `scripts/generate_pwa_icons.py` (PIL) :
+
+- 192×192 et 512×512 (PNG) + favicon 32×32.
+- Design : carré arrondi teal (#0f766e) avec monogramme "GC" blanc
+  centré. Aucun asset externe requis — régénérable en une commande.
+
+**Enregistrement du SW** (`frontend/src/main.tsx`) :
+
+- Le SW n'est enregistré qu'en production (`import.meta.env.PROD`).
+  En dev (vite dev server), le SW est désactivé pour éviter de cacher
+  les fichiers source qui changent à chaque HMR.
+- Logs informatifs sur le scope du SW.
+
+**HTML head** (`frontend/index.html`) :
+
+- `<meta name="theme-color">`, `<meta name="description">`.
+- `<link rel="manifest">`, `<link rel="icon">`, `<link rel="apple-touch-icon">`.
+- HTML `lang="fr"` (langue par défaut, ajustée dynamiquement par
+  l'i18n provider au runtime).
+
+### Changed
+
+- `APP_VERSION` bumped de `1.2.0` à `1.3.0`.
+- Tags OpenAPI enrichis : `i18n` et `realtime` ajoutés à la liste
+  des tags documentés.
+- Route racine `/api/v1` — `i18n` et `realtime` ajoutés à la liste
+  des modules disponibles.
+- `docs/api/openapi.json` régénéré (619kB → inclut les 3 nouveaux
+  endpoints i18n + 3 nouveaux endpoints realtime).
+- `docs/api/guineecare.postman_collection.json` régénéré (inclut
+  les nouveaux endpoints).
+- `EVOLUTIONS_POST_PILOTE.md` — évolutions 2, 3, 5 marquées
+  ✅ LIVRÉ v1.3.0 avec détails d'implémentation.
+
+### Tests
+
+- **Backend** : 353 tests passent (316 + 37 nouveaux pour i18n + realtime).
+- **Frontend** : build production OK (Vite 8.0.16, 263kB gzippé pour
+  le bundle principal).
+- **E2E Playwright** : 16 tests (inchangés — les nouveautés i18n/realtime
+  n'ajoutent pas de parcours E2E critique, les composants sont testés
+  via les tests backend + le build frontend).
+
+### Migration
+
+Aucune migration de base de données requise — le module i18n est
+stateless (catalogues en code), et le module realtime utilise un
+broker in-process (pas de persistance). La compatibilité ascendante
+est totale : un frontend v1.2.0 fonctionne contre un backend v1.3.0
+et vice-versa (les nouveaux endpoints sont additifs).
+
+---
+
 ## [1.2.0] — 2026-06-21
 
 ### Added — Export PDF des documents cliniques + recherche globale (Ctrl+K)
