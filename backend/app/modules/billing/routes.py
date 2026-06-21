@@ -90,15 +90,43 @@ def create_invoice(
 @router.get("/invoices")
 def list_invoices(
     pagination: PaginationParams = Depends(),
+    status: str | None = None,
+    patient_id: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("billing.read")),
 ):
+    """Liste paginée des factures avec filtres serveur.
+
+    Filtres supportés :
+    - `status` : PENDING | PARTIALLY_PAID | PAID | CANCELLED
+    - `patient_id` : scoping par patient
+    - `date_from` / `date_to` : plage de created_at (ISO 8601)
+    - `search` : recherche sur invoice_number et description
+    """
     query = tenant_query(db, Invoice, current_user).order_by(Invoice.created_at.desc())
     if pagination.search:
         query = query.filter(
             (Invoice.invoice_number.ilike(f"%{pagination.search}%"))
             | (Invoice.description.ilike(f"%{pagination.search}%"))
         )
+    if status:
+        query = query.filter(Invoice.status == status.upper())
+    if patient_id:
+        query = query.filter(Invoice.patient_id == patient_id)
+    if date_from:
+        try:
+            from datetime import datetime as _dt
+            query = query.filter(Invoice.created_at >= _dt.fromisoformat(date_from))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            from datetime import datetime as _dt
+            query = query.filter(Invoice.created_at <= _dt.fromisoformat(date_to))
+        except ValueError:
+            pass
     return paginate(query, pagination)
 
 
@@ -154,15 +182,39 @@ def create_payment(
 @router.get("/payments")
 def list_payments(
     pagination: PaginationParams = Depends(),
+    status: str | None = None,
+    invoice_id: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("billing.read")),
 ):
+    """Liste paginée des paiements avec filtres serveur.
+
+    Filtres : `status`, `invoice_id`, `date_from`/`date_to` (sur received_at), `search`.
+    """
     query = tenant_query(db, Payment, current_user).order_by(Payment.received_at.desc())
     if pagination.search:
         query = query.filter(
             (Payment.payment_method.ilike(f"%{pagination.search}%"))
             | (Payment.status.ilike(f"%{pagination.search}%"))
         )
+    if status:
+        query = query.filter(Payment.status == status.upper())
+    if invoice_id:
+        query = query.filter(Payment.invoice_id == invoice_id)
+    if date_from:
+        try:
+            from datetime import datetime as _dt
+            query = query.filter(Payment.received_at >= _dt.fromisoformat(date_from))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            from datetime import datetime as _dt
+            query = query.filter(Payment.received_at <= _dt.fromisoformat(date_to))
+        except ValueError:
+            pass
     return paginate(query, pagination)
 
 

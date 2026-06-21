@@ -5,7 +5,18 @@ import { emptyLookups, LookupData } from "../types";
 // page_size=1000 to fetch all items in one shot (lookup arrays need to be complete for dropdowns)
 const ALL = "?page_size=1000";
 
-export function useLookupData(enabled: boolean, version: number): LookupData {
+/**
+ * Reference data — petites tables stables chargées UNE FOIS au démarrage
+ * et partagées via le contexte App pour alimenter les dropdowns/selects.
+ *
+ * Sont considérées "référence" : tables dont la taille reste petite (< 200 lignes)
+ * et rarement modifiées (facilities, departments, staff, indicators, shifts,
+ * labTests, products).
+ *
+ * Pour les tables volumineuses (patients, admissions, invoices, labOrders,
+ * maternityRecords), utiliser `useVolatileData` (lazy, paginé par page).
+ */
+export function useReferenceData(enabled: boolean, version: number): LookupData {
   const [lookups, setLookups] = useState<LookupData>(emptyLookups);
 
   useEffect(() => {
@@ -15,17 +26,12 @@ export function useLookupData(enabled: boolean, version: number): LookupData {
     async function load() {
       const results = await Promise.allSettled([
         apiRequest<any>("/facilities"),
-        apiRequest<any>(`/patients${ALL}`),
         apiRequest<any>("/departments"),
-        apiRequest<any>(`/admissions${ALL}`),
-        apiRequest<any>(`/pharmacy/products${ALL}`),
-        apiRequest<any>(`/laboratory/tests${ALL}`),
-        apiRequest<any>(`/laboratory/orders${ALL}`),
-        apiRequest<any>(`/billing/invoices${ALL}`),
-        apiRequest<any>(`/maternity/records${ALL}`),
         apiRequest<any>(`/personnel/staff${ALL}`),
         apiRequest<any>(`/quality/indicators${ALL}`),
         apiRequest<any>(`/personnel/shifts${ALL}`),
+        apiRequest<any>(`/laboratory/tests${ALL}`),
+        apiRequest<any>(`/pharmacy/products${ALL}`),
       ]);
 
       if (!mounted) return;
@@ -34,18 +40,14 @@ export function useLookupData(enabled: boolean, version: number): LookupData {
       );
 
       setLookups({
+        ...emptyLookups,
         facilities: data[0],
-        patients: data[1],
-        departments: data[2],
-        admissions: data[3],
-        products: data[4],
+        departments: data[1],
+        staff: data[2],
+        indicators: data[3],
+        shifts: data[4],
         labTests: data[5],
-        labOrders: data[6],
-        invoices: data[7],
-        maternityRecords: data[8],
-        staff: data[9],
-        indicators: data[10],
-        shifts: data[11],
+        products: data[6],
       });
     }
 
@@ -56,4 +58,50 @@ export function useLookupData(enabled: boolean, version: number): LookupData {
   }, [enabled, version]);
 
   return lookups;
+}
+
+/**
+ * Volatile data — tables volumineuses à fetcher à la demande par page.
+ *
+ * NE PAS utiliser ce hook pour pré-charger toutes les données au démarrage.
+ * Chaque page concernée (PatientsPage, AdmissionsPage, FinancePage, LabPage,
+ * MaternityPage, etc.) doit gérer sa propre pagination via `usePaginatedList`.
+ *
+ * Ce hook est fourni uniquement pour la rétro-compatibilité des pages qui
+ * n'ont pas encore été migrées et qui lisent encore `lookups.patients`,
+ * `lookups.admissions`, `lookups.invoices`, `lookups.labOrders`,
+ * `lookups.maternityRecords`. Il retourne des arrays vides par défaut —
+ * ces pages DOIVENT être migrées vers usePaginatedList.
+ *
+ * @deprecated Ne pas utiliser dans les nouvelles pages — utiliser usePaginatedList.
+ */
+export function useVolatileData(): Pick<
+  LookupData,
+  "patients" | "admissions" | "invoices" | "labOrders" | "maternityRecords"
+> {
+  // Retourne des arrays vides : les pages doivent gérer leur pagination elles-mêmes.
+  return {
+    patients: [],
+    admissions: [],
+    invoices: [],
+    labOrders: [],
+    maternityRecords: [],
+  };
+}
+
+/**
+ * Hook de rétro-compatibilité — conserve l'ancien comportement (12 endpoints
+ * page_size=1000) pour les pages non migrées. À NE PAS utiliser dans les
+ * nouvelles pages.
+ *
+ * @deprecated Utiliser useReferenceData + usePaginatedList à la place.
+ */
+export function useLookupData(enabled: boolean, version: number): LookupData {
+  const ref = useReferenceData(enabled, version);
+  const volatile = useVolatileData();
+
+  return {
+    ...ref,
+    ...volatile,
+  };
 }

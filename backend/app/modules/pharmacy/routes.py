@@ -18,15 +18,22 @@ router = APIRouter(prefix="/pharmacy", tags=["pharmacy"])
 @router.get("/products")
 def list_products(
     pagination: PaginationParams = Depends(),
+    category: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("pharmacy.read")),
 ):
+    """Liste paginée des produits pharmacie avec filtres serveur.
+
+    Filtres : `category`, `search` (sur name et code).
+    """
     query = tenant_query(db, PharmacyProduct, current_user).order_by(PharmacyProduct.name)
     if pagination.search:
         query = query.filter(
             (PharmacyProduct.name.ilike(f"%{pagination.search}%"))
             | (PharmacyProduct.code.ilike(f"%{pagination.search}%"))
         )
+    if category:
+        query = query.filter(PharmacyProduct.category == category)
     return paginate(query, pagination)
 
 
@@ -116,13 +123,37 @@ def create_stock_movement(
 @router.get("/stock/movements")
 def list_stock_movements(
     pagination: PaginationParams = Depends(),
+    movement_type: str | None = None,
+    product_id: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("pharmacy.read")),
 ):
+    """Liste paginée des mouvements de stock avec filtres serveur.
+
+    Filtres : `movement_type`, `product_id`, `date_from`/`date_to` (sur performed_at), `search`.
+    """
     query = tenant_query(db, StockMovement, current_user).order_by(StockMovement.performed_at.desc())
     if pagination.search:
         query = query.filter(
             (StockMovement.reason.ilike(f"%{pagination.search}%"))
             | (StockMovement.movement_type.ilike(f"%{pagination.search}%"))
         )
+    if movement_type:
+        query = query.filter(StockMovement.movement_type == movement_type.upper())
+    if product_id:
+        query = query.filter(StockMovement.product_id == product_id)
+    if date_from:
+        try:
+            from datetime import datetime as _dt
+            query = query.filter(StockMovement.performed_at >= _dt.fromisoformat(date_from))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            from datetime import datetime as _dt
+            query = query.filter(StockMovement.performed_at <= _dt.fromisoformat(date_to))
+        except ValueError:
+            pass
     return paginate(query, pagination)

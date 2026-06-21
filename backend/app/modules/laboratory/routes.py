@@ -71,15 +71,46 @@ def create_order(
 @router.get("/orders")
 def list_orders(
     pagination: PaginationParams = Depends(),
+    status: str | None = None,
+    patient_id: str | None = None,
+    test_id: str | None = None,
+    priority: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("lab.read")),
 ):
+    """Liste paginée des demandes laboratoire avec filtres serveur.
+
+    Filtres : `status`, `patient_id`, `test_id`, `priority`,
+    `date_from`/`date_to` (sur ordered_at), `search`.
+    """
     query = tenant_query(db, LabOrder, current_user).order_by(LabOrder.ordered_at.desc())
     if pagination.search:
         query = query.filter(
             (LabOrder.status.ilike(f"%{pagination.search}%"))
             | (LabOrder.priority.ilike(f"%{pagination.search}%"))
         )
+    if status:
+        query = query.filter(LabOrder.status == status.upper())
+    if patient_id:
+        query = query.filter(LabOrder.patient_id == patient_id)
+    if test_id:
+        query = query.filter(LabOrder.test_id == test_id)
+    if priority:
+        query = query.filter(LabOrder.priority == priority.upper())
+    if date_from:
+        try:
+            from datetime import datetime as _dt
+            query = query.filter(LabOrder.ordered_at >= _dt.fromisoformat(date_from))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            from datetime import datetime as _dt
+            query = query.filter(LabOrder.ordered_at <= _dt.fromisoformat(date_to))
+        except ValueError:
+            pass
     return paginate(query, pagination)
 
 
@@ -137,13 +168,37 @@ def validate_result(
 @router.get("/results")
 def list_results(
     pagination: PaginationParams = Depends(),
+    status: str | None = None,
+    order_id: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("lab.read")),
 ):
+    """Liste paginée des résultats labo avec filtres serveur.
+
+    Filtres : `status`, `order_id`, `date_from`/`date_to` (sur entered_at), `search`.
+    """
     query = tenant_query(db, LabResult, current_user).order_by(LabResult.entered_at.desc())
     if pagination.search:
         query = query.filter(
             (LabResult.result_value.ilike(f"%{pagination.search}%"))
             | (LabResult.status.ilike(f"%{pagination.search}%"))
         )
+    if status:
+        query = query.filter(LabResult.status == status.upper())
+    if order_id:
+        query = query.filter(LabResult.order_id == order_id)
+    if date_from:
+        try:
+            from datetime import datetime as _dt
+            query = query.filter(LabResult.entered_at >= _dt.fromisoformat(date_from))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            from datetime import datetime as _dt
+            query = query.filter(LabResult.entered_at <= _dt.fromisoformat(date_to))
+        except ValueError:
+            pass
     return paginate(query, pagination)

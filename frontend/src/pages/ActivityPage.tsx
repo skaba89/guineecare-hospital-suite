@@ -1,21 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { apiRequest } from "../services/api";
+import { useEffect, useMemo, useState } from "react";
 import { LookupData, Row } from "../types";
+import { usePaginatedList } from "../hooks/usePaginatedList";
+import { Pagination } from "../components/Pagination";
 import {
   Activity,
-  Plus,
   Search,
   Filter,
   Clock,
   User,
-  ArrowUpCircle,
-  LogIn,
-  LogOut,
-  Trash2,
   RefreshCw,
   BarChart3,
   Users,
-  ChevronDown,
   X,
   Eye,
   Zap,
@@ -26,51 +21,6 @@ import {
 /* ═══════════════════════════════════════════════════════════════════
    Types & Constants
    ═══════════════════════════════════════════════════════════════════ */
-
-type ActionType = "ALL" | "CREATE" | "UPDATE" | "DELETE" | "LOGIN" | "LOGOUT";
-type ModuleType =
-  | "ALL"
-  | "PATIENTS"
-  | "ADMISSIONS"
-  | "EMERGENCY"
-  | "PHARMACY"
-  | "LAB"
-  | "BILLING"
-  | "HOSPITALIZATION"
-  | "MATERNITY"
-  | "PERSONNEL"
-  | "IMAGING"
-  | "SURGERY"
-  | "QUALITY"
-  | "REPORTING"
-  | "AUTH";
-
-const ACTION_OPTIONS: { value: ActionType; label: string; icon: React.ReactNode }[] = [
-  { value: "ALL", label: "Toutes actions", icon: <Filter size={14} /> },
-  { value: "CREATE", label: "Création", icon: <Plus size={14} /> },
-  { value: "UPDATE", label: "Modification", icon: <ArrowUpCircle size={14} /> },
-  { value: "DELETE", label: "Suppression", icon: <Trash2 size={14} /> },
-  { value: "LOGIN", label: "Connexion", icon: <LogIn size={14} /> },
-  { value: "LOGOUT", label: "Déconnexion", icon: <LogOut size={14} /> },
-];
-
-const MODULE_OPTIONS: { value: ModuleType; label: string }[] = [
-  { value: "ALL", label: "Tous les modules" },
-  { value: "PATIENTS", label: "Patients" },
-  { value: "ADMISSIONS", label: "Admissions" },
-  { value: "EMERGENCY", label: "Urgences" },
-  { value: "PHARMACY", label: "Pharmacie" },
-  { value: "LAB", label: "Laboratoire" },
-  { value: "BILLING", label: "Facturation" },
-  { value: "HOSPITALIZATION", label: "Hospitalisation" },
-  { value: "MATERNITY", label: "Maternité" },
-  { value: "PERSONNEL", label: "Personnel" },
-  { value: "IMAGING", label: "Imagerie" },
-  { value: "SURGERY", label: "Chirurgie" },
-  { value: "QUALITY", label: "Qualité" },
-  { value: "REPORTING", label: "Reporting" },
-  { value: "AUTH", label: "Authentification" },
-];
 
 const ACTION_COLORS: Record<string, { dot: string; bg: string; text: string; border: string }> = {
   CREATE: { dot: "#16a34a", bg: "#f0fdf4", text: "#047857", border: "#86efac" },
@@ -179,49 +129,54 @@ function formatEntityLabel(entityType: string | null): string {
    ═══════════════════════════════════════════════════════════════════ */
 
 export function ActivityPage({ lookups }: { lookups: LookupData }) {
-  const [entries, setEntries] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [actionFilter, setActionFilter] = useState<ActionType>("ALL");
-  const [moduleFilter, setModuleFilter] = useState<ModuleType>("ALL");
+  const [actionName, setActionName] = useState("");
+  const [entityType, setEntityType] = useState("");
+  const [levelFilter, setLevelFilter] = useState("");
   const [userFilter, setUserFilter] = useState("");
-  const [searchText, setSearchText] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [visibleCount, setVisibleCount] = useState(25);
   const [autoRefresh, setAutoRefresh] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
 
-  const loadEntries = useCallback(async () => {
-    setLoading(true);
-    try {
-      const payload = await apiRequest<any>("/activity?page_size=1000");
-      const data: Row[] = Array.isArray(payload.data) ? payload.data : [];
-      setEntries(data);
-    } catch {
-      /* silent */
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Liste paginée des activités (recherche server-side + filtres serveur)
+  const {
+    items: activities,
+    total,
+    page,
+    totalPages,
+    loading,
+    error,
+    search,
+    setSearch,
+    setPage,
+    reload,
+  } = usePaginatedList<Row>("/activity", {
+    pageSize: 50,
+    debounceMs: 300,
+    extraParams: {
+      actor_id: userFilter || null,
+      action_name: actionName || null,
+      entity_type: entityType || null,
+      level: levelFilter || null,
+      date_from: dateFrom || null,
+      date_to: dateTo || null,
+    },
+  });
 
+  // Réagir aux refresh globaux (création d'activité ailleurs)
   useEffect(() => {
-    loadEntries();
-  }, [loadEntries, refreshKey]);
-
-  useEffect(() => {
-    const handler = () => setRefreshKey((k) => k + 1);
+    const handler = () => reload();
     window.addEventListener("refresh-resource", handler);
     return () => window.removeEventListener("refresh-resource", handler);
-  }, []);
+  }, [reload]);
 
   // Auto-refresh
   useEffect(() => {
     if (!autoRefresh) return;
     const interval = setInterval(() => {
-      setRefreshKey((k) => k + 1);
+      reload();
     }, 30000);
     return () => clearInterval(interval);
-  }, [autoRefresh]);
+  }, [autoRefresh, reload]);
 
   /* ── Resolve user name ─────────────────────────── */
   function getUserName(actorId: string | null): string {
@@ -238,53 +193,12 @@ export function ActivityPage({ lookups }: { lookups: LookupData }) {
 
   /* ── Enrich entries with inferred types ────────── */
   const enrichedEntries = useMemo((): EnrichedEntry[] => {
-    return entries.map((e): EnrichedEntry => ({
+    return activities.map((e): EnrichedEntry => ({
       ...e,
       _actionType: inferActionType(e.action_name || ""),
       _module: inferModule(e.entity_type),
     }));
-  }, [entries]);
-
-  /* ── Apply filters ─────────────────────────────── */
-  const filtered = useMemo(() => {
-    let rows = enrichedEntries;
-
-    if (actionFilter !== "ALL") {
-      rows = rows.filter((r) => r._actionType === actionFilter);
-    }
-    if (moduleFilter !== "ALL") {
-      rows = rows.filter((r) => r._module === moduleFilter);
-    }
-    if (userFilter) {
-      rows = rows.filter((r) => r.actor_id === userFilter);
-    }
-    if (searchText.trim()) {
-      const q = searchText.toLowerCase();
-      rows = rows.filter(
-        (r) =>
-          (r.action_name || "").toLowerCase().includes(q) ||
-          (r.entity_type || "").toLowerCase().includes(q) ||
-          (r.notes || "").toLowerCase().includes(q) ||
-          getUserName(r.actor_id).toLowerCase().includes(q)
-      );
-    }
-    if (dateFrom) {
-      rows = rows.filter(
-        (r) => r.created_at && new Date(r.created_at) >= new Date(dateFrom)
-      );
-    }
-    if (dateTo) {
-      const to = new Date(dateTo);
-      to.setHours(23, 59, 59, 999);
-      rows = rows.filter(
-        (r) => r.created_at && new Date(r.created_at) <= to
-      );
-    }
-    return rows;
-  }, [enrichedEntries, actionFilter, moduleFilter, userFilter, searchText, dateFrom, dateTo]);
-
-  const visibleEntries = filtered.slice(0, visibleCount);
-  const hasMore = visibleCount < filtered.length;
+  }, [activities]);
 
   /* ── Summary stats ─────────────────────────────── */
   const todayStr = new Date().toDateString();
@@ -384,34 +298,50 @@ export function ActivityPage({ lookups }: { lookups: LookupData }) {
             >
               <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
                 <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  Action
+                  Action (action_name)
                 </span>
-                <select
-                  value={actionFilter}
-                  onChange={(e) => setActionFilter(e.target.value as ActionType)}
+                <input
+                  type="text"
+                  placeholder="ex: patient.create, auth.login..."
+                  value={actionName}
+                  onChange={(e) => {
+                    setActionName(e.target.value);
+                    setPage(1);
+                  }}
                   style={{ fontSize: "13px" }}
-                >
-                  {ACTION_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
               <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
                 <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  Module
+                  Entité (entity_type)
+                </span>
+                <input
+                  type="text"
+                  placeholder="ex: patient, invoice, lab_order..."
+                  value={entityType}
+                  onChange={(e) => {
+                    setEntityType(e.target.value);
+                    setPage(1);
+                  }}
+                  style={{ fontSize: "13px" }}
+                />
+              </div>
+              <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
+                <span style={{ color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  Niveau
                 </span>
                 <select
-                  value={moduleFilter}
-                  onChange={(e) => setModuleFilter(e.target.value as ModuleType)}
+                  value={levelFilter}
+                  onChange={(e) => {
+                    setLevelFilter(e.target.value);
+                    setPage(1);
+                  }}
                   style={{ fontSize: "13px" }}
                 >
-                  {MODULE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
+                  <option value="">Tous niveaux</option>
+                  <option value="NORMAL">Normal</option>
+                  <option value="IMPORTANT">Important</option>
+                  <option value="CRITICAL">Critique</option>
                 </select>
               </div>
               <div style={{ display: "grid", gap: "6px", fontWeight: 600, fontSize: "13px" }}>
@@ -420,7 +350,10 @@ export function ActivityPage({ lookups }: { lookups: LookupData }) {
                 </span>
                 <select
                   value={userFilter}
-                  onChange={(e) => setUserFilter(e.target.value)}
+                  onChange={(e) => {
+                    setUserFilter(e.target.value);
+                    setPage(1);
+                  }}
                   style={{ fontSize: "13px" }}
                 >
                   <option value="">Tous les utilisateurs</option>
@@ -438,7 +371,10 @@ export function ActivityPage({ lookups }: { lookups: LookupData }) {
                 <input
                   type="date"
                   value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
+                  onChange={(e) => {
+                    setDateFrom(e.target.value);
+                    setPage(1);
+                  }}
                   style={{ fontSize: "13px" }}
                 />
               </div>
@@ -449,7 +385,10 @@ export function ActivityPage({ lookups }: { lookups: LookupData }) {
                 <input
                   type="date"
                   value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
+                  onChange={(e) => {
+                    setDateTo(e.target.value);
+                    setPage(1);
+                  }}
                   style={{ fontSize: "13px" }}
                 />
               </div>
@@ -470,9 +409,9 @@ export function ActivityPage({ lookups }: { lookups: LookupData }) {
                   />
                   <input
                     type="text"
-                    placeholder="Rechercher..."
-                    value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
+                    placeholder="Rechercher (notes, action...)"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
                     style={{ paddingLeft: "30px", fontSize: "13px" }}
                   />
                 </div>
@@ -489,12 +428,14 @@ export function ActivityPage({ lookups }: { lookups: LookupData }) {
               <button
                 className="btn btn-outline btn-sm"
                 onClick={() => {
-                  setActionFilter("ALL");
-                  setModuleFilter("ALL");
+                  setActionName("");
+                  setEntityType("");
+                  setLevelFilter("");
                   setUserFilter("");
-                  setSearchText("");
                   setDateFrom("");
                   setDateTo("");
+                  setSearch("");
+                  setPage(1);
                 }}
               >
                 <X size={14} />
@@ -502,7 +443,7 @@ export function ActivityPage({ lookups }: { lookups: LookupData }) {
               </button>
               <button
                 className="btn btn-outline btn-sm"
-                onClick={() => setRefreshKey((k) => k + 1)}
+                onClick={() => reload()}
               >
                 <RefreshCw size={14} />
                 Actualiser
@@ -535,7 +476,11 @@ export function ActivityPage({ lookups }: { lookups: LookupData }) {
                 Chargement du journal d'activité...
               </p>
             </div>
-          ) : filtered.length === 0 ? (
+          ) : error ? (
+            <div className="card" style={{ padding: "16px", color: "var(--danger)" }}>
+              {error}
+            </div>
+          ) : enrichedEntries.length === 0 ? (
             <div className="card" style={{ textAlign: "center", padding: "32px" }}>
               <Activity size={32} style={{ color: "var(--muted)", marginBottom: "8px" }} />
               <p className="muted">Aucune activité trouvée.</p>
@@ -593,10 +538,10 @@ export function ActivityPage({ lookups }: { lookups: LookupData }) {
 
               {/* Timeline */}
               <div style={{ position: "relative" }}>
-                {visibleEntries.map((entry, index) => {
+                {enrichedEntries.map((entry, index) => {
                   const actionType = entry._actionType;
                   const colors = ACTION_COLORS[actionType] || ACTION_COLORS.UPDATE;
-                  const isLast = index === visibleEntries.length - 1;
+                  const isLast = index === enrichedEntries.length - 1;
 
                   return (
                     <div
@@ -739,36 +684,13 @@ export function ActivityPage({ lookups }: { lookups: LookupData }) {
                 })}
               </div>
 
-              {/* Load more */}
-              {hasMore && (
-                <div
-                  style={{
-                    textAlign: "center",
-                    marginTop: "16px",
-                    paddingTop: "16px",
-                    borderTop: "1px solid var(--border-light)",
-                  }}
-                >
-                  <button
-                    className="btn btn-outline"
-                    onClick={() => setVisibleCount((c) => c + 25)}
-                  >
-                    <ChevronDown size={16} />
-                    Charger plus ({filtered.length - visibleCount} restantes)
-                  </button>
-                </div>
-              )}
-
-              <div
-                style={{
-                  marginTop: "12px",
-                  fontSize: "13px",
-                  color: "var(--muted)",
-                  fontWeight: 600,
-                }}
-              >
-                {filtered.length} entrée{filtered.length > 1 ? "s" : ""} au total
-              </div>
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                total={total}
+                onPageChange={setPage}
+                loading={loading}
+              />
             </div>
           )}
         </div>
@@ -1013,7 +935,7 @@ export function ActivityPage({ lookups }: { lookups: LookupData }) {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
               <div>
                 <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--primary)" }}>
-                  {entries.length}
+                  {total}
                 </div>
                 <div style={{ fontSize: "11px", color: "var(--primary)", opacity: 0.8 }}>
                   Total entrées
@@ -1021,7 +943,7 @@ export function ActivityPage({ lookups }: { lookups: LookupData }) {
               </div>
               <div>
                 <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--primary)" }}>
-                  {new Set(entries.map((e) => e.actor_id).filter(Boolean)).size}
+                  {new Set(activities.map((e) => e.actor_id).filter(Boolean)).size}
                 </div>
                 <div style={{ fontSize: "11px", color: "var(--primary)", opacity: 0.8 }}>
                   Utilisateurs
@@ -1029,7 +951,7 @@ export function ActivityPage({ lookups }: { lookups: LookupData }) {
               </div>
               <div>
                 <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--primary)" }}>
-                  {new Set(entries.map((e) => e.entity_type).filter(Boolean)).size}
+                  {new Set(activities.map((e) => e.entity_type).filter(Boolean)).size}
                 </div>
                 <div style={{ fontSize: "11px", color: "var(--primary)", opacity: 0.8 }}>
                   Types d'entités
