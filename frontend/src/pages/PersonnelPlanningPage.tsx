@@ -157,6 +157,12 @@ function PlanningTab({ lookups }: { lookups: LookupData }) {
     load();
   }, [load]);
 
+  const staffById = useMemo(() => {
+    const m: Record<string, Row> = {};
+    (lookups.staff || []).forEach((s: Row) => { m[s.id] = s; });
+    return m;
+  }, [lookups.staff]);
+
   function shiftWeeks(offset: number) {
     const start = new Date(startDate);
     start.setDate(start.getDate() + offset * 7);
@@ -168,12 +174,6 @@ function PlanningTab({ lookups }: { lookups: LookupData }) {
 
   if (loading) return <div className="muted">Chargement…</div>;
   if (error) return <div className="error-message">{error}</div>;
-
-  const staffById = useMemo(() => {
-    const m: Record<string, Row> = {};
-    (lookups.staff || []).forEach((s: Row) => { m[s.id] = s; });
-    return m;
-  }, [lookups.staff]);
 
   return (
     <>
