@@ -4,49 +4,30 @@
 # - Render : backend FastAPI + frontend statique (1 service, 1 URL)
 # - Neon : PostgreSQL serverless (gratuit, permanent, 0.5 GB)
 #
-# Avantages vs Render DB :
-# - Neon ne expire JAMAIS (vs 90 jours pour Render PostgreSQL free)
-# - Neon serverless : scale-to-zero, connexion pooling intégré
-# - Branching Neon : DB de test en 1 clic
-#
 # Usage :
 # 1. Créez une DB sur https://neon.tech (gratuit, GitHub login)
-# 2. Copiez l'URL de connexion Neon
+# 2. Copiez l'URL de connexion Neon (Pooled connection)
 # 3. Sur https://render.com → New → Blueprint → sélectionnez ce repo
 # 4. Configurez DATABASE_URL et AUTH_SECRET dans le dashboard Render
 
 services:
-  # ─── Backend + Frontend (tout-en-un sur Render) ───────────────
   - type: web
     name: guineecare
     runtime: python
     region: frankfurt
     plan: free
     rootDir: backend
-    # Build : installer Python deps + builder le frontend + copier dans static/
-    buildCommand: |
-      pip install -r requirements.txt &&
-      cd ../frontend && npm ci && npm run build &&
-      cp -r dist ../backend/static
-    # Start : migrations + seed + uvicorn (sert API + frontend)
-    startCommand: |
-      alembic upgrade head &&
-      python -c "
-import os
-if os.environ.get('SEED_DEMO_DATA', 'true').lower() in ('1', 'true', 'yes'):
-    from app.db.seed import run_seed
-    run_seed()
-" &&
-      uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install -r requirements.txt && cd ../frontend && npm ci && npm run build && cp -r dist ../backend/static
+    startCommand: bash render_start.sh
     healthCheckPath: /health
     autoDeploy: true
     envVars:
       - key: ENVIRONMENT
         value: production
       - key: AUTH_SECRET
-        sync: false  # À DÉFINIR : python -c "import secrets; print(secrets.token_urlsafe(48))"
+        sync: false
       - key: DATABASE_URL
-        sync: false  # À DÉFINIR : URL de connexion Neon (postgresql://...)
+        sync: false
       - key: SEED_DEMO_DATA
         value: "true"
       - key: CORS_ORIGINS
