@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision = "0010_personnel_multi"
-down_revision = "0009_emergency_care"
+down_revision = "0009_emerg_discharge"
 branch_labels = None
 depends_on = None
 

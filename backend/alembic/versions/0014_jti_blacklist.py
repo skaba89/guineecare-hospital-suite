@@ -31,9 +31,10 @@ def upgrade():
         sa.Column("revoked_at", sa.DateTime(), nullable=False),
         sa.Column("expires_at", sa.DateTime(), nullable=False, index=True),
     )
-    op.create_index("ix_revoked_jtis_expires_at", "revoked_jtis", ["expires_at"])
+    # Note: index=True on the column already creates ix_revoked_jtis_expires_at
+    # automatically in SQLite. The explicit op.create_index would fail with
+    # "index already exists" — so we skip it.
 
 
 def downgrade():
-    op.drop_index("ix_revoked_jtis_expires_at", table_name="revoked_jtis")
     op.drop_table("revoked_jtis")

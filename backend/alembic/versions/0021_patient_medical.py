@@ -24,7 +24,7 @@ import sqlalchemy as sa
 
 
 revision = "0021_patient_medical"
-down_revision = "0019_rh_v2"
+down_revision = "0020_fhir_r4"
 branch_labels = None
 depends_on = None
 
