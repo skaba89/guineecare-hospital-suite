@@ -53,7 +53,7 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void | Prom
 
   const navigationSections: NavSection[] = [
     {
-      title: t("nav.dashboard").toUpperCase().slice(0, 6),
+      title: t("nav.section.care"),
       items: [
         { label: t("nav.dashboard"), path: "/", icon: LayoutDashboard, visible: navVisibility.canSeeDashboard },
         { label: t("nav.notifications"), path: "/notifications", icon: Bell, visible: true },
@@ -62,15 +62,15 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void | Prom
       ],
     },
     {
-      title: t("nav.emergency").toUpperCase().slice(0, 8),
+      title: t("nav.section.emergency"),
       items: [
-        { label: t("nav.emergency"), path: "/emergency", icon: Siren, visible: navVisibility.canSeeEmergency },
-        { label: t("nav.emergency") + " — Triage", path: "/emergency/triage", icon: ListOrdered, visible: navVisibility.canSeeEmergency },
-        { label: t("nav.emergency") + " — Orientation", path: "/emergency/orientation", icon: Route, visible: navVisibility.canSeeEmergency },
+        { label: t("nav.emergency.queue"), path: "/emergency", icon: Siren, visible: navVisibility.canSeeEmergency },
+        { label: t("nav.emergency.triage"), path: "/emergency/triage", icon: ListOrdered, visible: navVisibility.canSeeEmergency },
+        { label: t("nav.emergency.orientation"), path: "/emergency/orientation", icon: Route, visible: navVisibility.canSeeEmergency },
       ],
     },
     {
-      title: "SERVICES",
+      title: t("nav.section.services"),
       items: [
         { label: t("nav.hospitalization"), path: "/hospitalization", icon: BedDouble, visible: navVisibility.canSeeHospitalization },
         { label: t("nav.maternity"), path: "/maternity", icon: Baby, visible: navVisibility.canSeeMaternity },
@@ -81,7 +81,7 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void | Prom
       ],
     },
     {
-      title: "ADMIN",
+      title: t("nav.section.admin"),
       items: [
         { label: t("nav.billing"), path: "/billing", icon: Receipt, visible: navVisibility.canSeeBilling },
         { label: t("nav.personnel"), path: "/personnel", icon: UserCog, visible: navVisibility.canSeePersonnel },
@@ -92,7 +92,7 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void | Prom
       ],
     },
     {
-      title: "SYSTÈME",
+      title: t("nav.section.system"),
       items: [
         { label: t("nav.users"), path: "/users", icon: Users, visible: navVisibility.canSeeUsers },
         { label: t("nav.rbac"), path: "/rbac", icon: Shield, visible: navVisibility.canSeeRbac },
@@ -103,7 +103,7 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void | Prom
       ],
     },
     {
-      title: "NATIONAL",
+      title: t("nav.section.national"),
       items: [
         { label: t("nav.national"), path: "/national", icon: Building2, accent: true, visible: navVisibility.canSeeNational },
         { label: t("nav.reporting"), path: "/reporting", icon: BarChart3, accent: true, visible: navVisibility.canSeeReporting },
@@ -149,7 +149,7 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void | Prom
   const badgeClass = currentUser ? roleBadgeClass[currentUser.role] || "badge-gray" : "badge-gray";
 
   // Facility name display
-  const facilityLabel = currentUser?.facility_id ? t("nav.facilities") : t("nav.national");
+  const facilityLabel = currentUser?.facility_id ? t("nav.facility_connected") : t("nav.national_view");
 
   return (
     <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""}`}>
@@ -159,7 +159,7 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void | Prom
         {!collapsed && (
           <div className="sidebar-logo-text">
             <span className="sidebar-logo-name">GuinéeCare</span>
-            <span className="sidebar-logo-subtitle">Suite Hospitalière</span>
+            <span className="sidebar-logo-subtitle">{t("app.tagline")}</span>
           </div>
         )}
       </div>
@@ -172,7 +172,7 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void | Prom
           onClick={() => window.dispatchEvent(new Event("guineecare:open-search"))}
         >
           <Search size={14} />
-          <span>Rechercher…</span>
+          <span>{t("nav.search")}</span>
           <kbd>Ctrl K</kbd>
         </button>
       )}
