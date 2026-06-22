@@ -50,6 +50,7 @@ from app.modules.personnel.rh_v2_models import (
     OnCallDuty,
     ShiftSwap,
 )
+from app.modules.auth.two_factor_models import UserTwoFactor
 
 # Use SQLite for tests
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_guineecare.db"
