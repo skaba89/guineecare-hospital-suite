@@ -1,27 +1,26 @@
-# Render Blueprint — GuinéeCare Hospital Suite (tout-en-un)
+# Render Blueprint — GuinéeCare Hospital Suite (Render + Neon)
 #
-# Déploiement GRATUIT sur Render : backend + frontend sur UN SEUL service.
-# Une seule URL, pas de CORS, pas de coordination entre services.
+# Déploiement GRATUIT :
+# - Render : backend FastAPI + frontend statique (1 service, 1 URL)
+# - Neon : PostgreSQL serverless (gratuit, permanent, 0.5 GB)
 #
-# Architecture :
-#   Render Web Service (Python)
-#   ├── Build frontend (npm run build) → copie dist/ vers backend/static/
-#   ├── Build backend (pip install)
-#   ├── Start : uvicorn (sert API + fichiers statiques frontend)
-#   └── Render PostgreSQL (gratuit, 90 jours)
+# Avantages vs Render DB :
+# - Neon ne expire JAMAIS (vs 90 jours pour Render PostgreSQL free)
+# - Neon serverless : scale-to-zero, connexion pooling intégré
+# - Branching Neon : DB de test en 1 clic
 #
 # Usage :
-# 1. Allez sur https://render.com → New → Blueprint
-# 2. Sélectionnez votre repo GitHub
-# 3. Render lit ce fichier automatiquement
-# 4. Configurez AUTH_SECRET dans le dashboard (voir guide)
+# 1. Créez une DB sur https://neon.tech (gratuit, GitHub login)
+# 2. Copiez l'URL de connexion Neon
+# 3. Sur https://render.com → New → Blueprint → sélectionnez ce repo
+# 4. Configurez DATABASE_URL et AUTH_SECRET dans le dashboard Render
 
 services:
-  # ─── Backend + Frontend (tout-en-un) ──────────────────────────
+  # ─── Backend + Frontend (tout-en-un sur Render) ───────────────
   - type: web
     name: guineecare
     runtime: python
-    region: frankfurt  # le plus proche de la Guinée
+    region: frankfurt
     plan: free
     rootDir: backend
     # Build : installer Python deps + builder le frontend + copier dans static/
@@ -34,9 +33,9 @@ services:
       alembic upgrade head &&
       python -c "
 import os
-os.environ.setdefault('SEED_DEMO_DATA', 'true')
-from app.db.seed import run_seed
-run_seed()
+if os.environ.get('SEED_DEMO_DATA', 'true').lower() in ('1', 'true', 'yes'):
+    from app.db.seed import run_seed
+    run_seed()
 " &&
       uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
@@ -45,25 +44,12 @@ run_seed()
       - key: ENVIRONMENT
         value: production
       - key: AUTH_SECRET
-        sync: false  # À DÉFINIR MANUELLEMENT dans le dashboard
+        sync: false  # À DÉFINIR : python -c "import secrets; print(secrets.token_urlsafe(48))"
       - key: DATABASE_URL
-        fromDatabase:
-          name: guineecare-db
-          property: connectionString
+        sync: false  # À DÉFINIR : URL de connexion Neon (postgresql://...)
       - key: SEED_DEMO_DATA
         value: "true"
       - key: CORS_ORIGINS
-        value: '["*"]'  # En tout-en-un, même origine → CORS permissif OK
+        value: '["*"]'
       - key: PYTHON_VERSION
         value: "3.12.0"
-      - key: VITE_API_BASE_URL
-        value: "/api/v1"  # URL relative — le backend sert le frontend
-
-  # ─── Base de données PostgreSQL ────────────────────────────────
-  - type: psql
-    name: guineecare-db
-    region: frankfurt
-    plan: free
-    ipAllowList: []
-    # Note: le plan free expire après 90 jours.
-    # Alternative permanente : Supabase (voir guide-render-netlify.md)
