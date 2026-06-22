@@ -5,6 +5,7 @@ import { showToast } from "../components/Toast";
 import { buildOptions, firstValue } from "../utils/options";
 import { usePaginatedList } from "../hooks/usePaginatedList";
 import { Pagination } from "../components/Pagination";
+import { useT } from "../i18n";
 import {
   Activity,
   CalendarCheck,
@@ -75,12 +76,13 @@ export function AdmissionsPage({
   lookups: LookupData;
   onCreated: () => void;
 }) {
+  const t = useT();
   const [activeTab, setActiveTab] = useState<TabKey>("tableau");
 
   return (
     <section>
       <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "4px" }}>
-        <h1 style={{ margin: 0 }}>Admissions</h1>
+        <h1 style={{ margin: 0 }}>{t("nav.admissions")}</h1>
       </div>
       <p className="muted" style={{ marginBottom: "16px" }}>
         Gestion des admissions, hospitalisations et sorties des patients.
@@ -149,6 +151,7 @@ function TableauTab({
   lookups: LookupData;
   onCreated: () => void;
 }) {
+  const t = useT();
   // Filtres serveur (appliqués via usePaginatedList.extraParams)
   const [statusFilter, setStatusFilter] = useState("OPEN");
   const [deptFilter, setDeptFilter] = useState("");
@@ -499,7 +502,7 @@ function TableauTab({
         <div className="card" style={{ textAlign: "center", padding: "32px" }}>
           <div className="spinner" />
           <p className="muted" style={{ marginTop: "12px" }}>
-            Chargement des admissions...
+            {t("label.loading")}
           </p>
         </div>
       ) : error ? (
@@ -1109,6 +1112,7 @@ function NouvelleAdmissionTab({
    ═══════════════════════════════════════════════════════════════════ */
 
 function HistoriqueTab({ lookups }: { lookups: LookupData }) {
+  const t = useT();
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -1232,7 +1236,7 @@ function HistoriqueTab({ lookups }: { lookups: LookupData }) {
         <div className="card" style={{ textAlign: "center", padding: "32px" }}>
           <div className="spinner" />
           <p className="muted" style={{ marginTop: "12px" }}>
-            Chargement de l'historique...
+            {t("label.loading")}
           </p>
         </div>
       ) : error ? (

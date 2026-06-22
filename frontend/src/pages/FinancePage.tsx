@@ -31,6 +31,7 @@ import { buildOptions, firstValue } from "../utils/options";
 import { PdfButton } from "../components/PdfButton";
 import { usePaginatedList } from "../hooks/usePaginatedList";
 import { Pagination } from "../components/Pagination";
+import { useT } from "../i18n";
 
 type TabKey = "dashboard" | "invoices" | "payments" | "tariffs";
 
@@ -96,11 +97,12 @@ export function FinancePage({
   lookups: LookupData;
   onCreated: () => void;
 }) {
+  const t = useT();
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
 
   return (
     <section>
-      <h1>Facturation &amp; Finance</h1>
+      <h1>{t("nav.billing")}</h1>
       <p className="muted">
         Gestion de la facturation, des paiements et des tarifs.
       </p>
@@ -136,6 +138,7 @@ export function FinancePage({
    ═════════════════════════════════════════════════════════════════ */
 
 function DashboardTab({ lookups }: { lookups: LookupData }) {
+  const t = useT();
   const [invoices, setInvoices] = useState<Row[]>([]);
   const [payments, setPayments] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -185,7 +188,7 @@ function DashboardTab({ lookups }: { lookups: LookupData }) {
       <div className="card" style={{ textAlign: "center", padding: "32px" }}>
         <div className="spinner" />
         <p className="muted" style={{ marginTop: "12px" }}>
-          Chargement du tableau de bord...
+          {t("label.loading")}
         </p>
       </div>
     );
@@ -431,6 +434,7 @@ function InvoicesTab({
   lookups: LookupData;
   onCreated: () => void;
 }) {
+  const t = useT();
   const options = buildOptions(lookups);
   const facilityId = firstValue(options.facilities);
 
@@ -596,13 +600,13 @@ function InvoicesTab({
           }}
         >
           <Plus size={16} />
-          {showForm ? "Annuler" : "Nouvelle facture"}
+          {showForm ? "Annuler" : t("action.new")}
         </button>
       </div>
 
       {showForm && (
         <div className="card form-card">
-          <h3 style={{ marginBottom: "16px" }}>Nouvelle facture</h3>
+          <h3 style={{ marginBottom: "16px" }}>{t("action.new")}</h3>
           <form onSubmit={handleSubmit}>
             <div className="form-grid">
               <label className="form-control">
@@ -790,7 +794,7 @@ function InvoicesTab({
           <option value="CANCELLED">Annulée</option>
         </select>
         <button className="primary-button" onClick={() => setShowForm(!showForm)}>
-          {showForm ? "Annuler" : "+ Nouvelle facture"}
+          {showForm ? "Annuler" : "+ " + t("action.new")}
         </button>
       </div>
 

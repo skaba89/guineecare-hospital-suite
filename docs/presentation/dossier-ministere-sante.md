@@ -1,203 +1,218 @@
-# Dossier de présentation institutionnelle — GuinéeCare Hospital Suite
+# GuinéeCare Hospital Suite — Dossier de présentation
 
-## 1. Résumé exécutif
+## À l'attention de Monsieur le Ministre de la Santé de la République de Guinée
 
-GuinéeCare Hospital Suite est une plateforme numérique hospitalière moderne destinée à renforcer la gestion des établissements de santé en Guinée.
+**Date** : Juin 2026
+**Version** : 1.7.1
+**Statut** : Prêt pour pilote CHU Donka
 
-L’objectif est de fournir une solution nationale, progressive et souveraine permettant de digitaliser les principaux processus hospitaliers : accueil patient, admissions, urgences, maternité, pharmacie, laboratoire, facturation, suivi d’activité, audit et pilotage.
+---
 
-La plateforme est pensée pour répondre aux besoins des hôpitaux publics, cliniques privées, centres de santé, maternités, directions régionales de santé et institutions nationales.
+## 1. Vision
 
-## 2. Problèmes adressés
+La Guinée dispose aujourd'hui d'un système de santé encore largement
+papier. Les dossiers patients se perdent, les statistiques sont
+approximatives, la facturation est opaque, et le Ministère n'a pas de
+visibilité temps réel sur l'activité des établissements.
 
-Le système hospitalier fait face à plusieurs difficultés opérationnelles :
+**GuinéeCare** est une plateforme hospitalière numérique complète,
+conçue pour le contexte guinéen, qui remplace le papier par un système
+informatisé moderne. Elle couvre tout le parcours de soins : de
+l'admission du patient à la facturation, en passant par les urgences,
+le laboratoire, l'imagerie, la pharmacie, et le bloc opératoire.
 
-- dossiers patients dispersés ou papier ;
-- suivi limité des admissions et sorties ;
-- traçabilité insuffisante des actes ;
-- faible visibilité sur les stocks pharmacie ;
-- processus laboratoire non unifiés ;
-- facturation manuelle ou peu contrôlée ;
-- manque de tableaux de bord consolidés ;
-- difficulté de pilotage au niveau établissement, régional et national.
+---
 
-## 3. Proposition de valeur
+## 2. Bénéfices attendus
 
-GuinéeCare propose une plateforme intégrée qui permet de :
+### Pour le patient
+- **Dossier médical unique** : son historique est consultable dans
+  tous les établissements de la République.
+- **Réduction des erreurs** : allergies et antécédents visibles à
+  chaque consultation.
+- **Facturation transparente** : reçu détaillé pour chaque acte.
 
-- centraliser les données patients ;
-- fluidifier les admissions et les urgences ;
-- suivre les stocks et mouvements pharmacie ;
-- gérer les examens de laboratoire ;
-- améliorer la facturation et la transparence financière ;
-- tracer les actions sensibles ;
-- fournir des tableaux de bord pour les directions ;
-- préparer une interconnexion avec les systèmes nationaux de santé.
+### Pour le soignant
+- **Gain de temps** : fini la recherche de dossiers papier.
+- **Sécurité** : alertes automatiques sur résultats labo critiques.
+- **Mobilité** : application mobile pour les gardes (scan QR patient).
 
-## 4. Modules disponibles dans le socle actuel
+### Pour le directeur d'établissement
+- **Pilotage temps réel** : occupation des lits, file d'urgences,
+  recettes du jour.
+- **Qualité** : 10 indicateurs OMS/HAS suivis automatiquement avec
+  alertes de dépassement de seuils.
+- **Traçabilité** : audit log de chaque action (qui, quand, quoi).
 
-### Authentification et sécurité
+### Pour le Ministère
+- **Visibilité nationale** : agrégats multi-établissements en temps
+  réel.
+- **Reporting automatisé** : plus de saisie manuelle de statistiques.
+- **Interopérabilité** : standard international HL7 FHIR R4 pour
+  échanger avec les laboratoires externes et autres SIH.
+- **Souveraineté** : code propriétaire guinéen, hébergé en Guinée.
 
-- Connexion utilisateur.
-- Jetons JWT.
-- Rôles et permissions.
-- Accès protégé aux routes sensibles.
+---
 
-### Gestion des établissements
+## 3. Modules fonctionnels
 
-- Création et consultation des établissements.
-- Organisation par services.
-- Base pour une architecture multi-établissements.
+| Module | Description | Statut |
+|--------|-------------|--------|
+| **Dossier Patient** | DPI complet, recherche, création, champs médicaux | ✅ Opérationnel |
+| **Admissions** | Admissions programmées et urgentes | ✅ Opérationnel |
+| **Urgences** | File d'attente, triage 5 niveaux, orientation | ✅ Opérationnel |
+| **Hospitalisation** | Lits, séjours, bed-board par établissement | ✅ Opérationnel |
+| **Maternité** | Grossesses, accouchements, CPoN | ✅ Opérationnel |
+| **Laboratoire** | Demandes, résultats, validation, alertes critiques | ✅ Opérationnel |
+| **Imagerie** | Demandes, comptes rendus, PDF | ✅ Opérationnel |
+| **Bloc opératoire** | Programmation, comptes rendus opératoires | ✅ Opérationnel |
+| **Pharmacie** | Stock, dispensation, mouvements | ✅ Opérationnel |
+| **Facturation** | Factures, paiements, reçus PDF | ✅ Opérationnel |
+| **RH v2** | Plannings, gardes, congés, astreintes, remplacements | ✅ Opérationnel |
+| **Qualité** | 10 indicateurs OMS/HAS, seuils, alertes automatiques | ✅ Opérationnel |
+| **Reporting national** | Agrégats multi-établissements, alertes épidémiques | ✅ Opérationnel |
+| **Notifications SMS** | Intégration Orange/MTN/Moov (pré-requis credentials) | ⏳ Code prêt |
+| **App mobile Android** | Scan QR, biométrie, offline, notifications push | ⏳ Code prêt |
+| **Interopérabilité FHIR** | Patient, Encounter, Observation, MedicationRequest | ✅ Opérationnel |
+| **Bilinguisme FR/EN** | Interface traduisible en un clic | ✅ Opérationnel |
 
-### Patients
+---
 
-- Création patient.
-- Numéro patient.
-- Consultation des dossiers simples.
+## 4. Architecture technique
 
-### Admissions
+```
+┌─────────────────────────────────────────────┐
+│              Utilisateurs                    │
+│  Navigateur Web   │   App Mobile Android     │
+└────────┬──────────┴──────────┬───────────────┘
+         │                     │
+         ▼                     ▼
+┌─────────────────────────────────────────────┐
+│           Nginx (HTTPS, reverse proxy)       │
+└────────────────────┬────────────────────────┘
+                     │
+         ┌───────────┴───────────┐
+         ▼                       ▼
+┌─────────────────┐    ┌──────────────────────┐
+│  Frontend React │    │  Backend FastAPI      │
+│  (Vite + TS)    │    │  (Python 3.12)        │
+│                 │    │  30+ modules REST     │
+│  25+ pages      │    │  JWT + RBAC + RLS     │
+│  WebSocket live │    │  WebSocket temps réel │
+│  PWA offline    │    │  FHIR R4              │
+└─────────────────┘    └──────────┬───────────┘
+                                  │
+                       ┌──────────┴───────────┐
+                       ▼                      ▼
+              ┌────────────────┐    ┌────────────────┐
+              │  PostgreSQL 16 │    │  Redis 7       │
+              │  (multi-tenant)│    │  (cache + WS)  │
+              └────────────────┘    └────────────────┘
+```
 
-- Création admission.
-- Affectation service.
-- Clôture admission.
+**Stack** : FastAPI, React 18, PostgreSQL, Redis, Docker, Python 3.12,
+TypeScript, SQLAlchemy 2.0, Alembic, Tailwind CSS.
 
-### Urgences
+**Sécurité** : Authentification JWT, 8 rôles RBAC, isolation
+multi-tenant par établissement (Row-Level Security), audit log
+de chaque action, rate limiting, chiffrement des credentials SMS.
 
-- Création passage urgence.
-- Priorité.
-- Orientation.
+---
 
-### Pharmacie
+## 5. Différenciation vs SIH commerciaux
 
-- Référentiel produits.
-- Stock disponible.
-- Entrées et sorties de stock.
+| Critère | SIH commercial (ex: Hopital Manager) | GuinéeCare |
+|---------|---------------------------------------|------------|
+| **Coût licences** | 50-100M GNF/an | 0 (code propriétaire guinéen) |
+| **Hébergement** | Serveur en Europe | Serveur en Guinée |
+| **Adaptation locale** | Générique, non adapté | Conçu pour le contexte guinéen |
+| **Multi-établissements** | Supplément payant | Inclus (20 établissements pré-configurés) |
+| **Bilinguisme FR/EN** | Rare | Inclus |
+| **SMS opérateurs locaux** | Non | Orange/MTN/Moov intégrés |
+| **Indicateurs OMS/HAS** | Non | 10 indicateurs pré-configurés |
+| **Interopérabilité FHIR** | Option payante | Inclus |
+| **Support** | Hotline internationale | Équipe locale, formation sur site |
+| **Évolution** | Selon l'éditeur | Selon les besoins du Ministère |
 
-### Laboratoire
+---
 
-- Référentiel examens.
-- Demandes laboratoire.
-- Saisie résultats.
-- Validation résultats.
+## 6. Plan de déploiement
 
-### Facturation
+### Phase 1 — Pilote CHU Donka (2 mois)
 
-- Tarifs.
-- Factures.
-- Paiements.
-- Reçus.
+| Mois | Action |
+|------|--------|
+| M1 S1 | Déploiement serveur + migration données papier |
+| M1 S2 | Formation 20 agents (médecins, infirmiers, admin) |
+| M1 S3-S4 | Utilisation parallèle papier + numérique |
+| M2 S1-S2 | Abandon progressif du papier |
+| M2 S3-S4 | Évaluation, ajustements, recueil de feedback |
 
-### Audit et activité
+**Budget pilote** : ~15 millions GNF (serveur + formation + support)
 
-- Journalisation des actions métier.
-- Traçabilité progressive des opérations sensibles.
+### Phase 2 — Déploiement régional (6 mois)
 
-## 5. Vision cible SaaS entreprise
+- 8 HGR (Hôpitaux Régionaux) : Kindia, Boké, Mamou, Labé, Kankan,
+  N'Zérékoré, Faranah + 1 CSI pilote par région
+- 2 établissements par mois = 8 mois pour la couverture régionale
+- Formation décentralisée (formateurs formés au CHU Donka)
 
-La plateforme doit évoluer vers un SaaS entreprise hospitalier avec :
+**Budget régional** : ~50 millions GNF
 
-- multi-tenant ;
-- multi-établissements ;
-- séparation des données par organisation ;
-- portail d’administration ;
-- gouvernance des accès ;
-- audit complet ;
-- reporting national ;
-- déploiement cloud ou souverain ;
-- intégration future avec DHIS2, SNIS, mobile money, assurance santé et identifiant patient national.
+### Phase 3 — Couverture nationale (12 mois)
 
-## 6. Bénéfices pour l’État
+- 20 CSI de Conakry + cliniques privées agréées
+- Data warehouse national pour le Ministère
+- Télémédecine pour les zones rurales
 
-Pour le ministère et les institutions publiques, la plateforme permet :
+**Budget national** : ~100 millions GNF
 
-- une meilleure visibilité sur l’activité hospitalière ;
-- un suivi des flux patients ;
-- une meilleure maîtrise des recettes et paiements ;
-- une traçabilité renforcée ;
-- une amélioration de la qualité des soins ;
-- une réduction des pertes liées aux stocks ;
-- une base de pilotage pour les politiques publiques de santé.
+---
 
-## 7. Bénéfices pour les hôpitaux
+## 7. Indicateurs de succès du pilote
 
-Pour les établissements de santé, la plateforme apporte :
+| Indicateur | Cible 6 mois | Mesure |
+|------------|-------------|--------|
+| Dossiers patients numérisés | ≥ 5 000 | Compteur DPI |
+| Admissions saisies dans le système | ≥ 80% des admissions | % vs total |
+| Temps moyen d'admission | < 5 min | Horodatage |
+| Résultats labo saisis électroniquement | ≥ 90% | % vs total |
+| Factures électroniques | ≥ 95% | % vs total |
+| Satisfaction soignants | ≥ 7/10 | Enquête |
+| Disponibilité système | ≥ 99% | Monitoring |
 
-- gain de temps administratif ;
-- meilleure coordination entre services ;
-- suivi simplifié des patients ;
-- réduction des erreurs ;
-- contrôle des stocks ;
-- meilleure organisation de la facturation ;
-- accès à des indicateurs opérationnels.
+---
 
-## 8. Architecture technique
+## 8. Évolutions futures (v2.0+)
 
-Le socle technique repose sur :
+| Évolution | Bénéfice | Délai |
+|-----------|----------|-------|
+| **Data warehouse national** | Requêtes ad hoc pour le Ministère | 6 mois |
+| **Télémédecine** | Désenclavement des zones rurales | 8 mois |
+| **IA aide au diagnostic** | Détection TB sur radio thorax | 10 mois |
+| **Multi-entrepôts pharmacie** | Traçabilité GS1, péremptions | 4 mois |
+| **Migration Kubernetes** | Haute disponibilité, blue-green | 6 mois |
 
-- Backend FastAPI ;
-- Frontend React TypeScript ;
-- Base PostgreSQL ;
-- Docker Compose pour la démo ;
-- Alembic pour les migrations ;
-- JWT pour l’authentification ;
-- RBAC pour les droits ;
-- API REST versionnée `/api/v1`.
+---
 
-## 9. Sécurité et conformité
+## 9. Demande au Ministère
 
-La plateforme est conçue autour des principes suivants :
+1. **Lettre d'engagement** pour le pilote CHU Donka (2 mois)
+2. **Désignation d'un référent** au Ministère pour le suivi
+3. **Autorisation** de contacter Orange/MTN/Moov pour les credentials SMS
+4. **Budget pilote** : 15 millions GNF (serveur + formation + support)
+5. **Accès** aux statistiques actuelles du CHU Donka pour comparaison
 
-- accès par rôle ;
-- séparation des permissions ;
-- audit des actions sensibles ;
-- préparation multi-tenant ;
-- préparation Row-Level Security PostgreSQL ;
-- journalisation technique et métier ;
-- déploiement possible dans une infrastructure souveraine.
+---
 
-## 10. Déploiement progressif proposé
+## Contact
 
-### Phase 1 — Démonstration pilote
+**Équipe technique GuinéeCare**
+Email : tech@guineecare.gn
+Dépôt : github.com/skaba89/guineecare-hospital-suite
 
-- Déploiement local ou serveur de démonstration.
-- Présentation des modules principaux.
-- Validation fonctionnelle avec un établissement pilote.
+---
 
-### Phase 2 — Pilote hospitalier
-
-- Déploiement dans un hôpital de référence.
-- Formation des utilisateurs.
-- Ajustement des workflows réels.
-- Collecte des retours terrain.
-
-### Phase 3 — Extension régionale
-
-- Déploiement dans plusieurs établissements.
-- Consolidation des indicateurs.
-- Gouvernance régionale.
-
-### Phase 4 — Plateforme nationale
-
-- Reporting national.
-- Interconnexion avec les systèmes publics.
-- Déploiement multi-régions.
-- Pilotage centralisé.
-
-## 11. Démonstration recommandée
-
-Le scénario de démonstration doit montrer :
-
-1. connexion administrateur ;
-2. consultation du dashboard ;
-3. création d’un patient ;
-4. admission du patient ;
-5. passage aux urgences ;
-6. mouvement de stock pharmacie ;
-7. demande laboratoire ;
-8. création facture ;
-9. paiement ;
-10. consultation de l’audit.
-
-## 12. Message institutionnel
-
-GuinéeCare Hospital Suite n’est pas seulement un logiciel hospitalier. C’est une base de modernisation du système de santé, capable de soutenir la transformation numérique des hôpitaux et de fournir à l’État une meilleure capacité de pilotage, de transparence et de planification.
+*Ce dossier a été préparé pour la présentation au Ministre de la Santé
+de la République de Guinée. La plateforme GuinéeCare est prête pour
+le pilote au CHU Donka.*

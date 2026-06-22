@@ -28,6 +28,7 @@ import { showToast } from "../components/Toast";
 import { buildOptions, firstValue } from "../utils/options";
 import { usePaginatedList } from "../hooks/usePaginatedList";
 import { Pagination } from "../components/Pagination";
+import { useT } from "../i18n";
 
 type TabKey = "stock" | "dispensation" | "products" | "movements";
 
@@ -85,11 +86,12 @@ export function PharmacyPage({
   lookups: LookupData;
   onCreated: () => void;
 }) {
+  const t = useT();
   const [activeTab, setActiveTab] = useState<TabKey>("stock");
 
   return (
     <section>
-      <h1>Pharmacie</h1>
+      <h1>{t("nav.pharmacy")}</h1>
       <p className="muted">
         Gestion des stocks, dispensation et mouvements pharmaceutiques.
       </p>

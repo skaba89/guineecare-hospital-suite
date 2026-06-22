@@ -31,6 +31,7 @@ import { buildOptions, firstValue } from "../utils/options";
 import { PdfButton } from "../components/PdfButton";
 import { usePaginatedList } from "../hooks/usePaginatedList";
 import { Pagination } from "../components/Pagination";
+import { useT } from "../i18n";
 
 type TabKey = "dashboard" | "orders" | "results" | "catalog";
 
@@ -105,11 +106,12 @@ export function LabPage({
   lookups: LookupData;
   onCreated: () => void;
 }) {
+  const t = useT();
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
 
   return (
     <section>
-      <h1>Laboratoire</h1>
+      <h1>{t("nav.laboratory")}</h1>
       <p className="muted">
         Gestion des analyses, demandes et résultats de laboratoire.
       </p>
@@ -145,6 +147,7 @@ export function LabPage({
    ═════════════════════════════════════════════════════════════════ */
 
 function DashboardTab({ lookups }: { lookups: LookupData }) {
+  const t = useT();
   const [orders, setOrders] = useState<Row[]>([]);
   const [results, setResults] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -211,7 +214,7 @@ function DashboardTab({ lookups }: { lookups: LookupData }) {
       <div className="card" style={{ textAlign: "center", padding: "32px" }}>
         <div className="spinner" />
         <p className="muted" style={{ marginTop: "12px" }}>
-          Chargement du tableau de bord...
+          {t("label.loading")}
         </p>
       </div>
     );

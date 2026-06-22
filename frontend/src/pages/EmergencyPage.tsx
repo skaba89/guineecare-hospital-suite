@@ -4,6 +4,7 @@ import { LookupData, Row } from "../types";
 import { EmergencyQueuePage } from "./EmergencyQueuePage";
 import { EmergencyTriagePage } from "./EmergencyTriagePage";
 import { EmergencyOrientationPage } from "./EmergencyOrientationPage";
+import { useT } from "../i18n";
 import {
   Activity,
   Clock,
@@ -30,6 +31,7 @@ export function EmergencyPage({
   lookups: LookupData;
   onCreated: () => void;
 }) {
+  const t = useT();
   const [activeTab, setActiveTab] = useState<TabKey>("tableau");
   const [visits, setVisits] = useState<Row[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
