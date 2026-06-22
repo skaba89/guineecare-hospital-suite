@@ -455,3 +455,36 @@ def custom_openapi():
 if not hasattr(app, "openapi_original"):
     app.openapi_original = app.openapi
 app.openapi = custom_openapi
+
+
+# --- Serve frontend static files (for Render all-in-one deployment) ---
+# When deployed on Render, the frontend build (dist/) is copied into
+# backend/static/ during the build phase. FastAPI serves these files
+# so that a single URL serves both the API and the frontend.
+#
+# In dev mode (localhost), the frontend runs on Vite (port 5173) and
+# this block is skipped because static/ doesn't exist.
+import os as _os
+from fastapi.staticfiles import StaticFiles as _StaticFiles
+from fastapi.responses import FileResponse as _FileResponse
+
+_STATIC_DIR = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), "static")
+
+if _os.path.isdir(_STATIC_DIR):
+    # Serve static assets (JS, CSS, images)
+    app.mount("/assets", _StaticFiles(directory=_os.path.join(_STATIC_DIR, "assets")), name="assets")
+
+    # SPA fallback : toutes les routes non-API servent index.html
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        # Ne pas intercepter les routes API, health, metrics, docs
+        if (full_path.startswith("api/") or
+            full_path in ("health", "health/live", "health/ready", "metrics", "docs", "redoc")):
+            raise HTTPException(status_code=404)
+        # Servir le fichier s'il existe, sinon index.html (SPA routing)
+        file_path = _os.path.join(_STATIC_DIR, full_path)
+        if _os.path.isfile(file_path):
+            return _FileResponse(file_path)
+        return _FileResponse(_os.path.join(_STATIC_DIR, "index.html"))
+
+    logger.info("Frontend static files served from %s", _STATIC_DIR)
