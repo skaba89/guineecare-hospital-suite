@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { LoginPayload } from "../services/authService";
+import { useT } from "../i18n";
+import { LanguageToggle } from "../components/LanguageToggle";
 
 export function LoginPage({ onLogin }: { onLogin: (payload: LoginPayload) => Promise<void> }) {
+  const t = useT();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -14,8 +17,8 @@ export function LoginPage({ onLogin }: { onLogin: (payload: LoginPayload) => Pro
     try {
       await onLogin({ email, password });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Erreur inconnue";
-      setError(`Connexion impossible. ${message}`);
+      const message = err instanceof Error ? err.message : t("login.error");
+      setError(`${t("login.error")}. ${message}`);
     } finally {
       setLoading(false);
     }
@@ -24,11 +27,14 @@ export function LoginPage({ onLogin }: { onLogin: (payload: LoginPayload) => Pro
   return (
     <div className="login-page">
       <div className="card login-card">
-        <h1>GuinéeCare Hospital Suite</h1>
-        <p className="muted">Système d'Information Hospitalier — Guinée</p>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+          <LanguageToggle />
+        </div>
+        <h1>{t("login.title")}</h1>
+        <p className="muted">{t("login.subtitle")}</p>
         <form onSubmit={submit}>
           <label className="form-control" htmlFor="login-email">
-            Email
+            {t("login.email")}
             <input
               id="login-email"
               value={email}
@@ -40,7 +46,7 @@ export function LoginPage({ onLogin }: { onLogin: (payload: LoginPayload) => Pro
             />
           </label>
           <label className="form-control" htmlFor="login-password">
-            Mot de passe
+            {t("login.password")}
             <input
               id="login-password"
               type="password"
@@ -52,11 +58,10 @@ export function LoginPage({ onLogin }: { onLogin: (payload: LoginPayload) => Pro
           </label>
           {error && <p style={{ color: "crimson" }}>{error}</p>}
           <button className="primary-button" type="submit" disabled={loading}>
-            {loading ? "Connexion..." : "Se connecter"}
+            {loading ? t("login.connecting") : t("login.submit")}
           </button>
         </form>
         <div style={{ marginTop: "16px", fontSize: "12px", color: "#94a3b8" }}>
-          <p>Comptes de démonstration :</p>
           <p>admin@guineecare.com / admin123</p>
           <p>dr.diallo@chu-donka.gn / doctor123</p>
         </div>
