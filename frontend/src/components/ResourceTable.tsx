@@ -14,12 +14,14 @@ export function ResourceTable({
   onPageChange,
   serverSearch,
   onServerSearchChange,
+  searchPlaceholder,
 }: {
   rows: Row[];
   pagination?: PaginationInfo;
   onPageChange?: (page: number) => void;
   serverSearch?: string;
   onServerSearchChange?: (search: string) => void;
+  searchPlaceholder?: string;
 }) {
   const [localSearch, setLocalSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -64,7 +66,7 @@ export function ResourceTable({
           <label className="toolbar-control">
             Recherche
             <input
-              placeholder="Rechercher dans le tableau"
+              placeholder={searchPlaceholder ?? "Rechercher dans le tableau"}
               value={serverSearch || ""}
               onChange={(event) => onServerSearchChange(event.target.value)}
             />
@@ -73,7 +75,7 @@ export function ResourceTable({
           <label className="toolbar-control">
             Recherche
             <input
-              placeholder="Rechercher dans le tableau"
+              placeholder={searchPlaceholder ?? "Rechercher dans le tableau"}
               value={localSearch}
               onChange={(event) => setLocalSearch(event.target.value)}
             />

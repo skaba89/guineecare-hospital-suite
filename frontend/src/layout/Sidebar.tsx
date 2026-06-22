@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { CurrentUser, getRoleLabel, getUserInitials, getUserDisplayName } from "../services/authService";
 import { useNavVisibility } from "../components/ProtectedRoute";
+import { useT } from "../i18n";
 
 type NavItem = {
   label: string;
@@ -44,6 +45,7 @@ type NavSection = {
 };
 
 export function Sidebar({ onLogout, currentUser }: { onLogout: () => void | Promise<void>; currentUser: CurrentUser | null }) {
+  const t = useT();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
@@ -51,60 +53,60 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void | Prom
 
   const navigationSections: NavSection[] = [
     {
-      title: "SOINS",
+      title: t("nav.dashboard").toUpperCase().slice(0, 6),
       items: [
-        { label: "Dashboard", path: "/", icon: LayoutDashboard, visible: navVisibility.canSeeDashboard },
-        { label: "Notifications", path: "/notifications", icon: Bell, visible: true },
-        { label: "Patients", path: "/patients", icon: Users, visible: navVisibility.canSeePatients },
-        { label: "Admissions", path: "/admissions", icon: ClipboardList, visible: navVisibility.canSeeAdmissions },
+        { label: t("nav.dashboard"), path: "/", icon: LayoutDashboard, visible: navVisibility.canSeeDashboard },
+        { label: t("nav.notifications"), path: "/notifications", icon: Bell, visible: true },
+        { label: t("nav.patients"), path: "/patients", icon: Users, visible: navVisibility.canSeePatients },
+        { label: t("nav.admissions"), path: "/admissions", icon: ClipboardList, visible: navVisibility.canSeeAdmissions },
       ],
     },
     {
-      title: "URGENCES",
+      title: t("nav.emergency").toUpperCase().slice(0, 8),
       items: [
-        { label: "File d'attente", path: "/emergency", icon: Siren, visible: navVisibility.canSeeEmergency },
-        { label: "Triage", path: "/emergency/triage", icon: ListOrdered, visible: navVisibility.canSeeEmergency },
-        { label: "Orientation", path: "/emergency/orientation", icon: Route, visible: navVisibility.canSeeEmergency },
+        { label: t("nav.emergency"), path: "/emergency", icon: Siren, visible: navVisibility.canSeeEmergency },
+        { label: t("nav.emergency") + " — Triage", path: "/emergency/triage", icon: ListOrdered, visible: navVisibility.canSeeEmergency },
+        { label: t("nav.emergency") + " — Orientation", path: "/emergency/orientation", icon: Route, visible: navVisibility.canSeeEmergency },
       ],
     },
     {
       title: "SERVICES",
       items: [
-        { label: "Hospitalisation", path: "/hospitalization", icon: BedDouble, visible: navVisibility.canSeeHospitalization },
-        { label: "Maternité", path: "/maternity", icon: Baby, visible: navVisibility.canSeeMaternity },
-        { label: "Pharmacie", path: "/pharmacy", icon: Pill, visible: navVisibility.canSeePharmacy },
-        { label: "Laboratoire", path: "/lab", icon: FlaskConical, visible: navVisibility.canSeeLab },
-        { label: "Imagerie", path: "/imaging", icon: Scan, visible: navVisibility.canSeeImaging },
-        { label: "Bloc Opératoire", path: "/surgery", icon: Scissors, visible: navVisibility.canSeeSurgery },
+        { label: t("nav.hospitalization"), path: "/hospitalization", icon: BedDouble, visible: navVisibility.canSeeHospitalization },
+        { label: t("nav.maternity"), path: "/maternity", icon: Baby, visible: navVisibility.canSeeMaternity },
+        { label: t("nav.pharmacy"), path: "/pharmacy", icon: Pill, visible: navVisibility.canSeePharmacy },
+        { label: t("nav.laboratory"), path: "/lab", icon: FlaskConical, visible: navVisibility.canSeeLab },
+        { label: t("nav.imaging"), path: "/imaging", icon: Scan, visible: navVisibility.canSeeImaging },
+        { label: t("nav.surgery"), path: "/surgery", icon: Scissors, visible: navVisibility.canSeeSurgery },
       ],
     },
     {
       title: "ADMIN",
       items: [
-        { label: "Facturation", path: "/billing", icon: Receipt, visible: navVisibility.canSeeBilling },
-        { label: "Personnel", path: "/personnel", icon: UserCog, visible: navVisibility.canSeePersonnel },
-        { label: "Planning & Gardes", path: "/personnel/planning", icon: UserCog, visible: navVisibility.canSeePersonnel },
-        { label: "Congés", path: "/personnel/leaves", icon: UserCog, visible: navVisibility.canSeePersonnel },
-        { label: "Qualité", path: "/quality", icon: Shield, visible: navVisibility.canSeeQuality },
-        { label: "Activité", path: "/activity", icon: Activity, visible: navVisibility.canSeeActivity },
+        { label: t("nav.billing"), path: "/billing", icon: Receipt, visible: navVisibility.canSeeBilling },
+        { label: t("nav.personnel"), path: "/personnel", icon: UserCog, visible: navVisibility.canSeePersonnel },
+        { label: t("nav.planning"), path: "/personnel/planning", icon: UserCog, visible: navVisibility.canSeePersonnel },
+        { label: t("nav.leaves"), path: "/personnel/leaves", icon: UserCog, visible: navVisibility.canSeePersonnel },
+        { label: t("nav.quality"), path: "/quality", icon: Shield, visible: navVisibility.canSeeQuality },
+        { label: t("nav.activity"), path: "/activity", icon: Activity, visible: navVisibility.canSeeActivity },
       ],
     },
     {
       title: "SYSTÈME",
       items: [
-        { label: "Utilisateurs", path: "/users", icon: Users, visible: navVisibility.canSeeUsers },
-        { label: "Rôles & Permissions", path: "/rbac", icon: Shield, visible: navVisibility.canSeeRbac },
-        { label: "Établissements", path: "/facilities", icon: Building2, visible: navVisibility.canSeeFacilities },
-        { label: "Départements", path: "/departments", icon: Building2, visible: navVisibility.canSeeDepartments },
-        { label: "Journal d'audit", path: "/audit", icon: Shield, visible: navVisibility.canSeeAudit },
-        { label: "SMS Admin", path: "/sms-admin", icon: MessageSquare, visible: navVisibility.canSeeSmsAdmin },
+        { label: t("nav.users"), path: "/users", icon: Users, visible: navVisibility.canSeeUsers },
+        { label: t("nav.rbac"), path: "/rbac", icon: Shield, visible: navVisibility.canSeeRbac },
+        { label: t("nav.facilities"), path: "/facilities", icon: Building2, visible: navVisibility.canSeeFacilities },
+        { label: t("nav.departments"), path: "/departments", icon: Building2, visible: navVisibility.canSeeDepartments },
+        { label: t("nav.audit"), path: "/audit", icon: Shield, visible: navVisibility.canSeeAudit },
+        { label: t("nav.sms_admin"), path: "/sms-admin", icon: MessageSquare, visible: navVisibility.canSeeSmsAdmin },
       ],
     },
     {
       title: "NATIONAL",
       items: [
-        { label: "Pilotage", path: "/national", icon: Building2, accent: true, visible: navVisibility.canSeeNational },
-        { label: "Reporting", path: "/reporting", icon: BarChart3, accent: true, visible: navVisibility.canSeeReporting },
+        { label: t("nav.national"), path: "/national", icon: Building2, accent: true, visible: navVisibility.canSeeNational },
+        { label: t("nav.reporting"), path: "/reporting", icon: BarChart3, accent: true, visible: navVisibility.canSeeReporting },
       ],
     },
   ];
@@ -147,7 +149,7 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void | Prom
   const badgeClass = currentUser ? roleBadgeClass[currentUser.role] || "badge-gray" : "badge-gray";
 
   // Facility name display
-  const facilityLabel = currentUser?.facility_id ? "Établissement connecté" : "Vue nationale";
+  const facilityLabel = currentUser?.facility_id ? t("nav.facilities") : t("nav.national");
 
   return (
     <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""}`}>
@@ -258,10 +260,10 @@ export function Sidebar({ onLogout, currentUser }: { onLogout: () => void | Prom
           <button
             className="sidebar-footer-btn sidebar-logout-btn"
             onClick={onLogout}
-            title="Déconnexion"
+            title={t("nav.logout")}
           >
             <LogOut size={16} />
-            {!collapsed && <span>Déconnexion</span>}
+            {!collapsed && <span>{t("nav.logout")}</span>}
           </button>
         </div>
       </div>
