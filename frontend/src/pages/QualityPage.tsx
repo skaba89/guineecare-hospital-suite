@@ -3,17 +3,18 @@ import { apiRequest } from "../services/api";
 import { LookupData, Row } from "../types";
 import { showToast } from "../components/Toast";
 import { buildOptions, firstValue } from "../utils/options";
+import { useT } from "../i18n";
 import { QualityDashboardTab } from "./QualityDashboardTab";
 import { QualityAlertsTab } from "./QualityAlertsTab";
 
 type TabKey = "dashboard" | "alerts" | "indicators" | "measurements" | "incidents";
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: "dashboard", label: "Dashboard" },
-  { key: "alerts", label: "Alertes" },
-  { key: "indicators", label: "Indicateurs" },
-  { key: "measurements", label: "Mesures" },
-  { key: "incidents", label: "Événements indésirables" },
+  { key: "dashboard", label: "quality.dashboard" },
+  { key: "alerts", label: "quality.alerts" },
+  { key: "indicators", label: "quality.indicators" },
+  { key: "measurements", label: "quality.measurements" },
+  { key: "incidents", label: "quality.incidents" },
 ];
 
 const CATEGORY_OPTIONS: { value: string; label: string }[] = [
@@ -99,12 +100,13 @@ const FREQUENCY_LABEL: Record<string, string> = {
 };
 
 export function QualityPage({ lookups }: { lookups: LookupData }) {
+  const t = useT();
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
 
   return (
     <section>
-      <h1>Qualité / Pilotage</h1>
-      <p className="muted">Gestion des indicateurs qualité, mesures, événements indésirables et alertes automatiques.</p>
+      <h1>{t("quality.title")}</h1>
+      <p className="muted">{t("quality.description")}</p>
 
       <div className="tab-bar">
         {TABS.map((tab) => (
@@ -113,7 +115,7 @@ export function QualityPage({ lookups }: { lookups: LookupData }) {
             className={`tab-button ${activeTab === tab.key ? "active" : ""}`}
             onClick={() => setActiveTab(tab.key)}
           >
-            {tab.label}
+            {t(tab.label)}
           </button>
         ))}
       </div>

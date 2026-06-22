@@ -185,6 +185,10 @@ _CATALOG_FR: dict[str, str] = {
     "quality.thresholds": "Seuils",
     "quality.check_thresholds": "Vérifier les seuils",
     "quality.seed_defaults": "Insérer les indicateurs OMS/HAS",
+    "quality.description": "Gestion des indicateurs qualité, mesures, événements indésirables et alertes automatiques.",
+    "quality.no_indicators": "Aucun indicateur trouvé.",
+    "quality.no_measurements": "Aucune mesure trouvée.",
+    "quality.no_incidents": "Aucun événement indésirable trouvé.",
 
     # SMS admin
     "sms.title": "Notifications SMS — Administration",
@@ -358,6 +362,10 @@ _CATALOG_EN: dict[str, str] = {
     "quality.thresholds": "Thresholds",
     "quality.check_thresholds": "Check thresholds",
     "quality.seed_defaults": "Insert WHO/HAS indicators",
+    "quality.description": "Management of quality indicators, measurements, adverse events and automatic alerts.",
+    "quality.no_indicators": "No indicators found.",
+    "quality.no_measurements": "No measurements found.",
+    "quality.no_incidents": "No adverse events found.",
 
     # SMS admin
     "sms.title": "SMS Notifications — Administration",

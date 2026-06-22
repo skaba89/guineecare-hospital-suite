@@ -4,6 +4,7 @@ import { LookupData, Row } from "../types";
 import { buildOptions, firstValue } from "../utils/options";
 import { useNavigate } from "react-router-dom";
 import { useRealtimeKPIs } from "../hooks/useRealtimeKPIs";
+import { useT } from "../i18n";
 import {
   BarChart,
   Bar,
@@ -81,6 +82,7 @@ export function DashboardPage({ lookups }: { lookups: LookupData }) {
   const [allBeds, setAllBeds] = useState<Row[]>([]);
   const [allAdmissions, setAllAdmissions] = useState<Row[]>([]);
   const navigate = useNavigate();
+  const t = useT();
 
   const options = buildOptions(lookups);
   const facilityId = firstValue(options.facilities);
@@ -315,14 +317,14 @@ export function DashboardPage({ lookups }: { lookups: LookupData }) {
       <section>
         <div className="dashboard-header">
           <div>
-            <h1 className="dashboard-title">Tableau de bord</h1>
+            <h1 className="dashboard-title">{t("dashboard.title")}</h1>
             <p className="muted">Vue d'ensemble de l'activité hospitalière</p>
           </div>
         </div>
         <div className="card" style={{ textAlign: "center", padding: "48px" }}>
           <div className="spinner" />
           <p className="muted" style={{ marginTop: "16px" }}>
-            Chargement des statistiques...
+            {t("label.loading")}
           </p>
         </div>
       </section>
@@ -334,7 +336,7 @@ export function DashboardPage({ lookups }: { lookups: LookupData }) {
       {/* Header */}
       <div className="dashboard-header">
         <div>
-          <h1 className="dashboard-title">Tableau de bord</h1>
+          <h1 className="dashboard-title">{t("dashboard.title")}</h1>
           <p className="muted">Vue d'ensemble de l'activité hospitalière en temps réel</p>
         </div>
         <div className="dashboard-header-actions">
@@ -353,7 +355,7 @@ export function DashboardPage({ lookups }: { lookups: LookupData }) {
       {/* Row 1 — 8 KPI Cards */}
       <div className="kpi-grid">
         <KpiCard
-          title="Patients"
+          title={t("nav.patients")}
           value={stats?.patients ?? 0}
           icon={Users}
           color="#2563eb"
@@ -361,7 +363,7 @@ export function DashboardPage({ lookups }: { lookups: LookupData }) {
           onClick={() => navigate("/patients")}
         />
         <KpiCard
-          title="Admissions"
+          title={t("nav.admissions")}
           value={stats?.admissions ?? 0}
           icon={ClipboardList}
           color="#7c3aed"
@@ -369,7 +371,7 @@ export function DashboardPage({ lookups }: { lookups: LookupData }) {
           onClick={() => navigate("/admissions")}
         />
         <KpiCard
-          title="Urgences"
+          title={t("nav.emergency")}
           value={stats?.emergencyVisits ?? 0}
           icon={AlertTriangle}
           color="#dc2626"

@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { apiRequest } from "../services/api";
 import { Row } from "../types";
 import { PaginationInfo, ResourceTable } from "./ResourceTable";
+import { useT } from "../i18n";
 
-export function ResourcePage({ title, path, form }: { title: string; path: string; form?: React.ReactNode }) {
+export function ResourcePage({ title, path, form, searchPlaceholder }: { title: string; path: string; form?: React.ReactNode; searchPlaceholder?: string }) {
+  const t = useT();
   const [rows, setRows] = useState<Row[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -79,7 +81,7 @@ export function ResourcePage({ title, path, form }: { title: string; path: strin
       {loading && (
         <div className="card" style={{ textAlign: "center", padding: "32px" }}>
           <div className="spinner" />
-          <p className="muted" style={{ marginTop: "12px" }}>Chargement...</p>
+          <p className="muted" style={{ marginTop: "12px" }}>{t("label.loading")}</p>
         </div>
       )}
       {error && <p style={{ color: "crimson" }}>{error}</p>}
@@ -90,6 +92,7 @@ export function ResourcePage({ title, path, form }: { title: string; path: strin
           onPageChange={handlePageChange}
           serverSearch={search}
           onServerSearchChange={handleSearchChange}
+          searchPlaceholder={searchPlaceholder}
         />
       )}
     </section>

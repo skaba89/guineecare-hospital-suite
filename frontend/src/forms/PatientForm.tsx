@@ -2,12 +2,14 @@ import { SimpleForm } from "../components/SimpleForm";
 import { apiRequest } from "../services/api";
 import { LookupData } from "../types";
 import { buildOptions, firstValue } from "../utils/options";
+import { useT } from "../i18n";
 
 export function PatientForm({ lookups, onCreated }: { lookups: LookupData; onCreated: () => void }) {
+  const t = useT();
   const options = buildOptions(lookups);
   return (
     <SimpleForm
-      title="Nouveau patient"
+      title={t("patients.new")}
       initialValues={{
         facility_id: firstValue(options.facilities),
         patient_number: `PAT-${Date.now()}`,
