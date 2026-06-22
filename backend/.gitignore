@@ -9,3 +9,6 @@ __pycache__/
 .env
 .env.local
 .venv/
+
+# Frontend static build (généré pendant le build Render, pas commité)
+static/

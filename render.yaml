@@ -1,0 +1,69 @@
+# Render Blueprint — GuinéeCare Hospital Suite (tout-en-un)
+#
+# Déploiement GRATUIT sur Render : backend + frontend sur UN SEUL service.
+# Une seule URL, pas de CORS, pas de coordination entre services.
+#
+# Architecture :
+#   Render Web Service (Python)
+#   ├── Build frontend (npm run build) → copie dist/ vers backend/static/
+#   ├── Build backend (pip install)
+#   ├── Start : uvicorn (sert API + fichiers statiques frontend)
+#   └── Render PostgreSQL (gratuit, 90 jours)
+#
+# Usage :
+# 1. Allez sur https://render.com → New → Blueprint
+# 2. Sélectionnez votre repo GitHub
+# 3. Render lit ce fichier automatiquement
+# 4. Configurez AUTH_SECRET dans le dashboard (voir guide)
+
+services:
+  # ─── Backend + Frontend (tout-en-un) ──────────────────────────
+  - type: web
+    name: guineecare
+    runtime: python
+    region: frankfurt  # le plus proche de la Guinée
+    plan: free
+    rootDir: backend
+    # Build : installer Python deps + builder le frontend + copier dans static/
+    buildCommand: |
+      pip install -r requirements.txt &&
+      cd ../frontend && npm ci && npm run build &&
+      cp -r dist ../backend/static
+    # Start : migrations + seed + uvicorn (sert API + frontend)
+    startCommand: |
+      alembic upgrade head &&
+      python -c "
+import os
+os.environ.setdefault('SEED_DEMO_DATA', 'true')
+from app.db.seed import run_seed
+run_seed()
+" &&
+      uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: AUTH_SECRET
+        sync: false  # À DÉFINIR MANUELLEMENT dans le dashboard
+      - key: DATABASE_URL
+        fromDatabase:
+          name: guineecare-db
+          property: connectionString
+      - key: SEED_DEMO_DATA
+        value: "true"
+      - key: CORS_ORIGINS
+        value: '["*"]'  # En tout-en-un, même origine → CORS permissif OK
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      - key: VITE_API_BASE_URL
+        value: "/api/v1"  # URL relative — le backend sert le frontend
+
+  # ─── Base de données PostgreSQL ────────────────────────────────
+  - type: psql
+    name: guineecare-db
+    region: frankfurt
+    plan: free
+    ipAllowList: []
+    # Note: le plan free expire après 90 jours.
+    # Alternative permanente : Supabase (voir guide-render-netlify.md)
