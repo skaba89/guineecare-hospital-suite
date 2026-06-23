@@ -194,19 +194,32 @@ def verify_2fa_challenge(db, user_id: str, code: str) -> tuple[bool, str]:
 
 
 def is_2fa_enabled(db, user_id: str) -> bool:
-    """Vérifie si le 2FA est activé pour un utilisateur."""
-    row = db.query(UserTwoFactor).filter(UserTwoFactor.user_id == user_id).first()
-    return bool(row and row.enabled)
+    """Vérifie si le 2FA est activé pour un utilisateur.
+    
+    Défensif : si la table n'existe pas encore (migration non appliquée),
+    retourne False au lieu de crasher.
+    """
+    try:
+        row = db.query(UserTwoFactor).filter(UserTwoFactor.user_id == user_id).first()
+        return bool(row and row.enabled)
+    except Exception as e:
+        logger.warning("is_2fa_enabled failed (table may not exist): %s", e)
+        return False
 
 
 def get_remaining_backup_codes(db, user_id: str) -> int:
-    """Retourne le nombre de codes de secours restants."""
-    row = db.query(UserTwoFactor).filter(UserTwoFactor.user_id == user_id).first()
-    if not row or not row.backup_codes_hash or not row.backup_codes_used:
-        return 0
+    """Retourne le nombre de codes de secours restants.
+    
+    Défensif : retourne 0 si la table n'existe pas.
+    """
     try:
+        row = db.query(UserTwoFactor).filter(UserTwoFactor.user_id == user_id).first()
+        if not row or not row.backup_codes_hash or not row.backup_codes_used:
+            return 0
+        import json
         total = len(json.loads(row.backup_codes_hash))
         used = len(json.loads(row.backup_codes_used))
         return max(0, total - used)
-    except (json.JSONDecodeError, TypeError):
+    except Exception as e:
+        logger.warning("get_remaining_backup_codes failed: %s", e)
         return 0

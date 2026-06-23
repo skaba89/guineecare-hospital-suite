@@ -24,8 +24,47 @@ if [ "$TABLE_COUNT" -gt "0" ]; then
     echo ">>> DB already has tables — running alembic stamp head..."
     alembic stamp head 2>/dev/null || echo ">>> stamp head skipped (already stamped)"
     echo ">>> Alembic stamped OK"
+    # Créer les tables manquantes (nouvelles tables pas dans les migrations
+    # précédentes, ex: user_two_factors ajoutée en v1.8.0)
+    echo ">>> Creating missing tables via create_all..."
+    python -c "
+import os
+from app.db.base import Base
+from app.db.session import engine
+# Importer TOUS les modèles pour que create_all les voie
+import app.modules.facilities.models
+import app.modules.departments.models
+import app.modules.patients.models
+import app.modules.users.models
+import app.modules.rbac.models
+import app.modules.admissions.models
+import app.modules.emergency.models
+import app.modules.pharmacy.models
+import app.modules.laboratory.models
+import app.modules.billing.models
+import app.modules.clinical.models
+import app.modules.hospitalization.models
+import app.modules.maternity.models
+import app.modules.personnel.models
+import app.modules.imaging.models
+import app.modules.surgery.models
+import app.modules.quality.models
+import app.modules.quality.dashboard_models
+import app.modules.reporting.models
+import app.modules.notifications.models
+import app.modules.notifications.sms_models
+import app.modules.user_profile.models
+import app.modules.documents.models
+import app.modules.activity.models
+import app.modules.auth.models
+import app.modules.auth.two_factor_models
+import app.modules.personnel.rh_v2_models
+Base.metadata.create_all(bind=engine, checkfirst=True)
+print('>>> Missing tables created (checkfirst=True)')
+engine.dispose()
+"
 else
-    # DB neuve — créer toutes les tables
+    # DB neuve — créer toutes les tables via migrations
     echo ">>> Fresh DB — running alembic upgrade head..."
     alembic upgrade head
     echo ">>> Migrations OK"
