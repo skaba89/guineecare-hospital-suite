@@ -63,6 +63,10 @@ Base.metadata.create_all(bind=engine, checkfirst=True)
 print('>>> Missing tables created (checkfirst=True)')
 engine.dispose()
 "
+    # Ajouter les colonnes manquantes aux tables existantes
+    # (create_all ne modifie pas les tables existantes — ALTER TABLE manuel nécessaire)
+    echo ">>> Adding missing columns..."
+    python -c "from app.db.migration_helper import run_manual_migrations; run_manual_migrations()"
 else
     # DB neuve — créer toutes les tables via migrations
     echo ">>> Fresh DB — running alembic upgrade head..."
@@ -84,7 +88,10 @@ print('>>> RBAC OK')
 # 3. Seed données de démo
 if [ "${SEED_DEMO_DATA:-true}" = "true" ] || [ "${SEED_DEMO_DATA}" = "1" ] || [ "${SEED_DEMO_DATA}" = "yes" ]; then
   echo ">>> Seeding demo data..."
-  python -c "from app.db.seed import run_seed; run_seed()" 2>/dev/null || echo ">>> Seed skipped (may already exist)"
+  python -c "
+from app.db.seed import run_seed
+run_seed()
+" 2>&1 || echo ">>> Seed completed with warnings"
   echo ">>> Seed OK"
 else
   echo ">>> SEED_DEMO_DATA=false, skipping seed"
