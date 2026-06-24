@@ -12,7 +12,6 @@ export function PatientForm({ lookups, onCreated }: { lookups: LookupData; onCre
       title={t("patients.new")}
       initialValues={{
         facility_id: firstValue(options.facilities),
-        patient_number: `PAT-${Date.now()}`,
         first_name: "",
         last_name: "",
         date_of_birth: "",
@@ -26,7 +25,6 @@ export function PatientForm({ lookups, onCreated }: { lookups: LookupData; onCre
       }}
       fields={[
         { name: "facility_id", label: "Établissement", options: options.facilities },
-        { name: "patient_number", label: "Numéro patient" },
         { name: "first_name", label: "Prénom" },
         { name: "last_name", label: "Nom" },
         { name: "date_of_birth", label: "Date de naissance", type: "date" },
@@ -47,7 +45,15 @@ export function PatientForm({ lookups, onCreated }: { lookups: LookupData; onCre
         { name: "emergency_contact_phone", label: "Contact urgence - Tel" },
       ]}
       onSubmit={async (values) => {
-        await apiRequest("/patients", { method: "POST", body: JSON.stringify(values) });
+        // Nettoyer le payload : supprimer les champs vides et ne pas envoyer patient_number
+        // (le backend le génère automatiquement avec un suffixe aléatoire)
+        const payload: Record<string, string> = {};
+        for (const [key, val] of Object.entries(values)) {
+          if (val && val !== "" && key !== "patient_number") {
+            payload[key] = val;
+          }
+        }
+        await apiRequest("/patients", { method: "POST", body: JSON.stringify(payload) });
         onCreated();
       }}
     />
