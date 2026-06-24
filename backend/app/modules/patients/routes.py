@@ -37,16 +37,41 @@ def create_patient(
     current_user: User = Depends(require_permission("patient.create")),
 ):
     data = payload.model_dump(exclude_none=True)
+    # Nettoyer les champs vides (le frontend SimpleForm envoie "" pour les champs non remplis)
+    for key in list(data.keys()):
+        if data[key] == "":
+            del data[key]
     # Auto-génère facility_id si manquant
     if not data.get("facility_id"):
-        data["facility_id"] = current_user.facility_id
+        # Si le SUPER_ADMIN n'a pas de facility, utiliser la première facility disponible
+        if current_user.facility_id:
+            data["facility_id"] = current_user.facility_id
+        else:
+            from app.modules.facilities.models import Facility
+            first_fac = db.query(Facility).first()
+            if not first_fac:
+                raise HTTPException(status_code=400, detail="Aucun établissement trouvé. Créez un établissement d'abord.")
+            data["facility_id"] = first_fac.id
     enforce_facility_access(current_user, data.get("facility_id"))
-    # Auto-génère patient_number si manquant (format PAT-YYYYMMDDHHMMSS)
+    # Auto-génère patient_number si manquant (format PAT-YYYYMMDDHHMMSS + suffixe aléatoire)
     if not data.get("patient_number"):
-        data["patient_number"] = f"PAT-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+        import secrets as _secrets
+        data["patient_number"] = f"PAT-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{_secrets.token_hex(3)}"
+    # Vérifier l'unicité du patient_number
+    existing = db.query(Patient).filter(Patient.patient_number == data["patient_number"]).first()
+    if existing:
+        import secrets as _secrets
+        data["patient_number"] = f"PAT-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{_secrets.token_hex(4)}"
     row = Patient(**data)
     db.add(row)
-    db.flush()
+    try:
+        db.flush()
+    except Exception:
+        import secrets as _secrets
+        data["patient_number"] = f"PAT-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{_secrets.token_hex(6)}"
+        row = Patient(**data)
+        db.add(row)
+        db.flush()
     record_activity(
         db=db,
         actor_id=current_user.id,

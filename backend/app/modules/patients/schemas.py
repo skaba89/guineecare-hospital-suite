@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # Constantes pour les valeurs par défaut "Non renseigné"
@@ -51,6 +51,16 @@ class PatientCreate(BaseModel):
         default=DEFAULT_MEDICAL_TEXT,
         description="Maladies chroniques (diabète, HTA, etc.). 'Non renseigné' si inconnu.",
     )
+
+    # Convertir les chaînes vides en None (le frontend SimpleForm envoie "" pour les champs vides)
+    @field_validator("date_of_birth", "gender", "phone", "address", "national_id",
+                     "insurance_number", "emergency_contact_name", "emergency_contact_phone",
+                     "facility_id", "patient_number", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, v):
+        if v == "" or v is None:
+            return None
+        return v
 
 
 class PatientRead(BaseModel):
