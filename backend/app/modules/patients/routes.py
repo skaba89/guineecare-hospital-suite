@@ -41,6 +41,17 @@ def create_patient(
     for key in list(data.keys()):
         if data[key] == "":
             del data[key]
+    # FORCER les champs médicaux avec valeurs par défaut (la DB Neon n'a pas de server_default)
+    if "blood_type" not in data:
+        data["blood_type"] = "NON_RENSEIGNE"
+    if "allergies" not in data:
+        data["allergies"] = "Non renseigné"
+    if "medical_history" not in data:
+        data["medical_history"] = "Non renseigné"
+    if "current_medication" not in data:
+        data["current_medication"] = "Non renseigné"
+    if "chronic_conditions" not in data:
+        data["chronic_conditions"] = "Non renseigné"
     # Auto-génère facility_id si manquant
     if not data.get("facility_id"):
         # Si le SUPER_ADMIN n'a pas de facility, utiliser la première facility disponible
