@@ -2,7 +2,7 @@ from pydantic import BaseModel
 
 
 class AdmissionCreate(BaseModel):
-    facility_id: str
+    facility_id: str | None = None
     patient_id: str
     department_id: str | None = None
     admission_type: str

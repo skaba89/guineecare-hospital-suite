@@ -65,8 +65,19 @@ def create_admission(
     current_user: User = Depends(require_permission("admission.create")),
 ):
     data = payload.model_dump(exclude_none=True)
+    # Nettoyer les champs vides
+    for key in list(data.keys()):
+        if data[key] == "":
+            del data[key]
     if not data.get("facility_id"):
-        data["facility_id"] = current_user.facility_id
+        if current_user.facility_id:
+            data["facility_id"] = current_user.facility_id
+        else:
+            from app.modules.facilities.models import Facility
+            first_fac = db.query(Facility).first()
+            if not first_fac:
+                raise HTTPException(status_code=400, detail="Aucun établissement trouvé.")
+            data["facility_id"] = first_fac.id
     enforce_facility_access(current_user, data.get("facility_id"))
     row = Admission(**data)
     db.add(row)

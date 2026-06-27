@@ -176,3 +176,27 @@ def create_diagnosis(
     db.commit()
     db.refresh(row)
     return {"data": row, "message": "diagnosis created"}
+
+
+# ── Global list endpoints (for UI pages without patient context) ─────
+
+@router.get("/notes")
+def list_all_notes(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("clinical.read")),
+):
+    """Liste toutes les notes cliniques (paginé, multi-tenant)."""
+    query = tenant_query(db, ClinicalNote, current_user).order_by(ClinicalNote.created_at.desc())
+    rows = query.limit(100).all()
+    return {"data": [{"id": r.id, "patient_id": r.patient_id, "note_type": r.note_type, "content": r.content[:200] if r.content else "", "created_at": r.created_at.isoformat() if r.created_at else None, "created_by": r.created_by} for r in rows], "total": len(rows)}
+
+
+@router.get("/measurements")
+def list_all_measurements(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("clinical.read")),
+):
+    """Liste toutes les constantes vitales (paginé, multi-tenant)."""
+    query = tenant_query(db, PatientMeasurement, current_user).order_by(PatientMeasurement.recorded_at.desc())
+    rows = query.limit(100).all()
+    return {"data": [{"id": r.id, "patient_id": r.patient_id, "measurement_type": r.measurement_type, "value": r.value, "unit": r.unit, "recorded_at": r.recorded_at.isoformat() if r.recorded_at else None} for r in rows], "total": len(rows)}
