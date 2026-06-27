@@ -107,3 +107,38 @@ def get_patient(
         raise HTTPException(status_code=404, detail="Patient not found")
     enforce_facility_access(current_user, row.facility_id)
     return {"data": row, "message": "patient detail"}
+
+
+@router.get("/debug/create")
+def debug_create(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("patient.create")),
+):
+    """Debug endpoint — teste la création patient et retourne l'erreur exacte."""
+    import traceback
+    from app.modules.patients.models import Patient
+    from datetime import datetime, timezone
+    import secrets
+    
+    try:
+        data = {
+            "first_name": "Debug",
+            "last_name": "Test",
+            "facility_id": "3782cbcc-1e27-4d45-93c9-4b1d43f9ca8c",
+            "patient_number": f"PAT-DEBUG-{secrets.token_hex(4)}",
+            "blood_type": "NON_RENSEIGNE",
+            "allergies": "Non renseigné",
+            "medical_history": "Non renseigné",
+            "current_medication": "Non renseigné",
+            "chronic_conditions": "Non renseigné",
+            "status": "ACTIVE",
+        }
+        row = Patient(**data)
+        db.add(row)
+        db.flush()
+        db.commit()
+        db.refresh(row)
+        return {"success": True, "patient_id": row.id, "patient_number": row.patient_number}
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "error": str(e), "traceback": traceback.format_exc()}
