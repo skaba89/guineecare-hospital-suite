@@ -63,3 +63,42 @@ def run_manual_migrations():
 
 if __name__ == "__main__":
     run_manual_migrations()
+
+
+# Colonnes à modifier (ALTER COLUMN type) — pour les colonnes existantes
+# avec un type trop petit
+COLUMN_TYPE_MIGRATIONS = [
+    ("patients", "blood_type", "VARCHAR(20)"),
+]
+
+
+def run_column_type_migrations():
+    """Modifie le type des colonnes existantes si elles sont trop petites."""
+    inspector = inspect(engine)
+    modified = 0
+    
+    for table, column, new_type in COLUMN_TYPE_MIGRATIONS:
+        if table not in inspector.get_table_names():
+            continue
+        existing_columns = [c["name"] for c in inspector.get_columns(table)]
+        if column not in existing_columns:
+            continue
+        
+        sql = f"ALTER TABLE {table} ALTER COLUMN {column} TYPE {new_type}"
+        logger.info("Modifying column type: %s", sql)
+        try:
+            with engine.connect() as conn:
+                conn.execute(text(sql))
+                conn.commit()
+            modified += 1
+            print(f"  ✅ Modified {table}.{column} → {new_type}")
+        except Exception as e:
+            logger.warning("Failed to modify %s.%s: %s", table, column, e)
+            print(f"  ⚠️ Failed {table}.{column}: {e}")
+    
+    if modified > 0:
+        print(f"  ✅ {modified} column types modified")
+    else:
+        print("  ✅ All column types already correct")
+    
+    engine.dispose()

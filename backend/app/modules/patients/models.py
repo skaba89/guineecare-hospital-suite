@@ -29,7 +29,7 @@ class Patient(Base):
     # v1.7.1 — Champs médicaux (avec valeurs par défaut "Non renseigné" pour
     # ne jamais laisser vide un champ à la création. Le soignant pourra mettre
     # à jour ces champs ultérieurement via le DPI patient.)
-    blood_type = Column(String(10), nullable=False, default="NON_RENSEIGNE")
+    blood_type = Column(String(20), nullable=False, default="NON_RENSEIGNE")
     # blood_type : A+ | A- | B+ | B- | AB+ | AB- | O+ | O- | NON_RENSEIGNE
     allergies = Column(Text, nullable=False, default="Non renseigné")
     medical_history = Column(Text, nullable=False, default="Non renseigné")

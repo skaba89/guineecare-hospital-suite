@@ -66,7 +66,7 @@ engine.dispose()
     # Ajouter les colonnes manquantes aux tables existantes
     # (create_all ne modifie pas les tables existantes — ALTER TABLE manuel nécessaire)
     echo ">>> Adding missing columns..."
-    python -c "from app.db.migration_helper import run_manual_migrations; run_manual_migrations()"
+    python -c "from app.db.migration_helper import run_manual_migrations, run_column_type_migrations; run_manual_migrations(); run_column_type_migrations()"
 else
     # DB neuve — créer toutes les tables via migrations
     echo ">>> Fresh DB — running alembic upgrade head..."
