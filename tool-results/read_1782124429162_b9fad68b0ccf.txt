@@ -1,0 +1,794 @@
+     1→import { useCallback, useEffect, useMemo, useState } from "react";
+     2→import { apiRequest } from "../services/api";
+     3→import { LookupData, Row } from "../types";
+     4→import { buildOptions, firstValue } from "../utils/options";
+     5→import { useNavigate } from "react-router-dom";
+     6→import { useRealtimeKPIs } from "../hooks/useRealtimeKPIs";
+     7→import {
+     8→  BarChart,
+     9→  Bar,
+    10→  XAxis,
+    11→  YAxis,
+    12→  CartesianGrid,
+    13→  Tooltip,
+    14→  ResponsiveContainer,
+    15→  PieChart,
+    16→  Pie,
+    17→  Cell,
+    18→} from "recharts";
+    19→import {
+    20→  Users,
+    21→  ClipboardList,
+    22→  AlertTriangle,
+    23→  BedDouble,
+    24→  TestTube2,
+    25→  AlertCircle,
+    26→  FileText,
+    27→  Activity,
+    28→  ArrowRight,
+    29→  Clock,
+    30→  TrendingUp,
+    31→  ArrowUpRight,
+    32→  Stethoscope,
+    33→  LogOut,
+    34→  UserPlus,
+    35→  Bed,
+    36→  FlaskConical,
+    37→} from "lucide-react";
+    38→
+    39→type DashboardStats = {
+    40→  patients: number;
+    41→  admissions: number;
+    42→  emergencyVisits: number;
+    43→  activeStays: number;
+    44→  availableBeds: number;
+    45→  totalBeds: number;
+    46→  occupiedBeds: number;
+    47→  outOfServiceBeds: number;
+    48→  pendingLabOrders: number;
+    49→  surgeryScheduled: number;
+    50→  pendingImaging: number;
+    51→  activeAlerts: number;
+    52→  draftReports: number;
+    53→  openIncidents: number;
+    54→};
+    55→
+    56→type PatientFlowEvent = {
+    57→  id: string;
+    58→  type: "admission" | "discharge" | "transfer" | "emergency";
+    59→  patientName: string;
+    60→  department: string;
+    61→  timestamp: string;
+    62→};
+    63→
+    64→type PriorityAlert = {
+    65→  id: string;
+    66→  severity: "critical" | "high" | "warning";
+    67→  title: string;
+    68→  description: string;
+    69→  time: string;
+    70→};
+    71→
+    72→const DAYS_FR = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+    73→
+    74→const PIE_COLORS = ["#0f6b3e", "#dc2626", "#94a3b8"];
+    75→
+    76→export function DashboardPage({ lookups }: { lookups: LookupData }) {
+    77→  const [stats, setStats] = useState<DashboardStats | null>(null);
+    78→  const [loading, setLoading] = useState(true);
+    79→  const [recentPatients, setRecentPatients] = useState<Row[]>([]);
+    80→  const [recentAdmissions, setRecentAdmissions] = useState<Row[]>([]);
+    81→  const [allBeds, setAllBeds] = useState<Row[]>([]);
+    82→  const [allAdmissions, setAllAdmissions] = useState<Row[]>([]);
+    83→  const navigate = useNavigate();
+    84→
+    85→  const options = buildOptions(lookups);
+    86→  const facilityId = firstValue(options.facilities);
+    87→
+    88→  const loadStats = useCallback(async () => {
+    89→    if (!facilityId) return;
+    90→    setLoading(true);
+    91→    try {
+    92→      const [patients, admissions, emergency, stays, beds, labOrders, imagingOrders, reporting] =
+    93→        await Promise.all([
+    94→          apiRequest<{ data?: Row[]; total?: number }>("/patients?page_size=1"),
+    95→          apiRequest<{ data?: Row[]; total?: number }>("/admissions?page_size=1"),
+    96→          apiRequest<{ data?: Row[]; total?: number }>("/emergency/queue?page_size=1"),
+    97→          apiRequest<{ data?: Row[]; total?: number }>("/hospitalization/stays?status=ACTIVE&page_size=1"),
+    98→          apiRequest<{ data?: Row[] }>(`/hospitalization/bed-board?facility_id=${facilityId}`),
+    99→          apiRequest<{ data?: Row[]; total?: number }>("/laboratory/orders?page_size=1000"),
+   100→          apiRequest<{ data?: Row[] }>("/imaging/orders?status=PENDING&page_size=1000"),
+   101→          apiRequest<{ data?: Record<string, unknown> }>("/reporting/dashboard"),
+   102→        ]);
+   103→
+   104→      const bedsList = Array.isArray(beds.data) ? beds.data : [];
+   105→      const availableBeds = bedsList.filter((b: Row) => b.bed_status === "AVAILABLE").length;
+   106→      const occupiedBeds = bedsList.filter((b: Row) => b.bed_status === "OCCUPIED").length;
+   107→      const outOfServiceBeds = bedsList.filter(
+   108→        (b: Row) => b.bed_status === "OUT_OF_SERVICE" || b.bed_status === "MAINTENANCE"
+   109→      ).length;
+   110→      const labPending = Array.isArray(labOrders.data)
+   111→        ? labOrders.data.filter((o: Row) => o.status === "PENDING" || o.status === "IN_PROGRESS").length
+   112→        : 0;
+   113→      const imagingPending = Array.isArray(imagingOrders.data) ? imagingOrders.data.length : 0;
+   114→
+   115→      const reportingData = reporting.data || {};
+   116→      const activeAlerts = Number(reportingData.active_alerts || 0);
+   117→      const draftReports = Number(reportingData.draft_reports || 0);
+   118→
+   119→      setStats({
+   120→        patients: typeof patients.total === "number" ? patients.total : (patients.data?.length || 0),
+   121→        admissions: typeof admissions.total === "number" ? admissions.total : (admissions.data?.length || 0),
+   122→        emergencyVisits: typeof emergency.total === "number" ? emergency.total : (emergency.data?.length || 0),
+   123→        activeStays: typeof stays.total === "number" ? stays.total : (stays.data?.length || 0),
+   124→        availableBeds,
+   125→        totalBeds: bedsList.length,
+   126→        occupiedBeds,
+   127→        outOfServiceBeds,
+   128→        pendingLabOrders: labPending,
+   129→        surgeryScheduled: 0,
+   130→        pendingImaging: imagingPending,
+   131→        activeAlerts,
+   132→        draftReports,
+   133→        openIncidents: 0,
+   134→      });
+   135→
+   136→      setAllBeds(bedsList);
+   137→
+   138→      // For recent lists we need real patient records, not just totals
+   139→      const [recentPatientsRes, recentAdmissionsRes] = await Promise.all([
+   140→        apiRequest<{ data?: Row[] }>("/patients?page_size=5"),
+   141→        apiRequest<{ data?: Row[] }>("/admissions?page_size=5"),
+   142→      ]);
+   143→      setRecentPatients(Array.isArray(recentPatientsRes.data) ? recentPatientsRes.data.slice(0, 5) : []);
+   144→      const admissionsList = Array.isArray(recentAdmissionsRes.data) ? recentAdmissionsRes.data : [];
+   145→      setRecentAdmissions(admissionsList.slice(0, 5));
+   146→
+   147→      // For the chart we need a fuller set of admissions
+   148→      const allAdmRes = await apiRequest<{ data?: Row[] }>("/admissions?page_size=1000");
+   149→      setAllAdmissions(Array.isArray(allAdmRes.data) ? allAdmRes.data : []);
+   150→    } catch {
+   151→      // Silently fail — dashboard should remain usable
+   152→    } finally {
+   153→      setLoading(false);
+   154→    }
+   155→  }, [facilityId]);
+   156→
+   157→  useEffect(() => {
+   158→    loadStats();
+   159→    const handler = () => loadStats();
+   160→    window.addEventListener("refresh-resource", handler);
+   161→    return () => window.removeEventListener("refresh-resource", handler);
+   162→  }, [loadStats]);
+   163→
+   164→  // v1.3.0 — Realtime KPI push: increment counters live when a KPI event arrives.
+   165→  // We don't refetch the whole dashboard — we just bump the relevant counter
+   166→  // by the event's `delta`. A subsequent full refresh (manual or via the
+   167→  // `refresh-resource` event) reconciles any drift.
+   168→  const { lastEvent: liveKpi } = useRealtimeKPIs({ typePrefix: "kpi." });
+   169→  useEffect(() => {
+   170→    if (!liveKpi || !stats) return;
+   171→    const { type, payload } = liveKpi;
+   172→    if (type === "kpi.admissions.today.count" && typeof payload.delta === "number") {
+   173→      setStats((prev) => prev ? { ...prev, admissions: prev.admissions + (payload.delta as number) } : prev);
+   174→    } else if (type === "kpi.lab.results.validated.count" && typeof payload.delta === "number") {
+   175→      setStats((prev) => prev ? { ...prev, pendingLabOrders: Math.max(0, prev.pendingLabOrders - (payload.delta as number)) } : prev);
+   176→    }
+   177→  }, [liveKpi, stats]);
+   178→
+   179→  // Generate admission chart data from real admissions or mock
+   180→  const admissionChartData = useMemo(() => {
+   181→    if (allAdmissions.length > 0) {
+   182→      const dayMap: Record<number, number> = {};
+   183→      allAdmissions.forEach((a: Row) => {
+   184→        if (a.admitted_at) {
+   185→          const day = new Date(a.admitted_at).getDay();
+   186→          const adjustedDay = day === 0 ? 6 : day - 1;
+   187→          dayMap[adjustedDay] = (dayMap[adjustedDay] || 0) + 1;
+   188→        }
+   189→      });
+   190→      return DAYS_FR.map((name, i) => ({
+   191→        name,
+   192→        admissions: dayMap[i] || 0,
+   193→      }));
+   194→    }
+   195→    return DAYS_FR.map((name) => ({
+   196→      name,
+   197→      admissions: Math.floor(Math.random() * 12) + 3,
+   198→    }));
+   199→  }, [allAdmissions]);
+   200→
+   201→  // Bed occupancy pie data
+   202→  const bedPieData = useMemo(() => {
+   203→    if (stats && stats.totalBeds > 0) {
+   204→      return [
+   205→        { name: "Disponibles", value: stats.availableBeds },
+   206→        { name: "Occupés", value: stats.occupiedBeds },
+   207→        { name: "Hors service", value: stats.outOfServiceBeds },
+   208→      ];
+   209→    }
+   210→    return [
+   211→      { name: "Disponibles", value: 45 },
+   212→      { name: "Occupés", value: 120 },
+   213→      { name: "Hors service", value: 8 },
+   214→    ];
+   215→  }, [stats]);
+   216→
+   217→  // Patient flow timeline from real data
+   218→  const patientFlow: PatientFlowEvent[] = useMemo(() => {
+   219→    const events: PatientFlowEvent[] = [];
+   220→    recentAdmissions.forEach((a: Row, i: number) => {
+   221→      events.push({
+   222→        id: `adm-${i}`,
+   223→        type: "admission",
+   224→        patientName: a.patient_id || "Patient",
+   225→        department: a.department_id || "Service",
+   226→        timestamp: a.admitted_at || new Date().toISOString(),
+   227→      });
+   228→    });
+   229→    // Add mock discharge/transfer to show variety
+   230→    const mockEvents: PatientFlowEvent[] = [
+   231→      {
+   232→        id: "mock-d1",
+   233→        type: "discharge",
+   234→        patientName: "Diallo M.",
+   235→        department: "Médecine Interne",
+   236→        timestamp: new Date(Date.now() - 3600000).toISOString(),
+   237→      },
+   238→      {
+   239→        id: "mock-t1",
+   240→        type: "transfer",
+   241→        patientName: "Camara F.",
+   242→        department: "Réanimation → Chirurgie",
+   243→        timestamp: new Date(Date.now() - 7200000).toISOString(),
+   244→      },
+   245→      {
+   246→        id: "mock-e1",
+   247→        type: "emergency",
+   248→        patientName: "Touré A.",
+   249→        department: "Urgences",
+   250→        timestamp: new Date(Date.now() - 900000).toISOString(),
+   251→      },
+   252→    ];
+   253→    return [...events, ...mockEvents].sort(
+   254→      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+   255→    );
+   256→  }, [recentAdmissions]);
+   257→
+   258→  // Priority alerts from real data
+   259→  const priorityAlerts: PriorityAlert[] = useMemo(() => {
+   260→    const alerts: PriorityAlert[] = [];
+   261→    if (stats && stats.emergencyVisits > 0) {
+   262→      alerts.push({
+   263→        id: "alert-er",
+   264→        severity: "critical",
+   265→        title: `${stats.emergencyVisits} patient(s) en urgence`,
+   266→        description: "Patients nécessitant une prise en charge immédiate",
+   267→        time: "Maintenant",
+   268→      });
+   269→    }
+   270→    if (stats && stats.pendingLabOrders > 3) {
+   271→      alerts.push({
+   272→        id: "alert-lab",
+   273→        severity: "high",
+   274→        title: "Examens en attente",
+   275→        description: `${stats.pendingLabOrders} résultats de laboratoire en attente`,
+   276→        time: "Il y a 15 min",
+   277→      });
+   278→    }
+   279→    if (stats && stats.activeAlerts > 0) {
+   280→      alerts.push({
+   281→        id: "alert-epi",
+   282→        severity: "warning",
+   283→        title: "Alertes épidémiologiques",
+   284→        description: `${stats.activeAlerts} alerte(s) active(s) détectée(s)`,
+   285→        time: "Il y a 1h",
+   286→      });
+   287→    }
+   288→    // Add mock low stock alert if none
+   289→    if (alerts.length < 2) {
+   290→      alerts.push({
+   291→        id: "alert-stock",
+   292→        severity: "high",
+   293→        title: "Stock faible — Paracétamol",
+   294→        description: "Seuil minimal atteint, commande urgente requise",
+   295→        time: "Il y a 30 min",
+   296→      });
+   297→      alerts.push({
+   298→        id: "alert-bed",
+   299→        severity: "warning",
+   300→        title: "Occupation lits élevée",
+   301→        description: "Taux d'occupation supérieur à 85%",
+   302→        time: "Il y a 2h",
+   303→      });
+   304→    }
+   305→    return alerts;
+   306→  }, [stats]);
+   307→
+   308→  const bedOccupancy =
+   309→    stats && stats.totalBeds > 0
+   310→      ? Math.round(((stats.totalBeds - stats.availableBeds) / stats.totalBeds) * 100)
+   311→      : 0;
+   312→
+   313→  if (loading && !stats) {
+   314→    return (
+   315→      <section>
+   316→        <div className="dashboard-header">
+   317→          <div>
+   318→            <h1 className="dashboard-title">Tableau de bord</h1>
+   319→            <p className="muted">Vue d'ensemble de l'activité hospitalière</p>
+   320→          </div>
+   321→        </div>
+   322→        <div className="card" style={{ textAlign: "center", padding: "48px" }}>
+   323→          <div className="spinner" />
+   324→          <p className="muted" style={{ marginTop: "16px" }}>
+   325→            Chargement des statistiques...
+   326→          </p>
+   327→        </div>
+   328→      </section>
+   329→    );
+   330→  }
+   331→
+   332→  return (
+   333→    <section>
+   334→      {/* Header */}
+   335→      <div className="dashboard-header">
+   336→        <div>
+   337→          <h1 className="dashboard-title">Tableau de bord</h1>
+   338→          <p className="muted">Vue d'ensemble de l'activité hospitalière en temps réel</p>
+   339→        </div>
+   340→        <div className="dashboard-header-actions">
+   341→          <span className="dashboard-timestamp">
+   342→            <Clock size={14} />
+   343→            {new Date().toLocaleDateString("fr-FR", {
+   344→              weekday: "long",
+   345→              year: "numeric",
+   346→              month: "long",
+   347→              day: "numeric",
+   348→            })}
+   349→          </span>
+   350→        </div>
+   351→      </div>
+   352→
+   353→      {/* Row 1 — 8 KPI Cards */}
+   354→      <div className="kpi-grid">
+   355→        <KpiCard
+   356→          title="Patients"
+   357→          value={stats?.patients ?? 0}
+   358→          icon={Users}
+   359→          color="#2563eb"
+   360→          bgColor="#eff6ff"
+   361→          onClick={() => navigate("/patients")}
+   362→        />
+   363→        <KpiCard
+   364→          title="Admissions"
+   365→          value={stats?.admissions ?? 0}
+   366→          icon={ClipboardList}
+   367→          color="#7c3aed"
+   368→          bgColor="#f5f3ff"
+   369→          onClick={() => navigate("/admissions")}
+   370→        />
+   371→        <KpiCard
+   372→          title="Urgences"
+   373→          value={stats?.emergencyVisits ?? 0}
+   374→          icon={AlertTriangle}
+   375→          color="#dc2626"
+   376→          bgColor="#fef2f2"
+   377→          onClick={() => navigate("/emergency")}
+   378→        />
+   379→        <KpiCard
+   380→          title="Hospitalisés"
+   381→          value={stats?.activeStays ?? 0}
+   382→          icon={BedDouble}
+   383→          color="#0f6b3e"
+   384→          bgColor="#e8f5ee"
+   385→          onClick={() => navigate("/hospitalization")}
+   386→        />
+   387→        <KpiCard
+   388→          title="Lits dispo."
+   389→          value={`${stats?.availableBeds ?? 0}/${stats?.totalBeds ?? 0}`}
+   390→          icon={Bed}
+   391→          color={bedOccupancy > 85 ? "#dc2626" : "#0f6b3e"}
+   392→          bgColor={bedOccupancy > 85 ? "#fef2f2" : "#e8f5ee"}
+   393→          subtitle={stats && stats.totalBeds > 0 ? `Occupation : ${bedOccupancy}%` : undefined}
+   394→          onClick={() => navigate("/hospitalization")}
+   395→        />
+   396→        <KpiCard
+   397→          title="Examens attente"
+   398→          value={(stats?.pendingLabOrders ?? 0) + (stats?.pendingImaging ?? 0)}
+   399→          icon={TestTube2}
+   400→          color="#d97706"
+   401→          bgColor="#fffbeb"
+   402→          onClick={() => navigate("/lab")}
+   403→        />
+   404→        <KpiCard
+   405→          title="Alertes"
+   406→          value={stats?.activeAlerts ?? 0}
+   407→          icon={AlertCircle}
+   408→          color={stats && stats.activeAlerts > 0 ? "#dc2626" : "#0f6b3e"}
+   409→          bgColor={stats && stats.activeAlerts > 0 ? "#fef2f2" : "#e8f5ee"}
+   410→        />
+   411→        <KpiCard
+   412→          title="Rapports"
+   413→          value={stats?.draftReports ?? 0}
+   414→          icon={FileText}
+   415→          color="#6366f1"
+   416→          bgColor="#eef2ff"
+   417→          onClick={() => navigate("/reporting")}
+   418→        />
+   419→      </div>
+   420→
+   421→      {/* Row 2 — Charts */}
+   422→      <div className="dashboard-charts-row">
+   423→        <div className="card chart-container">
+   424→          <div className="chart-header">
+   425→            <h3 className="chart-title">
+   426→              <TrendingUp size={16} />
+   427→              Admissions — 7 derniers jours
+   428→            </h3>
+   429→          </div>
+   430→          <div className="chart-body">
+   431→            <ResponsiveContainer width="100%" height={260}>
+   432→              <BarChart data={admissionChartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+   433→                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+   434→                <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
+   435→                <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
+   436→                <Tooltip
+   437→                  contentStyle={{
+   438→                    backgroundColor: "#fff",
+   439→                    border: "1px solid #e2e8f0",
+   440→                    borderRadius: "8px",
+   441→                    fontSize: "13px",
+   442→                    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+   443→                  }}
+   444→                />
+   445→                <Bar dataKey="admissions" fill="#0f6b3e" radius={[4, 4, 0, 0]} barSize={32} />
+   446→              </BarChart>
+   447→            </ResponsiveContainer>
+   448→          </div>
+   449→        </div>
+   450→
+   451→        <div className="card chart-container">
+   452→          <div className="chart-header">
+   453→            <h3 className="chart-title">
+   454→              <BedDouble size={16} />
+   455→              Occupation des lits
+   456→            </h3>
+   457→            {stats && stats.totalBeds > 0 && (
+   458→              <span className={`badge ${bedOccupancy > 85 ? "badge-red" : "badge-green"}`}>
+   459→                {bedOccupancy}% occupés
+   460→              </span>
+   461→            )}
+   462→          </div>
+   463→          <div className="chart-body" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+   464→            <ResponsiveContainer width="100%" height={220}>
+   465→              <PieChart>
+   466→                <Pie
+   467→                  data={bedPieData}
+   468→                  cx="50%"
+   469→                  cy="50%"
+   470→                  innerRadius={60}
+   471→                  outerRadius={90}
+   472→                  paddingAngle={3}
+   473→                  dataKey="value"
+   474→                  stroke="none"
+   475→                >
+   476→                  {bedPieData.map((_entry, index) => (
+   477→                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+   478→                  ))}
+   479→                </Pie>
+   480→                <Tooltip
+   481→                  contentStyle={{
+   482→                    backgroundColor: "#fff",
+   483→                    border: "1px solid #e2e8f0",
+   484→                    borderRadius: "8px",
+   485→                    fontSize: "13px",
+   486→                    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+   487→                  }}
+   488→                />
+   489→              </PieChart>
+   490→            </ResponsiveContainer>
+   491→            <div className="pie-legend">
+   492→              {bedPieData.map((entry, index) => (
+   493→                <div key={entry.name} className="pie-legend-item">
+   494→                  <span
+   495→                    className="pie-legend-dot"
+   496→                    style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
+   497→                  />
+   498→                  <span className="pie-legend-label">{entry.name}</span>
+   499→                  <span className="pie-legend-value">{entry.value}</span>
+   500→                </div>
+   501→              ))}
+   502→            </div>
+   503→          </div>
+   504→        </div>
+   505→      </div>
+   506→
+   507→      {/* Row 3 — Patient Flow + Alerts */}
+   508→      <div className="dashboard-flow-row">
+   509→        {/* Patient Flow Timeline — 2/3 width */}
+   510→        <div className="card dashboard-flow-card">
+   511→          <div className="chart-header">
+   512→            <h3 className="chart-title">
+   513→              <Activity size={16} />
+   514→              Flux patients en temps réel
+   515→            </h3>
+   516→            <span className="badge badge-green">{patientFlow.length} mouvements</span>
+   517→          </div>
+   518→          <div className="timeline-list">
+   519→            {patientFlow.length === 0 ? (
+   520→              <p className="muted" style={{ padding: "16px 0" }}>
+   521→                Aucun mouvement enregistré.
+   522→              </p>
+   523→            ) : (
+   524→              patientFlow.map((event) => <TimelineItem key={event.id} event={event} />)
+   525→            )}
+   526→          </div>
+   527→        </div>
+   528→
+   529→        {/* Priority Alerts — 1/3 width */}
+   530→        <div className="card dashboard-alerts-card">
+   531→          <div className="chart-header">
+   532→            <h3 className="chart-title">
+   533→              <AlertCircle size={16} />
+   534→              Alertes prioritaires
+   535→            </h3>
+   536→            <span className="badge badge-red">{priorityAlerts.length}</span>
+   537→          </div>
+   538→          <div className="alerts-list">
+   539→            {priorityAlerts.length === 0 ? (
+   540→              <p className="muted" style={{ padding: "16px 0" }}>
+   541→                Aucune alerte active.
+   542→              </p>
+   543→            ) : (
+   544→              priorityAlerts.map((alert) => <AlertItem key={alert.id} alert={alert} />)
+   545→            )}
+   546→          </div>
+   547→        </div>
+   548→      </div>
+   549→
+   550→      {/* Row 4 — Tables */}
+   551→      <div className="dashboard-tables-row">
+   552→        {/* Recent Admissions Table */}
+   553→        <div className="card">
+   554→          <div className="chart-header">
+   555→            <h3 className="chart-title">
+   556→              <UserPlus size={16} />
+   557→              Derniers patients admis
+   558→            </h3>
+   559→            <button className="btn btn-outline btn-sm" onClick={() => navigate("/admissions")}>
+   560→              Voir tout <ArrowRight size={14} />
+   561→            </button>
+   562→          </div>
+   563→          {recentAdmissions.length === 0 ? (
+   564→            <p className="muted" style={{ padding: "16px 0" }}>
+   565→              Aucune admission enregistrée.
+   566→            </p>
+   567→          ) : (
+   568→            <div className="table-wrapper">
+   569→              <table className="data-table">
+   570→                <thead>
+   571→                  <tr>
+   572→                    <th>Date</th>
+   573→                    <th>Patient</th>
+   574→                    <th>Motif</th>
+   575→                    <th>Service</th>
+   576→                    <th>Médecin</th>
+   577→                  </tr>
+   578→                </thead>
+   579→                <tbody>
+   580→                  {recentAdmissions.map((a: Row) => (
+   581→                    <tr key={a.id}>
+   582→                      <td style={{ whiteSpace: "nowrap" }}>
+   583→                        {a.admitted_at
+   584→                          ? new Date(a.admitted_at).toLocaleDateString("fr-FR", {
+   585→                              day: "2-digit",
+   586→                              month: "short",
+   587→                            })
+   588→                          : "—"}
+   589→                      </td>
+   590→                      <td style={{ fontWeight: 600 }}>{a.patient_id || "—"}</td>
+   591→                      <td>{a.reason || "—"}</td>
+   592→                      <td>{a.department_id || "—"}</td>
+   593→                      <td>{a.attending_doctor_id || "—"}</td>
+   594→                    </tr>
+   595→                  ))}
+   596→                </tbody>
+   597→              </table>
+   598→            </div>
+   599→          )}
+   600→        </div>
+   601→
+   602→        {/* Reminders */}
+   603→        <div className="card">
+   604→          <div className="chart-header">
+   605→            <h3 className="chart-title">
+   606→              <Clock size={16} />
+   607→              Rappels
+   608→            </h3>
+   609→            <span className="badge badge-yellow">3 en attente</span>
+   610→          </div>
+   611→          <div className="reminders-list">
+   612→            <ReminderItem
+   613→              icon={<FlaskConical size={16} />}
+   614→              title="Résultats laboratoire — Patient Diallo"
+   615→              due="Aujourd'hui, 14h00"
+   616→              type="lab"
+   617→            />
+   618→            <ReminderItem
+   619→              icon={<Stethoscope size={16} />}
+   620→              title="Consultation de suivi — Mme Camara"
+   621→              due="Aujourd'hui, 15h30"
+   622→              type="consult"
+   623→            />
+   624→            <ReminderItem
+   625→              icon={<FileText size={16} />}
+   626→              title="Rapport d'activité hebdomadaire"
+   627→              due="Demain, 09h00"
+   628→              type="report"
+   629→            />
+   630→          </div>
+   631→        </div>
+   632→      </div>
+   633→    </section>
+   634→  );
+   635→}
+   636→
+   637→/* ── KPI Card ─────────────────────────────────────────────── */
+   638→
+   639→function KpiCard({
+   640→  title,
+   641→  value,
+   642→  icon: Icon,
+   643→  color,
+   644→  bgColor,
+   645→  subtitle,
+   646→  onClick,
+   647→}: {
+   648→  title: string;
+   649→  value: number | string;
+   650→  icon: React.ComponentType<{ size?: number; color?: string }>;
+   651→  color: string;
+   652→  bgColor: string;
+   653→  subtitle?: string;
+   654→  onClick?: () => void;
+   655→}) {
+   656→  return (
+   657→    <div
+   658→      className={`kpi-card ${onClick ? "kpi-card-clickable" : ""}`}
+   659→      onClick={onClick}
+   660→      role={onClick ? "button" : undefined}
+   661→      tabIndex={onClick ? 0 : undefined}
+   662→    >
+   663→      <div className="kpi-card-icon" style={{ backgroundColor: bgColor, color }}>
+   664→        <Icon size={22} color={color} />
+   665→      </div>
+   666→      <div className="kpi-card-content">
+   667→        <div className="kpi-card-value" style={{ color }}>
+   668→          {value}
+   669→        </div>
+   670→        <div className="kpi-card-title">{title}</div>
+   671→        {subtitle && <div className="kpi-card-subtitle">{subtitle}</div>}
+   672→      </div>
+   673→      {onClick && (
+   674→        <div className="kpi-card-arrow">
+   675→          <ArrowUpRight size={16} />
+   676→        </div>
+   677→      )}
+   678→    </div>
+   679→  );
+   680→}
+   681→
+   682→/* ── Timeline Item ────────────────────────────────────────── */
+   683→
+   684→function TimelineItem({ event }: { event: PatientFlowEvent }) {
+   685→  const config: Record<string, { color: string; label: string; icon: React.ReactNode }> = {
+   686→    admission: {
+   687→      color: "#0f6b3e",
+   688→      label: "Admission",
+   689→      icon: <UserPlus size={14} />,
+   690→    },
+   691→    discharge: {
+   692→      color: "#2563eb",
+   693→      label: "Sortie",
+   694→      icon: <LogOut size={14} />,
+   695→    },
+   696→    transfer: {
+   697→      color: "#d97706",
+   698→      label: "Transfert",
+   699→      icon: <ArrowRight size={14} />,
+   700→    },
+   701→    emergency: {
+   702→      color: "#dc2626",
+   703→      label: "Urgence",
+   704→      icon: <AlertTriangle size={14} />,
+   705→    },
+   706→  };
+   707→
+   708→  const c = config[event.type] || config.admission;
+   709→  const time = new Date(event.timestamp).toLocaleTimeString("fr-FR", {
+   710→    hour: "2-digit",
+   711→    minute: "2-digit",
+   712→  });
+   713→
+   714→  return (
+   715→    <div className="timeline-item">
+   716→      <div className="timeline-dot" style={{ backgroundColor: c.color }}>
+   717→        {c.icon}
+   718→      </div>
+   719→      <div className="timeline-content">
+   720→        <div className="timeline-main">
+   721→          <span className="timeline-label" style={{ color: c.color }}>
+   722→            {c.label}
+   723→          </span>
+   724→          <span className="timeline-patient">{event.patientName}</span>
+   725→        </div>
+   726→        <div className="timeline-meta">
+   727→          <span className="timeline-dept">{event.department}</span>
+   728→          <span className="timeline-time">{time}</span>
+   729→        </div>
+   730→      </div>
+   731→    </div>
+   732→  );
+   733→}
+   734→
+   735→/* ── Alert Item ───────────────────────────────────────────── */
+   736→
+   737→function AlertItem({ alert }: { alert: PriorityAlert }) {
+   738→  const borderColor: Record<string, string> = {
+   739→    critical: "#dc2626",
+   740→    high: "#f59e0b",
+   741→    warning: "#eab308",
+   742→  };
+   743→  const bgColor: Record<string, string> = {
+   744→    critical: "#fef2f2",
+   745→    high: "#fffbeb",
+   746→    warning: "#fefce8",
+   747→  };
+   748→
+   749→  return (
+   750→    <div
+   751→      className="alert-item"
+   752→      style={{ borderLeftColor: borderColor[alert.severity], backgroundColor: bgColor[alert.severity] }}
+   753→    >
+   754→      <div className="alert-item-header">
+   755→        <span className="alert-item-title">{alert.title}</span>
+   756→        <span className="alert-item-time">{alert.time}</span>
+   757→      </div>
+   758→      <p className="alert-item-desc">{alert.description}</p>
+   759→    </div>
+   760→  );
+   761→}
+   762→
+   763→/* ── Reminder Item ────────────────────────────────────────── */
+   764→
+   765→function ReminderItem({
+   766→  icon,
+   767→  title,
+   768→  due,
+   769→  type,
+   770→}: {
+   771→  icon: React.ReactNode;
+   772→  title: string;
+   773→  due: string;
+   774→  type: string;
+   775→}) {
+   776→  const colorMap: Record<string, string> = {
+   777→    lab: "#d97706",
+   778→    consult: "#2563eb",
+   779→    report: "#6366f1",
+   780→  };
+   781→
+   782→  return (
+   783→    <div className="reminder-item">
+   784→      <div className="reminder-icon" style={{ color: colorMap[type] || "#64748b" }}>
+   785→        {icon}
+   786→      </div>
+   787→      <div className="reminder-content">
+   788→        <div className="reminder-title">{title}</div>
+   789→        <div className="reminder-due">{due}</div>
+   790→      </div>
+   791→    </div>
+   792→  );
+   793→}
+   794→

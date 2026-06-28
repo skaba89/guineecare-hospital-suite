@@ -1,0 +1,1410 @@
+     1→import { useCallback, useEffect, useState } from "react";
+     2→import {
+     3→  Package,
+     4→  Pill,
+     5→  AlertTriangle,
+     6→  TrendingUp,
+     7→  Plus,
+     8→  ShoppingCart,
+     9→  ArrowDownCircle,
+    10→  ArrowUpCircle,
+    11→  CheckCircle2,
+    12→  XCircle,
+    13→  Trash2,
+    14→} from "lucide-react";
+    15→import {
+    16→  BarChart,
+    17→  Bar,
+    18→  XAxis,
+    19→  YAxis,
+    20→  CartesianGrid,
+    21→  Tooltip,
+    22→  ResponsiveContainer,
+    23→  Cell,
+    24→} from "recharts";
+    25→import { apiRequest } from "../services/api";
+    26→import { LookupData, Row } from "../types";
+    27→import { showToast } from "../components/Toast";
+    28→import { buildOptions, firstValue } from "../utils/options";
+    29→import { usePaginatedList } from "../hooks/usePaginatedList";
+    30→import { Pagination } from "../components/Pagination";
+    31→import { useT } from "../i18n";
+    32→
+    33→type TabKey = "stock" | "dispensation" | "products" | "movements";
+    34→
+    35→const TABS: { key: TabKey; label: string }[] = [
+    36→  { key: "stock", label: "Stock" },
+    37→  { key: "dispensation", label: "Dispensation" },
+    38→  { key: "products", label: "Produits" },
+    39→  { key: "movements", label: "Mouvements" },
+    40→];
+    41→
+    42→const CATEGORY_OPTIONS = [
+    43→  { value: "", label: "Toutes catégories" },
+    44→  { value: "ANTALGIC", label: "Antalgique" },
+    45→  { value: "ANTIBIOTIC", label: "Antibiotique" },
+    46→  { value: "ANTIVIRAL", label: "Antiviral" },
+    47→  { value: "ANTIPARASITIC", label: "Antiparasitaire" },
+    48→  { value: "ANTIHYPERTENSIVE", label: "Antihypertenseur" },
+    49→  { value: "ANTIDIABETIC", label: "Antidiabétique" },
+    50→  { value: "ANTIINFLAMMATORY", label: "Anti-inflammatoire" },
+    51→  { value: "ANTIHISTAMINE", label: "Antihistaminique" },
+    52→  { value: "BRONCHODILATOR", label: "Bronchodilatateur" },
+    53→  { value: "DIURETIC", label: "Diurétique" },
+    54→  { value: "VITAMIN", label: "Vitamine" },
+    55→  { value: "VACCINE", label: "Vaccin" },
+    56→  { value: "OTHER", label: "Autre" },
+    57→];
+    58→
+    59→const FORM_OPTIONS = [
+    60→  { value: "TABLET", label: "Comprimé" },
+    61→  { value: "CAPSULE", label: "Gélule" },
+    62→  { value: "SYRUP", label: "Sirop" },
+    63→  { value: "INJECTION", label: "Injection" },
+    64→  { value: "CREAM", label: "Crème" },
+    65→  { value: "OINTMENT", label: "Pommade" },
+    66→  { value: "DROPS", label: "Gouttes" },
+    67→  { value: "SUPPOSITORY", label: "Suppositoire" },
+    68→  { value: "POWDER", label: "Poudre" },
+    69→  { value: "SUSPENSION", label: "Suspension" },
+    70→];
+    71→
+    72→const MOCK_TOP_DISPENSED = [
+    73→  { name: "Paracétamol", value: 342 },
+    74→  { name: "Amoxicilline", value: 218 },
+    75→  { name: "Métronidazole", value: 176 },
+    76→  { name: "Cotrimoxazole", value: 154 },
+    77→  { name: "Ibuprofène", value: 129 },
+    78→];
+    79→
+    80→const BAR_COLORS = ["#0f6b3e", "#16a34a", "#22c55e", "#4ade80", "#86efac"];
+    81→
+    82→export function PharmacyPage({
+    83→  lookups,
+    84→  onCreated,
+    85→}: {
+    86→  lookups: LookupData;
+    87→  onCreated: () => void;
+    88→}) {
+    89→  const t = useT();
+    90→  const [activeTab, setActiveTab] = useState<TabKey>("stock");
+    91→
+    92→  return (
+    93→    <section>
+    94→      <h1>{t("nav.pharmacy")}</h1>
+    95→      <p className="muted">
+    96→        Gestion des stocks, dispensation et mouvements pharmaceutiques.
+    97→      </p>
+    98→
+    99→      <div className="tab-bar">
+   100→        {TABS.map((tab) => (
+   101→          <button
+   102→            key={tab.key}
+   103→            className={`tab-button ${activeTab === tab.key ? "active" : ""}`}
+   104→            onClick={() => setActiveTab(tab.key)}
+   105→          >
+   106→            {tab.label}
+   107→          </button>
+   108→        ))}
+   109→      </div>
+   110→
+   111→      {activeTab === "stock" && <StockTab lookups={lookups} />}
+   112→      {activeTab === "dispensation" && (
+   113→        <DispensationTab lookups={lookups} onCreated={onCreated} />
+   114→      )}
+   115→      {activeTab === "products" && (
+   116→        <ProductsTab lookups={lookups} onCreated={onCreated} />
+   117→      )}
+   118→      {activeTab === "movements" && (
+   119→        <MovementsTab lookups={lookups} onCreated={onCreated} />
+   120→      )}
+   121→    </section>
+   122→  );
+   123→}
+   124→
+   125→/* ═════════════════════════════════════════════════════════════════
+   126→   Stock Tab
+   127→   ═════════════════════════════════════════════════════════════════ */
+   128→
+   129→function StockTab({ lookups }: { lookups: LookupData }) {
+   130→  // Référence produits (petite table) pour l'enrichissement + KPIs
+   131→  const [products, setProducts] = useState<Row[]>([]);
+   132→  const [categoryFilter, setCategoryFilter] = useState("");
+   133→
+   134→  // Liste paginée des stocks (recherche server-side + debounce 300ms)
+   135→  const {
+   136→    items: stock,
+   137→    total,
+   138→    page,
+   139→    totalPages,
+   140→    loading,
+   141→    error,
+   142→    search,
+   143→    setSearch,
+   144→    setPage,
+   145→    reload,
+   146→  } = usePaginatedList<Row>("/pharmacy/stock", {
+   147→    pageSize: 20,
+   148→    debounceMs: 300,
+   149→  });
+   150→
+   151→  const options = buildOptions(lookups);
+   152→  const facilityId = firstValue(options.facilities);
+   153→
+   154→  // Charger les produits (petite table de référence) une seule fois
+   155→  useEffect(() => {
+   156→    async function loadProducts() {
+   157→      try {
+   158→        const res = await apiRequest<any>("/pharmacy/products?page_size=1000");
+   159→        setProducts(Array.isArray(res.data) ? res.data : []);
+   160→      } catch {
+   161→        // silent — KPIs ne seront pas bloqués
+   162→      }
+   163→    }
+   164→    loadProducts();
+   165→  }, []);
+   166→
+   167→  // Réagir aux refresh globaux (création d'mouvement ailleurs)
+   168→  useEffect(() => {
+   169→    const handler = () => reload();
+   170→    window.addEventListener("refresh-resource", handler);
+   171→    return () => window.removeEventListener("refresh-resource", handler);
+   172→  }, [reload]);
+   173→
+   174→  // Build enriched stock items by merging stock with product info
+   175→  const enrichedStock: Row[] = stock.map((s) => {
+   176→    const prod = products.find((p: Row) => p.id === s.product_id) || {};
+   177→    return { ...s, ...prod, product_name: prod.name, product_code: prod.code };
+   178→  });
+   179→
+   180→  // Filtre catégorie appliqué côté client (le backend ne supporte pas category sur /stock)
+   181→  const filtered = categoryFilter
+   182→    ? enrichedStock.filter((item: Row) => item.category === categoryFilter)
+   183→    : enrichedStock;
+   184→
+   185→  // KPIs
+   186→  const totalProducts = products.length;
+   187→  const totalUnits = stock.reduce(
+   188→    (sum, s) => sum + (s.quantity_available || 0),
+   189→    0
+   190→  );
+   191→  const lowStockCount = stock.filter(
+   192→    (s) =>
+   193→      s.quantity_available > 0 &&
+   194→      s.quantity_available <= (s.min_threshold || 0)
+   195→  ).length;
+   196→  const emptyStockCount = stock.filter(
+   197→    (s) => s.quantity_available === 0
+   198→  ).length;
+   199→  const alertCount = lowStockCount + emptyStockCount;
+   200→  const estimatedValue = stock.reduce(
+   201→    (sum, s) => sum + (s.quantity_available || 0) * 1500,
+   202→    0
+   203→  );
+   204→
+   205→  function getStockStatus(item: Row): string {
+   206→    const qty = Number(item.quantity_available) || 0;
+   207→    const threshold = Number(item.min_threshold) || 0;
+   208→    if (qty === 0) return "epuise";
+   209→    if (qty <= threshold) return "bas";
+   210→    return "ok";
+   211→  }
+   212→
+   213→  return (
+   214→    <>
+   215→      {/* KPI Cards */}
+   216→      <div className="kpi-row">
+   217→        <div className="kpi-card">
+   218→          <div
+   219→            className="kpi-card-icon"
+   220→            style={{ background: "var(--primary-light)", color: "var(--primary)" }}
+   221→          >
+   222→            <Package size={22} />
+   223→          </div>
+   224→          <div className="kpi-card-content">
+   225→            <div className="kpi-card-value">{totalProducts}</div>
+   226→            <div className="kpi-card-title">Total produits</div>
+   227→          </div>
+   228→        </div>
+   229→        <div className="kpi-card">
+   230→          <div
+   231→            className="kpi-card-icon"
+   232→            style={{ background: "var(--info-light)", color: "var(--info)" }}
+   233→          >
+   234→            <Pill size={22} />
+   235→          </div>
+   236→          <div className="kpi-card-content">
+   237→            <div className="kpi-card-value">{totalUnits.toLocaleString("fr-FR")}</div>
+   238→            <div className="kpi-card-title">Stock total unités</div>
+   239→          </div>
+   240→        </div>
+   241→        <div className="kpi-card">
+   242→          <div
+   243→            className="kpi-card-icon"
+   244→            style={{ background: "var(--danger-light)", color: "var(--danger)" }}
+   245→          >
+   246→            <AlertTriangle size={22} />
+   247→          </div>
+   248→          <div className="kpi-card-content">
+   249→            <div className="kpi-card-value" style={{ color: "var(--danger)" }}>
+   250→              {alertCount}
+   251→            </div>
+   252→            <div className="kpi-card-title">Alertes stock bas</div>
+   253→          </div>
+   254→        </div>
+   255→        <div className="kpi-card">
+   256→          <div
+   257→            className="kpi-card-icon"
+   258→            style={{ background: "var(--success-light)", color: "var(--success)" }}
+   259→          >
+   260→            <TrendingUp size={22} />
+   261→          </div>
+   262→          <div className="kpi-card-content">
+   263→            <div className="kpi-card-value">
+   264→              {estimatedValue.toLocaleString("fr-FR")} GNF
+   265→            </div>
+   266→            <div className="kpi-card-title">Valeur stock estimée</div>
+   267→          </div>
+   268→        </div>
+   269→      </div>
+   270→
+   271→      {/* Barre de recherche + filtre catégorie (recherche server-side, debounce 300ms) */}
+   272→      <div
+   273→        style={{
+   274→          display: "flex",
+   275→          gap: 12,
+   276→          alignItems: "center",
+   277→          marginBottom: 12,
+   278→          flexWrap: "wrap",
+   279→        }}
+   280→      >
+   281→        <input
+   282→          type="text"
+   283→          placeholder="🔍 Rechercher un produit..."
+   284→          value={search}
+   285→          onChange={(e) => setSearch(e.target.value)}
+   286→          style={{ flex: 1, minWidth: 250, padding: "8px 12px" }}
+   287→        />
+   288→        <select
+   289→          value={categoryFilter}
+   290→          onChange={(e) => setCategoryFilter(e.target.value)}
+   291→          style={{ padding: "8px 12px", minWidth: 180 }}
+   292→        >
+   293→          {CATEGORY_OPTIONS.map((o) => (
+   294→            <option key={o.value} value={o.value}>
+   295→              {o.label}
+   296→            </option>
+   297→          ))}
+   298→        </select>
+   299→        <button
+   300→          className="primary-button"
+   301→          style={{ display: "flex", alignItems: "center", gap: "6px" }}
+   302→        >
+   303→          <ShoppingCart size={16} />
+   304→          Commande fournisseur
+   305→        </button>
+   306→      </div>
+   307→
+   308→      {/* Stock Table */}
+   309→      {loading ? (
+   310→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   311→          <div className="spinner" />
+   312→        </div>
+   313→      ) : error ? (
+   314→        <div className="card" style={{ padding: "16px", color: "var(--danger)" }}>
+   315→          {error}
+   316→        </div>
+   317→      ) : (
+   318→        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+   319→          <div className="table-wrapper">
+   320→            <table className="table">
+   321→              <thead>
+   322→                <tr>
+   323→                  <th>Produit</th>
+   324→                  <th>Catégorie</th>
+   325→                  <th>Forme</th>
+   326→                  <th>Dosage</th>
+   327→                  <th style={{ textAlign: "right" }}>Qté dispo</th>
+   328→                  <th style={{ textAlign: "right" }}>Seuil min</th>
+   329→                  <th>Statut</th>
+   330→                  <th>Actions</th>
+   331→                </tr>
+   332→              </thead>
+   333→              <tbody>
+   334→                {filtered.length === 0 ? (
+   335→                  <tr>
+   336→                    <td colSpan={8} style={{ textAlign: "center", padding: "24px" }}>
+   337→                      <span className="muted">Aucun produit en stock.</span>
+   338→                    </td>
+   339→                  </tr>
+   340→                ) : (
+   341→                  filtered.map((item: Row) => {
+   342→                    const status = getStockStatus(item);
+   343→                    return (
+   344→                      <tr
+   345→                        key={item.id}
+   346→                        style={{
+   347→                          background:
+   348→                            status === "epuise"
+   349→                              ? "var(--danger-light)"
+   350→                              : status === "bas"
+   351→                              ? "var(--warning-light)"
+   352→                              : "inherit",
+   353→                        }}
+   354→                      >
+   355→                        <td style={{ fontWeight: 600 }}>
+   356→                          {item.product_name || item.product_id || "—"}
+   357→                          {item.product_code && (
+   358→                            <span
+   359→                              className="muted"
+   360→                              style={{ fontWeight: 400, marginLeft: "8px", fontSize: "12px" }}
+   361→                            >
+   362→                              ({item.product_code})
+   363→                            </span>
+   364→                          )}
+   365→                        </td>
+   366→                        <td>{item.category || "—"}</td>
+   367→                        <td>{item.form || "—"}</td>
+   368→                        <td>{item.dosage || "—"}</td>
+   369→                        <td style={{ textAlign: "right", fontWeight: 700 }}>
+   370→                          {item.quantity_available ?? 0}
+   371→                        </td>
+   372→                        <td style={{ textAlign: "right" }}>
+   373→                          {item.min_threshold ?? 0}
+   374→                        </td>
+   375→                        <td>
+   376→                          <span
+   377→                            className={`badge ${
+   378→                              status === "ok"
+   379→                                ? "badge-green"
+   380→                                : status === "bas"
+   381→                                ? "badge-yellow"
+   382→                                : "badge-red"
+   383→                            }`}
+   384→                          >
+   385→                            {status === "ok"
+   386→                              ? "OK"
+   387→                              : status === "bas"
+   388→                              ? "Bas"
+   389→                              : "Épuisé"}
+   390→                          </span>
+   391→                        </td>
+   392→                        <td>
+   393→                          <button
+   394→                            className="secondary-button"
+   395→                            style={{ padding: "4px 10px", fontSize: "12px" }}
+   396→                            onClick={() =>
+   397→                              alert(
+   398→                                `Détail produit: ${item.product_name || item.product_id}`
+   399→                              )
+   400→                            }
+   401→                          >
+   402→                            Détail
+   403→                          </button>
+   404→                        </td>
+   405→                      </tr>
+   406→                    );
+   407→                  })
+   408→                )}
+   409→              </tbody>
+   410→            </table>
+   411→          </div>
+   412→          <div style={{ padding: "0 16px" }}>
+   413→            <Pagination
+   414→              page={page}
+   415→              totalPages={totalPages}
+   416→              total={total}
+   417→              onPageChange={setPage}
+   418→              loading={loading}
+   419→            />
+   420→          </div>
+   421→        </div>
+   422→      )}
+   423→
+   424→      {/* Chart */}
+   425→      <div className="card chart-container" style={{ marginTop: "20px" }}>
+   426→        <div className="chart-header">
+   427→          <h3 className="chart-title">
+   428→            <TrendingUp size={16} />
+   429→            Top 5 produits les plus dispensés
+   430→          </h3>
+   431→        </div>
+   432→        <div className="chart-body" style={{ height: 260 }}>
+   433→          <ResponsiveContainer width="100%" height="100%">
+   434→            <BarChart data={MOCK_TOP_DISPENSED} layout="vertical">
+   435→              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+   436→              <XAxis type="number" />
+   437→              <YAxis
+   438→                type="category"
+   439→                dataKey="name"
+   440→                width={120}
+   441→                tick={{ fontSize: 13 }}
+   442→              />
+   443→              <Tooltip />
+   444→              <Bar dataKey="value" radius={[0, 6, 6, 0]}>
+   445→                {MOCK_TOP_DISPENSED.map((_entry, index) => (
+   446→                  <Cell key={index} fill={BAR_COLORS[index % BAR_COLORS.length]} />
+   447→                ))}
+   448→              </Bar>
+   449→            </BarChart>
+   450→          </ResponsiveContainer>
+   451→        </div>
+   452→      </div>
+   453→    </>
+   454→  );
+   455→}
+   456→
+   457→/* ═════════════════════════════════════════════════════════════════
+   458→   Dispensation Tab
+   459→   ═════════════════════════════════════════════════════════════════ */
+   460→
+   461→interface DispensationLine {
+   462→  id: string;
+   463→  product_id: string;
+   464→  quantity: number;
+   465→}
+   466→
+   467→function DispensationTab({
+   468→  lookups,
+   469→  onCreated,
+   470→}: {
+   471→  lookups: LookupData;
+   472→  onCreated: () => void;
+   473→}) {
+   474→  const options = buildOptions(lookups);
+   475→  const facilityId = firstValue(options.facilities);
+   476→  const doctors = lookups.staff.filter((s) => s.role === "DOCTOR");
+   477→  const doctorOptions = doctors.map((d) => ({
+   478→    value: d.id,
+   479→    label: `${d.last_name || ""} ${d.first_name || ""} — ${d.role || ""}`.trim(),
+   480→  }));
+   481→
+   482→  const [patientId, setPatientId] = useState("");
+   483→  const [prescription, setPrescription] = useState("");
+   484→  const [prescriberId, setPrescriberId] = useState("");
+   485→  const [lines, setLines] = useState<DispensationLine[]>([]);
+   486→  const [submitting, setSubmitting] = useState(false);
+   487→
+   488→  const [stock, setStock] = useState<Row[]>([]);
+   489→  const [recentDispensations, setRecentDispensations] = useState<Row[]>([]);
+   490→
+   491→  const loadStock = useCallback(async () => {
+   492→    try {
+   493→      const res = await apiRequest<any>("/pharmacy/stock?page_size=1000");
+   494→      setStock(Array.isArray(res.data) ? res.data : []);
+   495→    } catch {
+   496→      /* silent */
+   497→    }
+   498→  }, []);
+   499→
+   500→  const loadMovements = useCallback(async () => {
+   501→    try {
+   502→      const res = await apiRequest<any>("/pharmacy/stock/movements?page_size=1000");
+   503→      const movements = Array.isArray(res.data) ? res.data : [];
+   504→      setRecentDispensations(movements.filter((m: Row) => m.movement_type === "OUT"));
+   505→    } catch {
+   506→      /* silent */
+   507→    }
+   508→  }, []);
+   509→
+   510→  useEffect(() => {
+   511→    loadStock();
+   512→    loadMovements();
+   513→    const handler = () => {
+   514→      loadStock();
+   515→      loadMovements();
+   516→    };
+   517→    window.addEventListener("refresh-resource", handler);
+   518→    return () => window.removeEventListener("refresh-resource", handler);
+   519→  }, [loadStock, loadMovements]);
+   520→
+   521→  function addLine() {
+   522→    setLines([
+   523→      ...lines,
+   524→      { id: `line-${Date.now()}`, product_id: "", quantity: 1 },
+   525→    ]);
+   526→  }
+   527→
+   528→  function removeLine(lineId: string) {
+   529→    setLines(lines.filter((l) => l.id !== lineId));
+   530→  }
+   531→
+   532→  function updateLine(lineId: string, field: "product_id" | "quantity", value: string | number) {
+   533→    setLines(
+   534→      lines.map((l) => (l.id === lineId ? { ...l, [field]: value } : l))
+   535→    );
+   536→  }
+   537→
+   538→  function getStockForProduct(productId: string): number {
+   539→    const item = stock.find((s) => s.product_id === productId);
+   540→    return item?.quantity_available ?? 0;
+   541→  }
+   542→
+   543→  async function handleDispense(e: React.FormEvent) {
+   544→    e.preventDefault();
+   545→    if (!patientId || lines.length === 0) {
+   546→      showToast("Veuillez sélectionner un patient et au moins un produit.", "error");
+   547→      return;
+   548→    }
+   549→
+   550→    const invalidLines = lines.filter(
+   551→      (l) => !l.product_id || l.quantity <= 0
+   552→    );
+   553→    if (invalidLines.length > 0) {
+   554→      showToast("Veuillez remplir toutes les lignes de prescription.", "error");
+   555→      return;
+   556→    }
+   557→
+   558→    setSubmitting(true);
+   559→    try {
+   560→      for (const line of lines) {
+   561→        await apiRequest("/pharmacy/stock/movements", {
+   562→          method: "POST",
+   563→          body: JSON.stringify({
+   564→            facility_id: facilityId,
+   565→            product_id: line.product_id,
+   566→            movement_type: "OUT",
+   567→            quantity: line.quantity,
+   568→            reason: `Dispensation — Patient: ${patientId} — Prescripteur: ${prescriberId || "N/A"} — Ordonnance: ${prescription || "N/A"}`,
+   569→          }),
+   570→        });
+   571→      }
+   572→      showToast("Dispensation enregistrée avec succès.", "success");
+   573→      setPatientId("");
+   574→      setPrescription("");
+   575→      setPrescriberId("");
+   576→      setLines([]);
+   577→      onCreated();
+   578→      loadStock();
+   579→      loadMovements();
+   580→    } catch (err: any) {
+   581→      showToast(err.message || "Erreur lors de la dispensation.", "error");
+   582→    } finally {
+   583→      setSubmitting(false);
+   584→    }
+   585→  }
+   586→
+   587→  return (
+   588→    <>
+   589→      {/* Dispensation Form */}
+   590→      <div className="card form-card">
+   591→        <h3 style={{ marginBottom: "16px" }}>Nouvelle dispensation</h3>
+   592→        <form onSubmit={handleDispense}>
+   593→          <div className="form-grid" style={{ marginBottom: "16px" }}>
+   594→            <label className="form-control">
+   595→              Patient
+   596→              <select
+   597→                value={patientId}
+   598→                onChange={(e) => setPatientId(e.target.value)}
+   599→                required
+   600→              >
+   601→                <option value="">— Choisir un patient —</option>
+   602→                {options.patients.map((o) => (
+   603→                  <option key={o.value} value={o.value}>
+   604→                    {o.label}
+   605→                  </option>
+   606→                ))}
+   607→              </select>
+   608→            </label>
+   609→            <label className="form-control">
+   610→              Prescripteur
+   611→              <select
+   612→                value={prescriberId}
+   613→                onChange={(e) => setPrescriberId(e.target.value)}
+   614→              >
+   615→                <option value="">— Choisir un médecin —</option>
+   616→                {doctorOptions.map((o) => (
+   617→                  <option key={o.value} value={o.value}>
+   618→                    {o.label}
+   619→                  </option>
+   620→                ))}
+   621→              </select>
+   622→            </label>
+   623→          </div>
+   624→
+   625→          <label className="form-control" style={{ marginBottom: "16px" }}>
+   626→            Ordonnance
+   627→            <textarea
+   628→              value={prescription}
+   629→              onChange={(e) => setPrescription(e.target.value)}
+   630→              placeholder="Détails de l'ordonnance..."
+   631→              rows={2}
+   632→              style={{
+   633→                width: "100%",
+   634→                border: "1px solid var(--border)",
+   635→                borderRadius: "var(--radius-sm)",
+   636→                padding: "10px 12px",
+   637→                font: "inherit",
+   638→                resize: "vertical",
+   639→              }}
+   640→            />
+   641→          </label>
+   642→
+   643→          {/* Prescription Lines */}
+   644→          <div style={{ marginBottom: "16px" }}>
+   645→            <div
+   646→              style={{
+   647→                display: "flex",
+   648→                justifyContent: "space-between",
+   649→                alignItems: "center",
+   650→                marginBottom: "8px",
+   651→              }}
+   652→            >
+   653→              <strong style={{ fontSize: "14px" }}>Lignes de prescription</strong>
+   654→              <button
+   655→                type="button"
+   656→                className="secondary-button"
+   657→                style={{ padding: "6px 12px", fontSize: "13px", display: "flex", alignItems: "center", gap: "4px" }}
+   658→                onClick={addLine}
+   659→              >
+   660→                <Plus size={14} /> Ajouter ligne
+   661→              </button>
+   662→            </div>
+   663→
+   664→            {lines.length === 0 && (
+   665→              <p className="muted" style={{ fontSize: "13px" }}>
+   666→                Aucune ligne ajoutée. Cliquez sur "Ajouter ligne" pour commencer.
+   667→              </p>
+   668→            )}
+   669→
+   670→            {lines.map((line) => {
+   671→              const available = getStockForProduct(line.product_id);
+   672→              const hasStock = line.product_id ? available >= line.quantity : true;
+   673→              return (
+   674→                <div
+   675→                  key={line.id}
+   676→                  style={{
+   677→                    display: "flex",
+   678→                    gap: "12px",
+   679→                    alignItems: "center",
+   680→                    marginBottom: "8px",
+   681→                    padding: "8px 12px",
+   682→                    background: "var(--bg)",
+   683→                    borderRadius: "var(--radius-md)",
+   684→                    border: "1px solid var(--border-light)",
+   685→                  }}
+   686→                >
+   687→                  <select
+   688→                    value={line.product_id}
+   689→                    onChange={(e) => updateLine(line.id, "product_id", e.target.value)}
+   690→                    style={{ flex: 2 }}
+   691→                    required
+   692→                  >
+   693→                    <option value="">— Produit —</option>
+   694→                    {options.products.map((o) => (
+   695→                      <option key={o.value} value={o.value}>
+   696→                        {o.label}
+   697→                      </option>
+   698→                    ))}
+   699→                  </select>
+   700→                  <input
+   701→                    type="number"
+   702→                    min={1}
+   703→                    value={line.quantity}
+   704→                    onChange={(e) =>
+   705→                      updateLine(line.id, "quantity", parseInt(e.target.value) || 1)
+   706→                    }
+   707→                    style={{ flex: 0.5, minWidth: "80px" }}
+   708→                    required
+   709→                  />
+   710→                  {line.product_id && (
+   711→                    <span
+   712→                      style={{
+   713→                        display: "flex",
+   714→                        alignItems: "center",
+   715→                        gap: "4px",
+   716→                        fontSize: "12px",
+   717→                        fontWeight: 600,
+   718→                        color: hasStock ? "var(--success)" : "var(--danger)",
+   719→                      }}
+   720→                    >
+   721→                      {hasStock ? (
+   722→                        <CheckCircle2 size={14} />
+   723→                      ) : (
+   724→                        <XCircle size={14} />
+   725→                      )}
+   726→                      Stock: {available}
+   727→                    </span>
+   728→                  )}
+   729→                  <button
+   730→                    type="button"
+   731→                    onClick={() => removeLine(line.id)}
+   732→                    style={{
+   733→                      border: "none",
+   734→                      background: "transparent",
+   735→                      color: "var(--danger)",
+   736→                      cursor: "pointer",
+   737→                      padding: "4px",
+   738→                    }}
+   739→                  >
+   740→                    <Trash2 size={16} />
+   741→                  </button>
+   742→                </div>
+   743→              );
+   744→            })}
+   745→          </div>
+   746→
+   747→          <div className="form-actions">
+   748→            <button className="primary-button" type="submit" disabled={submitting}>
+   749→              {submitting ? "Dispensation en cours..." : "Valider la dispensation"}
+   750→            </button>
+   751→          </div>
+   752→        </form>
+   753→      </div>
+   754→
+   755→      {/* Recent Dispensations */}
+   756→      <div className="card" style={{ marginTop: "20px", padding: 0, overflow: "hidden" }}>
+   757→        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
+   758→          <h3 style={{ fontSize: "15px" }}>Dispensations récentes</h3>
+   759→        </div>
+   760→        <div className="table-wrapper">
+   761→          <table className="table">
+   762→            <thead>
+   763→              <tr>
+   764→                <th>Date</th>
+   765→                <th>Produit</th>
+   766→                <th>Quantité</th>
+   767→                <th>Motif</th>
+   768→              </tr>
+   769→            </thead>
+   770→            <tbody>
+   771→              {recentDispensations.length === 0 ? (
+   772→                <tr>
+   773→                  <td colSpan={4} style={{ textAlign: "center", padding: "24px" }}>
+   774→                    <span className="muted">Aucune dispensation récente.</span>
+   775→                  </td>
+   776→                </tr>
+   777→              ) : (
+   778→                recentDispensations.map((d) => (
+   779→                  <tr key={d.id}>
+   780→                    <td style={{ whiteSpace: "nowrap" }}>
+   781→                      {d.performed_at
+   782→                        ? new Date(d.performed_at).toLocaleString("fr-FR")
+   783→                        : "—"}
+   784→                    </td>
+   785→                    <td style={{ fontWeight: 600 }}>{d.product_id}</td>
+   786→                    <td>{d.quantity}</td>
+   787→                    <td style={{ fontSize: "13px", maxWidth: "300px", overflow: "hidden", textOverflow: "ellipsis" }}>
+   788→                      {d.reason || "—"}
+   789→                    </td>
+   790→                  </tr>
+   791→                ))
+   792→              )}
+   793→            </tbody>
+   794→          </table>
+   795→        </div>
+   796→      </div>
+   797→    </>
+   798→  );
+   799→}
+   800→
+   801→/* ═════════════════════════════════════════════════════════════════
+   802→   Products Tab
+   803→   ═════════════════════════════════════════════════════════════════ */
+   804→
+   805→function ProductsTab({
+   806→  lookups,
+   807→  onCreated,
+   808→}: {
+   809→  lookups: LookupData;
+   810→  onCreated: () => void;
+   811→}) {
+   812→  const options = buildOptions(lookups);
+   813→  const facilityId = firstValue(options.facilities);
+   814→
+   815→  const [showForm, setShowForm] = useState(false);
+   816→  const [submitting, setSubmitting] = useState(false);
+   817→  const [categoryFilter, setCategoryFilter] = useState("");
+   818→
+   819→  // Liste paginée des produits (recherche server-side + filtre catégorie + debounce 300ms)
+   820→  const {
+   821→    items: products,
+   822→    total,
+   823→    page,
+   824→    totalPages,
+   825→    loading,
+   826→    error,
+   827→    search,
+   828→    setSearch,
+   829→    setPage,
+   830→    reload,
+   831→  } = usePaginatedList<Row>("/pharmacy/products", {
+   832→    pageSize: 20,
+   833→    debounceMs: 300,
+   834→    extraParams: { category: categoryFilter || null },
+   835→  });
+   836→
+   837→  // Form fields
+   838→  const [code, setCode] = useState("");
+   839→  const [name, setName] = useState("");
+   840→  const [category, setCategory] = useState("ANTALGIC");
+   841→  const [form, setForm] = useState("TABLET");
+   842→  const [dosage, setDosage] = useState("");
+   843→  const [minThreshold, setMinThreshold] = useState("10");
+   844→
+   845→  // Réagir aux refresh globaux (création d'produit ailleurs)
+   846→  useEffect(() => {
+   847→    const handler = () => reload();
+   848→    window.addEventListener("refresh-resource", handler);
+   849→    return () => window.removeEventListener("refresh-resource", handler);
+   850→  }, [reload]);
+   851→
+   852→  function resetForm() {
+   853→    setCode("");
+   854→    setName("");
+   855→    setCategory("ANTALGIC");
+   856→    setForm("TABLET");
+   857→    setDosage("");
+   858→    setMinThreshold("10");
+   859→  }
+   860→
+   861→  async function handleSubmit(e: React.FormEvent) {
+   862→    e.preventDefault();
+   863→    if (!code || !name) {
+   864→      showToast("Le code et le nom sont obligatoires.", "error");
+   865→      return;
+   866→    }
+   867→    setSubmitting(true);
+   868→    try {
+   869→      await apiRequest("/pharmacy/products", {
+   870→        method: "POST",
+   871→        body: JSON.stringify({
+   872→          facility_id: facilityId,
+   873→          code,
+   874→          name,
+   875→          category,
+   876→          form,
+   877→          dosage: dosage || undefined,
+   878→        }),
+   879→      });
+   880→      showToast("Produit créé avec succès.", "success");
+   881→      resetForm();
+   882→      setShowForm(false);
+   883→      onCreated();
+   884→      reload();
+   885→    } catch (err: any) {
+   886→      showToast(err.message || "Erreur lors de la création.", "error");
+   887→    } finally {
+   888→      setSubmitting(false);
+   889→    }
+   890→  }
+   891→
+   892→  const categoryLabel: Record<string, string> = {};
+   893→  CATEGORY_OPTIONS.forEach((o) => {
+   894→    categoryLabel[o.value] = o.label;
+   895→  });
+   896→
+   897→  const formLabel: Record<string, string> = {};
+   898→  FORM_OPTIONS.forEach((o) => {
+   899→    formLabel[o.value] = o.label;
+   900→  });
+   901→
+   902→  return (
+   903→    <>
+   904→      <div className="section-header">
+   905→        <h2>Catalogue produits</h2>
+   906→        <button
+   907→          className="primary-button"
+   908→          style={{ display: "flex", alignItems: "center", gap: "6px" }}
+   909→          onClick={() => setShowForm(!showForm)}
+   910→        >
+   911→          <Plus size={16} />
+   912→          {showForm ? "Annuler" : "Nouveau produit"}
+   913→        </button>
+   914→      </div>
+   915→
+   916→      {showForm && (
+   917→        <div className="card form-card">
+   918→          <h3 style={{ marginBottom: "16px" }}>Nouveau produit</h3>
+   919→          <form onSubmit={handleSubmit}>
+   920→            <div className="form-grid">
+   921→              <label className="form-control">
+   922→                Code *
+   923→                <input
+   924→                  type="text"
+   925→                  value={code}
+   926→                  onChange={(e) => setCode(e.target.value)}
+   927→                  placeholder="Ex: PARAC500"
+   928→                  required
+   929→                />
+   930→              </label>
+   931→              <label className="form-control">
+   932→                Nom *
+   933→                <input
+   934→                  type="text"
+   935→                  value={name}
+   936→                  onChange={(e) => setName(e.target.value)}
+   937→                  placeholder="Ex: Paracétamol 500mg"
+   938→                  required
+   939→                />
+   940→              </label>
+   941→              <label className="form-control">
+   942→                Catégorie
+   943→                <select value={category} onChange={(e) => setCategory(e.target.value)}>
+   944→                  {CATEGORY_OPTIONS.filter((o) => o.value).map((o) => (
+   945→                    <option key={o.value} value={o.value}>
+   946→                      {o.label}
+   947→                    </option>
+   948→                  ))}
+   949→                </select>
+   950→              </label>
+   951→              <label className="form-control">
+   952→                Forme
+   953→                <select value={form} onChange={(e) => setForm(e.target.value)}>
+   954→                  {FORM_OPTIONS.map((o) => (
+   955→                    <option key={o.value} value={o.value}>
+   956→                      {o.label}
+   957→                    </option>
+   958→                  ))}
+   959→                </select>
+   960→              </label>
+   961→              <label className="form-control">
+   962→                Dosage
+   963→                <input
+   964→                  type="text"
+   965→                  value={dosage}
+   966→                  onChange={(e) => setDosage(e.target.value)}
+   967→                  placeholder="Ex: 500mg"
+   968→                />
+   969→              </label>
+   970→              <label className="form-control">
+   971→                Seuil minimum
+   972→                <input
+   973→                  type="number"
+   974→                  min={0}
+   975→                  value={minThreshold}
+   976→                  onChange={(e) => setMinThreshold(e.target.value)}
+   977→                />
+   978→              </label>
+   979→            </div>
+   980→            <div className="form-actions">
+   981→              <button className="primary-button" type="submit" disabled={submitting}>
+   982→                {submitting ? "Création..." : "Créer le produit"}
+   983→              </button>
+   984→            </div>
+   985→          </form>
+   986→        </div>
+   987→      )}
+   988→
+   989→      {/* Barre de recherche + filtre catégorie (server-side, debounce 300ms) */}
+   990→      <div
+   991→        style={{
+   992→          display: "flex",
+   993→          gap: 12,
+   994→          alignItems: "center",
+   995→          marginBottom: 12,
+   996→          flexWrap: "wrap",
+   997→        }}
+   998→      >
+   999→        <input
+  1000→          type="text"
+  1001→          placeholder="🔍 Rechercher (code, nom)..."
+  1002→          value={search}
+  1003→          onChange={(e) => setSearch(e.target.value)}
+  1004→          style={{ flex: 1, minWidth: 250, padding: "8px 12px" }}
+  1005→        />
+  1006→        <select
+  1007→          value={categoryFilter}
+  1008→          onChange={(e) => {
+  1009→            setCategoryFilter(e.target.value);
+  1010→            setPage(1);
+  1011→          }}
+  1012→          style={{ padding: "8px 12px", minWidth: 180 }}
+  1013→        >
+  1014→          {CATEGORY_OPTIONS.map((o) => (
+  1015→            <option key={o.value} value={o.value}>
+  1016→              {o.label}
+  1017→            </option>
+  1018→          ))}
+  1019→        </select>
+  1020→      </div>
+  1021→
+  1022→      {loading ? (
+  1023→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+  1024→          <div className="spinner" />
+  1025→        </div>
+  1026→      ) : error ? (
+  1027→        <div className="card" style={{ padding: "16px", color: "var(--danger)" }}>
+  1028→          {error}
+  1029→        </div>
+  1030→      ) : (
+  1031→        <div className="card" style={{ marginTop: showForm ? "16px" : 0, padding: 0, overflow: "hidden" }}>
+  1032→          <div className="table-wrapper">
+  1033→            <table className="table">
+  1034→              <thead>
+  1035→                <tr>
+  1036→                  <th>Code</th>
+  1037→                  <th>Nom</th>
+  1038→                  <th>Catégorie</th>
+  1039→                  <th>Forme</th>
+  1040→                  <th>Dosage</th>
+  1041→                  <th>Statut</th>
+  1042→                </tr>
+  1043→              </thead>
+  1044→              <tbody>
+  1045→                {products.length === 0 ? (
+  1046→                  <tr>
+  1047→                    <td colSpan={6} style={{ textAlign: "center", padding: "24px" }}>
+  1048→                      <span className="muted">Aucun produit enregistré.</span>
+  1049→                    </td>
+  1050→                  </tr>
+  1051→                ) : (
+  1052→                  products.map((p) => (
+  1053→                    <tr key={p.id}>
+  1054→                      <td style={{ fontWeight: 700, fontFamily: "monospace" }}>
+  1055→                        {p.code}
+  1056→                      </td>
+  1057→                      <td style={{ fontWeight: 600 }}>{p.name}</td>
+  1058→                      <td>
+  1059→                        <span className="badge badge-gray">
+  1060→                          {categoryLabel[p.category] || p.category || "—"}
+  1061→                        </span>
+  1062→                      </td>
+  1063→                      <td>{formLabel[p.form] || p.form || "—"}</td>
+  1064→                      <td>{p.dosage || "—"}</td>
+  1065→                      <td>
+  1066→                        <span
+  1067→                          className={`badge ${
+  1068→                            p.status === "ACTIVE" ? "badge-green" : "badge-gray"
+  1069→                          }`}
+  1070→                        >
+  1071→                          {p.status === "ACTIVE" ? "Actif" : p.status || "—"}
+  1072→                        </span>
+  1073→                      </td>
+  1074→                    </tr>
+  1075→                  ))
+  1076→                )}
+  1077→              </tbody>
+  1078→            </table>
+  1079→          </div>
+  1080→          <div style={{ padding: "0 16px" }}>
+  1081→            <Pagination
+  1082→              page={page}
+  1083→              totalPages={totalPages}
+  1084→              total={total}
+  1085→              onPageChange={setPage}
+  1086→              loading={loading}
+  1087→            />
+  1088→          </div>
+  1089→        </div>
+  1090→      )}
+  1091→    </>
+  1092→  );
+  1093→}
+  1094→
+  1095→/* ═════════════════════════════════════════════════════════════════
+  1096→   Movements Tab
+  1097→   ═════════════════════════════════════════════════════════════════ */
+  1098→
+  1099→function MovementsTab({
+  1100→  lookups,
+  1101→  onCreated,
+  1102→}: {
+  1103→  lookups: LookupData;
+  1104→  onCreated: () => void;
+  1105→}) {
+  1106→  const options = buildOptions(lookups);
+  1107→  const facilityId = firstValue(options.facilities);
+  1108→
+  1109→  const [showForm, setShowForm] = useState(false);
+  1110→  const [submitting, setSubmitting] = useState(false);
+  1111→  const [typeFilter, setTypeFilter] = useState("");
+  1112→  const [dateFrom, setDateFrom] = useState("");
+  1113→  const [dateTo, setDateTo] = useState("");
+  1114→
+  1115→  // Liste paginée des mouvements (recherche server-side + filtres type/date + debounce 300ms)
+  1116→  const {
+  1117→    items: movements,
+  1118→    total,
+  1119→    page,
+  1120→    totalPages,
+  1121→    loading,
+  1122→    error,
+  1123→    search,
+  1124→    setSearch,
+  1125→    setPage,
+  1126→    reload,
+  1127→  } = usePaginatedList<Row>("/pharmacy/stock/movements", {
+  1128→    pageSize: 20,
+  1129→    debounceMs: 300,
+  1130→    extraParams: {
+  1131→      movement_type: typeFilter || null,
+  1132→      date_from: dateFrom || null,
+  1133→      date_to: dateTo || null,
+  1134→    },
+  1135→  });
+  1136→
+  1137→  // Form fields for entry
+  1138→  const [productId, setProductId] = useState("");
+  1139→  const [quantity, setQuantity] = useState("");
+  1140→  const [reason, setReason] = useState("");
+  1141→
+  1142→  // Réagir aux refresh globaux (création d'mouvement ailleurs)
+  1143→  useEffect(() => {
+  1144→    const handler = () => reload();
+  1145→    window.addEventListener("refresh-resource", handler);
+  1146→    return () => window.removeEventListener("refresh-resource", handler);
+  1147→  }, [reload]);
+  1148→
+  1149→  async function handleSubmit(e: React.FormEvent) {
+  1150→    e.preventDefault();
+  1151→    if (!productId || !quantity || parseInt(quantity) <= 0) {
+  1152→      showToast("Veuillez remplir tous les champs.", "error");
+  1153→      return;
+  1154→    }
+  1155→    setSubmitting(true);
+  1156→    try {
+  1157→      await apiRequest("/pharmacy/stock/movements", {
+  1158→        method: "POST",
+  1159→        body: JSON.stringify({
+  1160→          facility_id: facilityId,
+  1161→          product_id: productId,
+  1162→          movement_type: "IN",
+  1163→          quantity: parseInt(quantity),
+  1164→          reason: reason || "Entrée de stock",
+  1165→        }),
+  1166→      });
+  1167→      showToast("Entrée de stock enregistrée.", "success");
+  1168→      setProductId("");
+  1169→      setQuantity("");
+  1170→      setReason("");
+  1171→      setShowForm(false);
+  1172→      onCreated();
+  1173→      reload();
+  1174→    } catch (err: any) {
+  1175→      showToast(err.message || "Erreur lors de l'entrée.", "error");
+  1176→    } finally {
+  1177→      setSubmitting(false);
+  1178→    }
+  1179→  }
+  1180→
+  1181→  // Resolve product name from lookups
+  1182→  function getProductName(productId: string): string {
+  1183→    const prod = lookups.products.find((p) => p.id === productId);
+  1184→    return prod ? `${prod.code} — ${prod.name}` : productId;
+  1185→  }
+  1186→
+  1187→  // Resolve staff name from lookups
+  1188→  function getStaffName(staffId: string): string {
+  1189→    const s = lookups.staff.find((st) => st.id === staffId);
+  1190→    return s ? `${s.last_name || ""} ${s.first_name || ""}`.trim() : staffId;
+  1191→  }
+  1192→
+  1193→  return (
+  1194→    <>
+  1195→      <div className="section-header">
+  1196→        <h2>Mouvements de stock</h2>
+  1197→        <button
+  1198→          className="primary-button"
+  1199→          style={{ display: "flex", alignItems: "center", gap: "6px" }}
+  1200→          onClick={() => setShowForm(!showForm)}
+  1201→        >
+  1202→          <ArrowDownCircle size={16} />
+  1203→          {showForm ? "Annuler" : "Nouvelle entrée"}
+  1204→        </button>
+  1205→      </div>
+  1206→
+  1207→      {showForm && (
+  1208→        <div className="card form-card">
+  1209→          <h3 style={{ marginBottom: "16px" }}>Entrée de stock</h3>
+  1210→          <form onSubmit={handleSubmit}>
+  1211→            <div className="form-grid">
+  1212→              <label className="form-control">
+  1213→                Produit *
+  1214→                <select
+  1215→                  value={productId}
+  1216→                  onChange={(e) => setProductId(e.target.value)}
+  1217→                  required
+  1218→                >
+  1219→                  <option value="">— Choisir un produit —</option>
+  1220→                  {options.products.map((o) => (
+  1221→                    <option key={o.value} value={o.value}>
+  1222→                      {o.label}
+  1223→                    </option>
+  1224→                  ))}
+  1225→                </select>
+  1226→              </label>
+  1227→              <label className="form-control">
+  1228→                Quantité *
+  1229→                <input
+  1230→                  type="number"
+  1231→                  min={1}
+  1232→                  value={quantity}
+  1233→                  onChange={(e) => setQuantity(e.target.value)}
+  1234→                  placeholder="Quantité"
+  1235→                  required
+  1236→                />
+  1237→              </label>
+  1238→              <label className="form-control">
+  1239→                Motif
+  1240→                <input
+  1241→                  type="text"
+  1242→                  value={reason}
+  1243→                  onChange={(e) => setReason(e.target.value)}
+  1244→                  placeholder="Ex: Réapprovisionnement"
+  1245→                />
+  1246→              </label>
+  1247→            </div>
+  1248→            <div className="form-actions">
+  1249→              <button className="primary-button" type="submit" disabled={submitting}>
+  1250→                {submitting ? "Enregistrement..." : "Enregistrer l'entrée"}
+  1251→              </button>
+  1252→            </div>
+  1253→          </form>
+  1254→        </div>
+  1255→      )}
+  1256→
+  1257→      {/* Barre de recherche + filtres (server-side, debounce 300ms) */}
+  1258→      <div
+  1259→        style={{
+  1260→          display: "flex",
+  1261→          gap: 12,
+  1262→          alignItems: "center",
+  1263→          marginBottom: 12,
+  1264→          flexWrap: "wrap",
+  1265→        }}
+  1266→      >
+  1267→        <input
+  1268→          type="text"
+  1269→          placeholder="🔍 Rechercher (motif, produit)..."
+  1270→          value={search}
+  1271→          onChange={(e) => setSearch(e.target.value)}
+  1272→          style={{ flex: 1, minWidth: 250, padding: "8px 12px" }}
+  1273→        />
+  1274→        <select
+  1275→          value={typeFilter}
+  1276→          onChange={(e) => {
+  1277→            setTypeFilter(e.target.value);
+  1278→            setPage(1);
+  1279→          }}
+  1280→          style={{ padding: "8px 12px", minWidth: 140 }}
+  1281→        >
+  1282→          <option value="">Tous types</option>
+  1283→          <option value="IN">Entrée</option>
+  1284→          <option value="OUT">Sortie</option>
+  1285→        </select>
+  1286→        <label
+  1287→          style={{
+  1288→            display: "flex",
+  1289→            alignItems: "center",
+  1290→            gap: 4,
+  1291→            fontSize: 13,
+  1292→            color: "var(--muted)",
+  1293→          }}
+  1294→        >
+  1295→          Du
+  1296→          <input
+  1297→            type="date"
+  1298→            value={dateFrom}
+  1299→            onChange={(e) => {
+  1300→              setDateFrom(e.target.value);
+  1301→              setPage(1);
+  1302→            }}
+  1303→            style={{ padding: "8px 12px" }}
+  1304→          />
+  1305→        </label>
+  1306→        <label
+  1307→          style={{
+  1308→            display: "flex",
+  1309→            alignItems: "center",
+  1310→            gap: 4,
+  1311→            fontSize: 13,
+  1312→            color: "var(--muted)",
+  1313→          }}
+  1314→        >
+  1315→          Au
+  1316→          <input
+  1317→            type="date"
+  1318→            value={dateTo}
+  1319→            onChange={(e) => {
+  1320→              setDateTo(e.target.value);
+  1321→              setPage(1);
+  1322→            }}
+  1323→            style={{ padding: "8px 12px" }}
+  1324→          />
+  1325→        </label>
+  1326→      </div>
+  1327→
+  1328→      {loading ? (
+  1329→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+  1330→          <div className="spinner" />
+  1331→        </div>
+  1332→      ) : error ? (
+  1333→        <div className="card" style={{ padding: "16px", color: "var(--danger)" }}>
+  1334→          {error}
+  1335→        </div>
+  1336→      ) : (
+  1337→        <div className="card" style={{ marginTop: showForm ? "16px" : 0, padding: 0, overflow: "hidden" }}>
+  1338→          <div className="table-wrapper">
+  1339→            <table className="table">
+  1340→              <thead>
+  1341→                <tr>
+  1342→                  <th>Date</th>
+  1343→                  <th>Produit</th>
+  1344→                  <th>Type</th>
+  1345→                  <th style={{ textAlign: "right" }}>Quantité</th>
+  1346→                  <th>Motif</th>
+  1347→                  <th>Responsable</th>
+  1348→                </tr>
+  1349→              </thead>
+  1350→              <tbody>
+  1351→                {movements.length === 0 ? (
+  1352→                  <tr>
+  1353→                    <td colSpan={6} style={{ textAlign: "center", padding: "24px" }}>
+  1354→                      <span className="muted">Aucun mouvement enregistré.</span>
+  1355→                    </td>
+  1356→                  </tr>
+  1357→                ) : (
+  1358→                  movements.map((m) => (
+  1359→                    <tr key={m.id}>
+  1360→                      <td style={{ whiteSpace: "nowrap" }}>
+  1361→                        {m.performed_at
+  1362→                          ? new Date(m.performed_at).toLocaleString("fr-FR")
+  1363→                          : "—"}
+  1364→                      </td>
+  1365→                      <td style={{ fontWeight: 600 }}>
+  1366→                        {getProductName(m.product_id)}
+  1367→                      </td>
+  1368→                      <td>
+  1369→                        <span
+  1370→                          className={`badge ${
+  1371→                            m.movement_type === "IN" ? "badge-green" : "badge-red"
+  1372→                          }`}
+  1373→                          style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
+  1374→                        >
+  1375→                          {m.movement_type === "IN" ? (
+  1376→                            <ArrowDownCircle size={12} />
+  1377→                          ) : (
+  1378→                            <ArrowUpCircle size={12} />
+  1379→                          )}
+  1380→                          {m.movement_type === "IN" ? "ENTRÉE" : "SORTIE"}
+  1381→                        </span>
+  1382→                      </td>
+  1383→                      <td style={{ textAlign: "right", fontWeight: 700 }}>
+  1384→                        {m.quantity}
+  1385→                      </td>
+  1386→                      <td style={{ fontSize: "13px" }}>{m.reason || "—"}</td>
+  1387→                      <td style={{ fontSize: "13px" }}>
+  1388→                        {m.performed_by ? getStaffName(m.performed_by) : "—"}
+  1389→                      </td>
+  1390→                    </tr>
+  1391→                  ))
+  1392→                )}
+  1393→              </tbody>
+  1394→            </table>
+  1395→          </div>
+  1396→          <div style={{ padding: "0 16px" }}>
+  1397→            <Pagination
+  1398→              page={page}
+  1399→              totalPages={totalPages}
+  1400→              total={total}
+  1401→              onPageChange={setPage}
+  1402→              loading={loading}
+  1403→            />
+  1404→          </div>
+  1405→        </div>
+  1406→      )}
+  1407→    </>
+  1408→  );
+  1409→}
+  1410→

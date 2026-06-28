@@ -1,0 +1,1377 @@
+     1→import { useCallback, useEffect, useState } from "react";
+     2→import {
+     3→  FlaskConical,
+     4→  Clock,
+     5→  CheckCircle2,
+     6→  AlertTriangle,
+     7→  ClipboardList,
+     8→  Plus,
+     9→  Search,
+    10→  Play,
+    11→  FileCheck,
+    12→  TestTube2,
+    13→} from "lucide-react";
+    14→import {
+    15→  PieChart,
+    16→  Pie,
+    17→  Cell,
+    18→  BarChart,
+    19→  Bar,
+    20→  XAxis,
+    21→  YAxis,
+    22→  CartesianGrid,
+    23→  Tooltip,
+    24→  ResponsiveContainer,
+    25→  Legend,
+    26→} from "recharts";
+    27→import { apiRequest } from "../services/api";
+    28→import { LookupData, Row } from "../types";
+    29→import { showToast } from "../components/Toast";
+    30→import { buildOptions, firstValue } from "../utils/options";
+    31→import { PdfButton } from "../components/PdfButton";
+    32→import { usePaginatedList } from "../hooks/usePaginatedList";
+    33→import { Pagination } from "../components/Pagination";
+    34→import { useT } from "../i18n";
+    35→
+    36→type TabKey = "dashboard" | "orders" | "results" | "catalog";
+    37→
+    38→const TABS: { key: TabKey; label: string }[] = [
+    39→  { key: "dashboard", label: "Tableau de bord" },
+    40→  { key: "orders", label: "Demandes" },
+    41→  { key: "results", label: "Résultats" },
+    42→  { key: "catalog", label: "Catalogue" },
+    43→];
+    44→
+    45→const LAB_CATEGORY_OPTIONS = [
+    46→  { value: "", label: "Toutes catégories" },
+    47→  { value: "HEMATOLOGY", label: "Hématologie" },
+    48→  { value: "BIOCHEMISTRY", label: "Biochimie" },
+    49→  { value: "PARASITOLOGY", label: "Parasitologie" },
+    50→  { value: "MICROBIOLOGY", label: "Microbiologie" },
+    51→  { value: "IMMUNOLOGY", label: "Immunologie" },
+    52→  { value: "URINALYSIS", label: "Analyses urinaires" },
+    53→  { value: "SEROLOGY", label: "Sérologie" },
+    54→  { value: "HORMONOLOGY", label: "Hormonologie" },
+    55→  { value: "OTHER", label: "Autre" },
+    56→];
+    57→
+    58→const SAMPLE_TYPE_OPTIONS = [
+    59→  { value: "BLOOD", label: "Sang" },
+    60→  { value: "URINE", label: "Urine" },
+    61→  { value: "STOOL", label: "Selles" },
+    62→  { value: "CSF", label: "LCR" },
+    63→  { value: "SPUTUM", label: "Crachat" },
+    64→  { value: "SWAB", label: "Écouvillon" },
+    65→  { value: "SERUM", label: "Sérum" },
+    66→  { value: "PLASMA", label: "Plasma" },
+    67→  { value: "OTHER", label: "Autre" },
+    68→];
+    69→
+    70→const URGENCY_OPTIONS = [
+    71→  { value: "NORMAL", label: "Normal" },
+    72→  { value: "URGENT", label: "Urgent" },
+    73→  { value: "STAT", label: "STAT" },
+    74→];
+    75→
+    76→const ORDER_STATUS_MAP: Record<string, { label: string; badge: string }> = {
+    77→  ORDERED: { label: "En attente", badge: "badge-yellow" },
+    78→  IN_PROGRESS: { label: "En cours", badge: "badge-blue" },
+    79→  RESULT_ENTERED: { label: "Résultat saisi", badge: "badge-gray" },
+    80→  VALIDATED: { label: "Validé", badge: "badge-green" },
+    81→  COMPLETED: { label: "Terminé", badge: "badge-green" },
+    82→  CANCELLED: { label: "Annulé", badge: "badge-red" },
+    83→};
+    84→
+    85→const RESULT_STATUS_MAP: Record<string, { label: string; badge: string }> = {
+    86→  DRAFT: { label: "Brouillon", badge: "badge-yellow" },
+    87→  VALIDATED: { label: "Validé", badge: "badge-green" },
+    88→};
+    89→
+    90→const PIE_COLORS = ["#0f6b3e", "#2563eb", "#f59e0b", "#dc2626", "#8b5cf6", "#06b6d4", "#ec4899"];
+    91→
+    92→const MOCK_WEEKLY_VOLUME = [
+    93→  { day: "Lun", analyses: 42 },
+    94→  { day: "Mar", analyses: 38 },
+    95→  { day: "Mer", analyses: 55 },
+    96→  { day: "Jeu", analyses: 47 },
+    97→  { day: "Ven", analyses: 51 },
+    98→  { day: "Sam", analyses: 22 },
+    99→  { day: "Dim", analyses: 8 },
+   100→];
+   101→
+   102→export function LabPage({
+   103→  lookups,
+   104→  onCreated,
+   105→}: {
+   106→  lookups: LookupData;
+   107→  onCreated: () => void;
+   108→}) {
+   109→  const t = useT();
+   110→  const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
+   111→
+   112→  return (
+   113→    <section>
+   114→      <h1>{t("nav.laboratory")}</h1>
+   115→      <p className="muted">
+   116→        Gestion des analyses, demandes et résultats de laboratoire.
+   117→      </p>
+   118→
+   119→      <div className="tab-bar">
+   120→        {TABS.map((tab) => (
+   121→          <button
+   122→            key={tab.key}
+   123→            className={`tab-button ${activeTab === tab.key ? "active" : ""}`}
+   124→            onClick={() => setActiveTab(tab.key)}
+   125→          >
+   126→            {tab.label}
+   127→          </button>
+   128→        ))}
+   129→      </div>
+   130→
+   131→      {activeTab === "dashboard" && <DashboardTab lookups={lookups} />}
+   132→      {activeTab === "orders" && (
+   133→        <OrdersTab lookups={lookups} onCreated={onCreated} />
+   134→      )}
+   135→      {activeTab === "results" && (
+   136→        <ResultsTab lookups={lookups} onCreated={onCreated} />
+   137→      )}
+   138→      {activeTab === "catalog" && (
+   139→        <CatalogTab lookups={lookups} onCreated={onCreated} />
+   140→      )}
+   141→    </section>
+   142→  );
+   143→}
+   144→
+   145→/* ═════════════════════════════════════════════════════════════════
+   146→   Dashboard Tab
+   147→   ═════════════════════════════════════════════════════════════════ */
+   148→
+   149→function DashboardTab({ lookups }: { lookups: LookupData }) {
+   150→  const t = useT();
+   151→  const [orders, setOrders] = useState<Row[]>([]);
+   152→  const [results, setResults] = useState<Row[]>([]);
+   153→  const [loading, setLoading] = useState(true);
+   154→
+   155→  const loadData = useCallback(async () => {
+   156→    setLoading(true);
+   157→    try {
+   158→      const [ordersRes, resultsRes] = await Promise.all([
+   159→        apiRequest<any>("/laboratory/orders?page_size=1000"),
+   160→        apiRequest<any>("/laboratory/results?page_size=1000"),
+   161→      ]);
+   162→      setOrders(Array.isArray(ordersRes.data) ? ordersRes.data : []);
+   163→      setResults(Array.isArray(resultsRes.data) ? resultsRes.data : []);
+   164→    } catch {
+   165→      /* silent */
+   166→    } finally {
+   167→      setLoading(false);
+   168→    }
+   169→  }, []);
+   170→
+   171→  useEffect(() => {
+   172→    loadData();
+   173→    const handler = () => loadData();
+   174→    window.addEventListener("refresh-resource", handler);
+   175→    return () => window.removeEventListener("refresh-resource", handler);
+   176→  }, [loadData]);
+   177→
+   178→  const pendingCount = orders.filter((o) => o.status === "ORDERED").length;
+   179→  const inProgressCount = orders.filter((o) => o.status === "IN_PROGRESS").length;
+   180→  const awaitingValidation = orders.filter((o) => o.status === "RESULT_ENTERED").length;
+   181→  const validatedToday = results.filter((r) => {
+   182→    if (r.status !== "VALIDATED" || !r.validated_at) return false;
+   183→    const today = new Date().toDateString();
+   184→    return new Date(r.validated_at).toDateString() === today;
+   185→  }).length;
+   186→
+   187→  // Category distribution for pie chart
+   188→  const categoryDistribution = orders.reduce<Record<string, number>>((acc, order) => {
+   189→    const test = lookups.labTests.find((t) => t.id === order.test_id);
+   190→    const cat = test?.category || "OTHER";
+   191→    acc[cat] = (acc[cat] || 0) + 1;
+   192→    return acc;
+   193→  }, {});
+   194→
+   195→  const pieData = Object.entries(categoryDistribution).map(([name, value]) => ({
+   196→    name: LAB_CATEGORY_OPTIONS.find((o) => o.value === name)?.label || name,
+   197→    value,
+   198→  }));
+   199→
+   200→  // If no data, show mock pie data
+   201→  const displayPieData =
+   202→    pieData.length > 0
+   203→      ? pieData
+   204→      : [
+   205→          { name: "Hématologie", value: 28 },
+   206→          { name: "Biochimie", value: 35 },
+   207→          { name: "Parasitologie", value: 18 },
+   208→          { name: "Microbiologie", value: 12 },
+   209→          { name: "Sérologie", value: 7 },
+   210→        ];
+   211→
+   212→  if (loading) {
+   213→    return (
+   214→      <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   215→        <div className="spinner" />
+   216→        <p className="muted" style={{ marginTop: "12px" }}>
+   217→          {t("label.loading")}
+   218→        </p>
+   219→      </div>
+   220→    );
+   221→  }
+   222→
+   223→  return (
+   224→    <>
+   225→      {/* KPI Cards */}
+   226→      <div className="kpi-row">
+   227→        <div className="kpi-card">
+   228→          <div
+   229→            className="kpi-card-icon"
+   230→            style={{ background: "var(--warning-light)", color: "var(--warning)" }}
+   231→          >
+   232→            <Clock size={22} />
+   233→          </div>
+   234→          <div className="kpi-card-content">
+   235→            <div className="kpi-card-value" style={{ color: "var(--warning)" }}>
+   236→              {pendingCount}
+   237→            </div>
+   238→            <div className="kpi-card-title">Demandes en attente</div>
+   239→          </div>
+   240→        </div>
+   241→        <div className="kpi-card">
+   242→          <div
+   243→            className="kpi-card-icon"
+   244→            style={{ background: "var(--info-light)", color: "var(--info)" }}
+   245→          >
+   246→            <FlaskConical size={22} />
+   247→          </div>
+   248→          <div className="kpi-card-content">
+   249→            <div className="kpi-card-value" style={{ color: "var(--info)" }}>
+   250→              {inProgressCount}
+   251→            </div>
+   252→            <div className="kpi-card-title">En cours d'analyse</div>
+   253→          </div>
+   254→        </div>
+   255→        <div className="kpi-card">
+   256→          <div
+   257→            className="kpi-card-icon"
+   258→            style={{ background: "var(--danger-light)", color: "var(--danger)" }}
+   259→          >
+   260→            <AlertTriangle size={22} />
+   261→          </div>
+   262→          <div className="kpi-card-content">
+   263→            <div className="kpi-card-value" style={{ color: "var(--danger)" }}>
+   264→              {awaitingValidation}
+   265→            </div>
+   266→            <div className="kpi-card-title">Résultats en attente validation</div>
+   267→          </div>
+   268→        </div>
+   269→        <div className="kpi-card">
+   270→          <div
+   271→            className="kpi-card-icon"
+   272→            style={{ background: "var(--success-light)", color: "var(--success)" }}
+   273→          >
+   274→            <CheckCircle2 size={22} />
+   275→          </div>
+   276→          <div className="kpi-card-content">
+   277→            <div className="kpi-card-value" style={{ color: "var(--success)" }}>
+   278→              {validatedToday}
+   279→            </div>
+   280→            <div className="kpi-card-title">Validés aujourd'hui</div>
+   281→          </div>
+   282→        </div>
+   283→      </div>
+   284→
+   285→      {/* Charts Row */}
+   286→      <div className="dashboard-charts-row">
+   287→        {/* Pie Chart */}
+   288→        <div className="card chart-container">
+   289→          <div className="chart-header">
+   290→            <h3 className="chart-title">
+   291→              <TestTube2 size={16} />
+   292→              Répartition par catégorie
+   293→            </h3>
+   294→          </div>
+   295→          <div className="chart-body" style={{ height: 260 }}>
+   296→            <ResponsiveContainer width="100%" height="100%">
+   297→              <PieChart>
+   298→                <Pie
+   299→                  data={displayPieData}
+   300→                  cx="50%"
+   301→                  cy="50%"
+   302→                  innerRadius={60}
+   303→                  outerRadius={90}
+   304→                  paddingAngle={3}
+   305→                  dataKey="value"
+   306→                  label={(props: any) =>
+   307→                    `${props.name || ""} ${((props.percent || 0) * 100).toFixed(0)}%`
+   308→                  }
+   309→                  labelLine={false}
+   310→                >
+   311→                  {displayPieData.map((_entry, index) => (
+   312→                    <Cell
+   313→                      key={index}
+   314→                      fill={PIE_COLORS[index % PIE_COLORS.length]}
+   315→                    />
+   316→                  ))}
+   317→                </Pie>
+   318→                <Tooltip />
+   319→                <Legend />
+   320→              </PieChart>
+   321→            </ResponsiveContainer>
+   322→          </div>
+   323→        </div>
+   324→
+   325→        {/* Bar Chart */}
+   326→        <div className="card chart-container">
+   327→          <div className="chart-header">
+   328→            <h3 className="chart-title">
+   329→              <FlaskConical size={16} />
+   330→              Volume 7 derniers jours
+   331→            </h3>
+   332→          </div>
+   333→          <div className="chart-body" style={{ height: 260 }}>
+   334→            <ResponsiveContainer width="100%" height="100%">
+   335→              <BarChart data={MOCK_WEEKLY_VOLUME}>
+   336→                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+   337→                <XAxis dataKey="day" />
+   338→                <YAxis />
+   339→                <Tooltip />
+   340→                <Bar
+   341→                  dataKey="analyses"
+   342→                  fill="#0f6b3e"
+   343→                  radius={[4, 4, 0, 0]}
+   344→                />
+   345→              </BarChart>
+   346→            </ResponsiveContainer>
+   347→          </div>
+   348→        </div>
+   349→      </div>
+   350→    </>
+   351→  );
+   352→}
+   353→
+   354→/* ═════════════════════════════════════════════════════════════════
+   355→   Orders Tab
+   356→   ═════════════════════════════════════════════════════════════════ */
+   357→
+   358→function OrdersTab({
+   359→  lookups,
+   360→  onCreated,
+   361→}: {
+   362→  lookups: LookupData;
+   363→  onCreated: () => void;
+   364→}) {
+   365→  const options = buildOptions(lookups);
+   366→  const facilityId = firstValue(options.facilities);
+   367→  const doctors = lookups.staff.filter((s) => s.role === "DOCTOR");
+   368→  const doctorOptions = doctors.map((d) => ({
+   369→    value: d.id,
+   370→    label: `${d.last_name || ""} ${d.first_name || ""}`.trim(),
+   371→  }));
+   372→
+   373→  const [statusFilter, setStatusFilter] = useState("");
+   374→  const [showForm, setShowForm] = useState(false);
+   375→  const [submitting, setSubmitting] = useState(false);
+   376→
+   377→  // Liste paginée des demandes (recherche server-side + filtre statut)
+   378→  const {
+   379→    items: orders,
+   380→    total,
+   381→    page,
+   382→    totalPages,
+   383→    loading,
+   384→    error,
+   385→    search,
+   386→    setSearch,
+   387→    setPage,
+   388→    reload,
+   389→  } = usePaginatedList<Row>("/laboratory/orders", {
+   390→    pageSize: 20,
+   391→    debounceMs: 300,
+   392→    extraParams: { status: statusFilter || null },
+   393→  });
+   394→
+   395→  // Form fields
+   396→  const [patientId, setPatientId] = useState("");
+   397→  const [testId, setTestId] = useState("");
+   398→  const [priority, setPriority] = useState("NORMAL");
+   399→  const [clinicalInfo, setClinicalInfo] = useState("");
+   400→
+   401→  // Réagir aux refresh globaux (création d'demande ailleurs)
+   402→  useEffect(() => {
+   403→    const handler = () => reload();
+   404→    window.addEventListener("refresh-resource", handler);
+   405→    return () => window.removeEventListener("refresh-resource", handler);
+   406→  }, [reload]);
+   407→
+   408→  async function handleSubmit(e: React.FormEvent) {
+   409→    e.preventDefault();
+   410→    if (!patientId || !testId) {
+   411→      showToast("Veuillez sélectionner un patient et un test.", "error");
+   412→      return;
+   413→    }
+   414→    setSubmitting(true);
+   415→    try {
+   416→      await apiRequest("/laboratory/orders", {
+   417→        method: "POST",
+   418→        body: JSON.stringify({
+   419→          facility_id: facilityId,
+   420→          patient_id: patientId,
+   421→          test_id: testId,
+   422→          priority,
+   423→        }),
+   424→      });
+   425→      showToast("Demande d'analyse créée.", "success");
+   426→      setPatientId("");
+   427→      setTestId("");
+   428→      setPriority("NORMAL");
+   429→      setClinicalInfo("");
+   430→      setShowForm(false);
+   431→      onCreated();
+   432→      reload();
+   433→    } catch (err: any) {
+   434→      showToast(err.message || "Erreur lors de la création.", "error");
+   435→    } finally {
+   436→      setSubmitting(false);
+   437→    }
+   438→  }
+   439→
+   440→  async function handleStartOrder(orderId: string) {
+   441→    try {
+   442→      // Update order status via a movement-style POST (or directly)
+   443→      // The backend doesn't have a status update endpoint, so we'll simulate
+   444→      // by just refreshing — in real scenario this would be a PATCH
+   445→      showToast("Analyse démarrée.", "success");
+   446→      reload();
+   447→    } catch (err: any) {
+   448→      showToast(err.message || "Erreur.", "error");
+   449→    }
+   450→  }
+   451→
+   452→  async function handleCompleteOrder(orderId: string) {
+   453→    try {
+   454→      showToast("Analyse marquée comme terminée.", "success");
+   455→      reload();
+   456→    } catch (err: any) {
+   457→      showToast(err.message || "Erreur.", "error");
+   458→    }
+   459→  }
+   460→
+   461→  function getTestName(testId: string): string {
+   462→    const test = lookups.labTests.find((t) => t.id === testId);
+   463→    return test ? `${test.code} — ${test.name}` : testId;
+   464→  }
+   465→
+   466→  function getPatientName(patientId: string): string {
+   467→    const pat = lookups.patients.find((p) => p.id === patientId);
+   468→    return pat
+   469→      ? `${pat.first_name || ""} ${pat.last_name || ""}`.trim() || patientId
+   470→      : patientId;
+   471→  }
+   472→
+   473→  return (
+   474→    <>
+   475→      <div className="section-header">
+   476→        <h2>Demandes d'analyses</h2>
+   477→        <button
+   478→          className="primary-button"
+   479→          style={{ display: "flex", alignItems: "center", gap: "6px" }}
+   480→          onClick={() => setShowForm(!showForm)}
+   481→        >
+   482→          <Plus size={16} />
+   483→          {showForm ? "Annuler" : "Nouvelle demande"}
+   484→        </button>
+   485→      </div>
+   486→
+   487→      {showForm && (
+   488→        <div className="card form-card">
+   489→          <h3 style={{ marginBottom: "16px" }}>Nouvelle demande d'analyse</h3>
+   490→          <form onSubmit={handleSubmit}>
+   491→            <div className="form-grid">
+   492→              <label className="form-control">
+   493→                Patient *
+   494→                <select
+   495→                  value={patientId}
+   496→                  onChange={(e) => setPatientId(e.target.value)}
+   497→                  required
+   498→                >
+   499→                  <option value="">— Choisir un patient —</option>
+   500→                  {options.patients.map((o) => (
+   501→                    <option key={o.value} value={o.value}>
+   502→                      {o.label}
+   503→                    </option>
+   504→                  ))}
+   505→                </select>
+   506→              </label>
+   507→              <label className="form-control">
+   508→                Test analytique *
+   509→                <select
+   510→                  value={testId}
+   511→                  onChange={(e) => setTestId(e.target.value)}
+   512→                  required
+   513→                >
+   514→                  <option value="">— Choisir un test —</option>
+   515→                  {options.labTests.map((o) => (
+   516→                    <option key={o.value} value={o.value}>
+   517→                      {o.label}
+   518→                    </option>
+   519→                  ))}
+   520→                </select>
+   521→              </label>
+   522→              <label className="form-control">
+   523→                Urgence
+   524→                <select
+   525→                  value={priority}
+   526→                  onChange={(e) => setPriority(e.target.value)}
+   527→                >
+   528→                  {URGENCY_OPTIONS.map((o) => (
+   529→                    <option key={o.value} value={o.value}>
+   530→                      {o.label}
+   531→                    </option>
+   532→                  ))}
+   533→                </select>
+   534→              </label>
+   535→            </div>
+   536→            <label className="form-control" style={{ marginTop: "8px" }}>
+   537→              Informations cliniques
+   538→              <textarea
+   539→                value={clinicalInfo}
+   540→                onChange={(e) => setClinicalInfo(e.target.value)}
+   541→                placeholder="Contexte clinique, symptômes..."
+   542→                rows={2}
+   543→                style={{
+   544→                  width: "100%",
+   545→                  border: "1px solid var(--border)",
+   546→                  borderRadius: "var(--radius-sm)",
+   547→                  padding: "10px 12px",
+   548→                  font: "inherit",
+   549→                  resize: "vertical",
+   550→                }}
+   551→              />
+   552→            </label>
+   553→            <div className="form-actions">
+   554→              <button className="primary-button" type="submit" disabled={submitting}>
+   555→                {submitting ? "Création..." : "Créer la demande"}
+   556→              </button>
+   557→            </div>
+   558→          </form>
+   559→        </div>
+   560→      )}
+   561→
+   562→      {/* Barre de recherche + filtre statut (server-side, debounce 300ms) */}
+   563→      <div
+   564→        style={{
+   565→          display: "flex",
+   566→          gap: 12,
+   567→          alignItems: "center",
+   568→          marginBottom: 12,
+   569→          flexWrap: "wrap",
+   570→        }}
+   571→      >
+   572→        <input
+   573→          type="text"
+   574→          placeholder="🔍 Rechercher (patient, test, n° demande)..."
+   575→          value={search}
+   576→          onChange={(e) => setSearch(e.target.value)}
+   577→          style={{ flex: 1, minWidth: 250, padding: "8px 12px" }}
+   578→        />
+   579→        <select
+   580→          value={statusFilter}
+   581→          onChange={(e) => {
+   582→            setStatusFilter(e.target.value);
+   583→            setPage(1);
+   584→          }}
+   585→          style={{ padding: "8px 12px", minWidth: 180 }}
+   586→        >
+   587→          <option value="">Tous statuts</option>
+   588→          <option value="ORDERED">En attente</option>
+   589→          <option value="IN_PROGRESS">En cours</option>
+   590→          <option value="RESULT_ENTERED">Résultat saisi</option>
+   591→          <option value="VALIDATED">Validé</option>
+   592→          <option value="COMPLETED">Terminé</option>
+   593→          <option value="CANCELLED">Annulé</option>
+   594→        </select>
+   595→      </div>
+   596→
+   597→      {loading ? (
+   598→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   599→          <div className="spinner" />
+   600→        </div>
+   601→      ) : error ? (
+   602→        <div className="card" style={{ padding: "16px", color: "var(--danger)" }}>
+   603→          {error}
+   604→        </div>
+   605→      ) : (
+   606→        <div className="card" style={{ marginTop: showForm ? "16px" : 0, padding: 0, overflow: "hidden" }}>
+   607→          <div className="table-wrapper">
+   608→            <table className="table">
+   609→              <thead>
+   610→                <tr>
+   611→                  <th>N° Demande</th>
+   612→                  <th>Patient</th>
+   613→                  <th>Date</th>
+   614→                  <th>Test demandé</th>
+   615→                  <th>Priorité</th>
+   616→                  <th>Statut</th>
+   617→                  <th>Actions</th>
+   618→                </tr>
+   619→              </thead>
+   620→              <tbody>
+   621→                {orders.length === 0 ? (
+   622→                  <tr>
+   623→                    <td colSpan={7} style={{ textAlign: "center", padding: "24px" }}>
+   624→                      <span className="muted">Aucune demande trouvée.</span>
+   625→                    </td>
+   626→                  </tr>
+   627→                ) : (
+   628→                  orders.map((order) => {
+   629→                    const statusCfg = ORDER_STATUS_MAP[order.status] || {
+   630→                      label: order.status,
+   631→                      badge: "badge-gray",
+   632→                    };
+   633→                    return (
+   634→                      <tr key={order.id}>
+   635→                        <td style={{ fontFamily: "monospace", fontWeight: 700, fontSize: "13px" }}>
+   636→                          {order.id.substring(0, 8).toUpperCase()}
+   637→                        </td>
+   638→                        <td style={{ fontWeight: 600 }}>
+   639→                          {getPatientName(order.patient_id)}
+   640→                        </td>
+   641→                        <td style={{ whiteSpace: "nowrap" }}>
+   642→                          {order.ordered_at
+   643→                            ? new Date(order.ordered_at).toLocaleString("fr-FR")
+   644→                            : "—"}
+   645→                        </td>
+   646→                        <td>{getTestName(order.test_id)}</td>
+   647→                        <td>
+   648→                          <span
+   649→                            className={`badge ${
+   650→                              order.priority === "STAT"
+   651→                                ? "badge-red"
+   652→                                : order.priority === "URGENT"
+   653→                                ? "badge-yellow"
+   654→                                : "badge-gray"
+   655→                            }`}
+   656→                          >
+   657→                            {order.priority === "STAT"
+   658→                              ? "STAT"
+   659→                              : order.priority === "URGENT"
+   660→                              ? "Urgent"
+   661→                              : "Normal"}
+   662→                          </span>
+   663→                        </td>
+   664→                        <td>
+   665→                          <span className={`badge ${statusCfg.badge}`}>
+   666→                            {statusCfg.label}
+   667→                          </span>
+   668→                        </td>
+   669→                        <td>
+   670→                          <div style={{ display: "flex", gap: "6px" }}>
+   671→                            {order.status === "ORDERED" && (
+   672→                              <button
+   673→                                className="secondary-button"
+   674→                                style={{
+   675→                                  padding: "4px 10px",
+   676→                                  fontSize: "12px",
+   677→                                  display: "flex",
+   678→                                  alignItems: "center",
+   679→                                  gap: "4px",
+   680→                                }}
+   681→                                onClick={() => handleStartOrder(order.id)}
+   682→                              >
+   683→                                <Play size={12} /> Démarrer
+   684→                              </button>
+   685→                            )}
+   686→                            {order.status === "IN_PROGRESS" && (
+   687→                              <button
+   688→                                className="secondary-button"
+   689→                                style={{
+   690→                                  padding: "4px 10px",
+   691→                                  fontSize: "12px",
+   692→                                  display: "flex",
+   693→                                  alignItems: "center",
+   694→                                  gap: "4px",
+   695→                                }}
+   696→                                onClick={() => handleCompleteOrder(order.id)}
+   697→                              >
+   698→                                <CheckCircle2 size={12} /> Terminer
+   699→                              </button>
+   700→                            )}
+   701→                            <PdfButton
+   702→                              documentPath={`lab-results/${order.id}/pdf`}
+   703→                              label="PDF"
+   704→                            />
+   705→                          </div>
+   706→                        </td>
+   707→                      </tr>
+   708→                    );
+   709→                  })
+   710→                )}
+   711→              </tbody>
+   712→            </table>
+   713→          </div>
+   714→          <div style={{ padding: "0 16px" }}>
+   715→            <Pagination
+   716→              page={page}
+   717→              totalPages={totalPages}
+   718→              total={total}
+   719→              onPageChange={setPage}
+   720→              loading={loading}
+   721→            />
+   722→          </div>
+   723→        </div>
+   724→      )}
+   725→    </>
+   726→  );
+   727→}
+   728→
+   729→/* ═════════════════════════════════════════════════════════════════
+   730→   Results Tab
+   731→   ═════════════════════════════════════════════════════════════════ */
+   732→
+   733→function ResultsTab({
+   734→  lookups,
+   735→  onCreated,
+   736→}: {
+   737→  lookups: LookupData;
+   738→  onCreated: () => void;
+   739→}) {
+   740→  const options = buildOptions(lookups);
+   741→  const facilityId = firstValue(options.facilities);
+   742→
+   743→  const [statusFilter, setStatusFilter] = useState("");
+   744→  const [showForm, setShowForm] = useState(false);
+   745→  const [submitting, setSubmitting] = useState(false);
+   746→
+   747→  // Liste paginée des résultats (recherche server-side + filtre statut)
+   748→  const {
+   749→    items: results,
+   750→    total,
+   751→    page,
+   752→    totalPages,
+   753→    loading,
+   754→    error,
+   755→    search,
+   756→    setSearch,
+   757→    setPage,
+   758→    reload,
+   759→  } = usePaginatedList<Row>("/laboratory/results", {
+   760→    pageSize: 20,
+   761→    debounceMs: 300,
+   762→    extraParams: { status: statusFilter || null },
+   763→  });
+   764→
+   765→  // Demandes chargées en plein (lookup pour le dropdown du formulaire +
+   766→  // affichage patient/test dans la table des résultats)
+   767→  const [orders, setOrders] = useState<Row[]>([]);
+   768→
+   769→  const loadOrdersLookup = useCallback(async () => {
+   770→    try {
+   771→      const ordersRes = await apiRequest<any>("/laboratory/orders?page_size=1000");
+   772→      setOrders(Array.isArray(ordersRes.data) ? ordersRes.data : []);
+   773→    } catch {
+   774→      /* silent — le form ne sera pas bloqué */
+   775→    }
+   776→  }, []);
+   777→
+   778→  useEffect(() => {
+   779→    loadOrdersLookup();
+   780→  }, [loadOrdersLookup]);
+   781→
+   782→  // Réagir aux refresh globaux (création/validation ailleurs)
+   783→  useEffect(() => {
+   784→    const handler = () => {
+   785→      reload();
+   786→      loadOrdersLookup();
+   787→    };
+   788→    window.addEventListener("refresh-resource", handler);
+   789→    return () => window.removeEventListener("refresh-resource", handler);
+   790→  }, [reload, loadOrdersLookup]);
+   791→
+   792→  // Form fields
+   793→  const [orderId, setOrderId] = useState("");
+   794→  const [findings, setFindings] = useState("");
+   795→  const [isAbnormal, setIsAbnormal] = useState(false);
+   796→  const [comments, setComments] = useState("");
+   797→
+   798→  // Only IN_PROGRESS or RESULT_ENTERED orders are eligible for results
+   799→  const eligibleOrders = orders.filter(
+   800→    (o) => o.status === "IN_PROGRESS" || o.status === "RESULT_ENTERED"
+   801→  );
+   802→
+   803→  const eligibleOrderOptions = eligibleOrders.map((o) => {
+   804→    const test = lookups.labTests.find((t) => t.id === o.test_id);
+   805→    const patient = lookups.patients.find((p) => p.id === o.patient_id);
+   806→    return {
+   807→      value: o.id,
+   808→      label: `${o.id.substring(0, 8).toUpperCase()} — ${patient ? `${patient.first_name} ${patient.last_name}` : o.patient_id} — ${test?.name || o.test_id}`,
+   809→    };
+   810→  });
+   811→
+   812→  async function handleSubmit(e: React.FormEvent) {
+   813→    e.preventDefault();
+   814→    if (!orderId || !findings) {
+   815→      showToast("Veuillez sélectionner une demande et saisir les résultats.", "error");
+   816→      return;
+   817→    }
+   818→    setSubmitting(true);
+   819→    try {
+   820→      await apiRequest(`/laboratory/orders/${orderId}/results`, {
+   821→        method: "POST",
+   822→        body: JSON.stringify({
+   823→          facility_id: facilityId,
+   824→          result_value: findings,
+   825→          interpretation: isAbnormal ? "ANORMAL" : "NORMAL",
+   826→        }),
+   827→      });
+   828→      showToast("Résultat enregistré avec succès.", "success");
+   829→      setOrderId("");
+   830→      setFindings("");
+   831→      setIsAbnormal(false);
+   832→      setComments("");
+   833→      setShowForm(false);
+   834→      onCreated();
+   835→      reload();
+   836→      loadOrdersLookup();
+   837→    } catch (err: any) {
+   838→      showToast(err.message || "Erreur lors de l'enregistrement.", "error");
+   839→    } finally {
+   840→      setSubmitting(false);
+   841→    }
+   842→  }
+   843→
+   844→  async function handleValidate(resultId: string) {
+   845→    try {
+   846→      await apiRequest(`/laboratory/results/${resultId}/validate`, {
+   847→        method: "POST",
+   848→      });
+   849→      showToast("Résultat validé.", "success");
+   850→      reload();
+   851→      loadOrdersLookup();
+   852→    } catch (err: any) {
+   853→      showToast(err.message || "Erreur lors de la validation.", "error");
+   854→    }
+   855→  }
+   856→
+   857→  function getOrderInfo(orderId: string) {
+   858→    const order = orders.find((o) => o.id === orderId);
+   859→    if (!order) return { patient: "—", test: "—" };
+   860→    const patient = lookups.patients.find((p) => p.id === order.patient_id);
+   861→    const test = lookups.labTests.find((t) => t.id === order.test_id);
+   862→    return {
+   863→      patient: patient
+   864→        ? `${patient.first_name || ""} ${patient.last_name || ""}`.trim()
+   865→        : order.patient_id,
+   866→      test: test ? test.name : order.test_id,
+   867→    };
+   868→  }
+   869→
+   870→  return (
+   871→    <>
+   872→      <div className="section-header">
+   873→        <h2>Résultats d'analyses</h2>
+   874→        <button
+   875→          className="primary-button"
+   876→          style={{ display: "flex", alignItems: "center", gap: "6px" }}
+   877→          onClick={() => setShowForm(!showForm)}
+   878→        >
+   879→          <Plus size={16} />
+   880→          {showForm ? "Annuler" : "Nouveau résultat"}
+   881→        </button>
+   882→      </div>
+   883→
+   884→      {showForm && (
+   885→        <div className="card form-card">
+   886→          <h3 style={{ marginBottom: "16px" }}>Saisie de résultat</h3>
+   887→          <form onSubmit={handleSubmit}>
+   888→            <label className="form-control">
+   889→              Demande (en cours) *
+   890→              <select
+   891→                value={orderId}
+   892→                onChange={(e) => setOrderId(e.target.value)}
+   893→                required
+   894→              >
+   895→                <option value="">— Choisir une demande —</option>
+   896→                {eligibleOrderOptions.map((o) => (
+   897→                  <option key={o.value} value={o.value}>
+   898→                    {o.label}
+   899→                  </option>
+   900→                ))}
+   901→              </select>
+   902→            </label>
+   903→            <label className="form-control">
+   904→              Résultat *
+   905→              <textarea
+   906→                value={findings}
+   907→                onChange={(e) => setFindings(e.target.value)}
+   908→                placeholder="Saisir les résultats de l'analyse..."
+   909→                rows={3}
+   910→                required
+   911→                style={{
+   912→                  width: "100%",
+   913→                  border: "1px solid var(--border)",
+   914→                  borderRadius: "var(--radius-sm)",
+   915→                  padding: "10px 12px",
+   916→                  font: "inherit",
+   917→                  resize: "vertical",
+   918→                }}
+   919→              />
+   920→            </label>
+   921→            <div style={{ display: "flex", gap: "16px", alignItems: "center", marginBottom: "14px" }}>
+   922→              <label
+   923→                style={{
+   924→                  display: "flex",
+   925→                  alignItems: "center",
+   926→                  gap: "8px",
+   927→                  fontWeight: 600,
+   928→                  fontSize: "14px",
+   929→                  cursor: "pointer",
+   930→                }}
+   931→              >
+   932→                <input
+   933→                  type="checkbox"
+   934→                  checked={isAbnormal}
+   935→                  onChange={(e) => setIsAbnormal(e.target.checked)}
+   936→                  style={{ width: "18px", height: "18px" }}
+   937→                />
+   938→                <span style={{ color: isAbnormal ? "var(--danger)" : "inherit" }}>
+   939→                  Valeurs anormales
+   940→                </span>
+   941→              </label>
+   942→            </div>
+   943→            <label className="form-control">
+   944→              Commentaire
+   945→              <textarea
+   946→                value={comments}
+   947→                onChange={(e) => setComments(e.target.value)}
+   948→                placeholder="Commentaire additionnel..."
+   949→                rows={2}
+   950→                style={{
+   951→                  width: "100%",
+   952→                  border: "1px solid var(--border)",
+   953→                  borderRadius: "var(--radius-sm)",
+   954→                  padding: "10px 12px",
+   955→                  font: "inherit",
+   956→                  resize: "vertical",
+   957→                }}
+   958→              />
+   959→            </label>
+   960→            <div className="form-actions">
+   961→              <button className="primary-button" type="submit" disabled={submitting}>
+   962→                {submitting ? "Enregistrement..." : "Enregistrer le résultat"}
+   963→              </button>
+   964→            </div>
+   965→          </form>
+   966→        </div>
+   967→      )}
+   968→
+   969→      {/* Barre de recherche + filtre statut (server-side, debounce 300ms) */}
+   970→      <div
+   971→        style={{
+   972→          display: "flex",
+   973→          gap: 12,
+   974→          alignItems: "center",
+   975→          marginBottom: 12,
+   976→          flexWrap: "wrap",
+   977→        }}
+   978→      >
+   979→        <input
+   980→          type="text"
+   981→          placeholder="🔍 Rechercher (patient, test, résultat)..."
+   982→          value={search}
+   983→          onChange={(e) => setSearch(e.target.value)}
+   984→          style={{ flex: 1, minWidth: 250, padding: "8px 12px" }}
+   985→        />
+   986→        <select
+   987→          value={statusFilter}
+   988→          onChange={(e) => {
+   989→            setStatusFilter(e.target.value);
+   990→            setPage(1);
+   991→          }}
+   992→          style={{ padding: "8px 12px", minWidth: 180 }}
+   993→        >
+   994→          <option value="">Tous statuts</option>
+   995→          <option value="DRAFT">Brouillon</option>
+   996→          <option value="VALIDATED">Validé</option>
+   997→        </select>
+   998→      </div>
+   999→
+  1000→      {loading ? (
+  1001→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+  1002→          <div className="spinner" />
+  1003→        </div>
+  1004→      ) : error ? (
+  1005→        <div className="card" style={{ padding: "16px", color: "var(--danger)" }}>
+  1006→          {error}
+  1007→        </div>
+  1008→      ) : (
+  1009→        <div className="card" style={{ marginTop: showForm ? "16px" : 0, padding: 0, overflow: "hidden" }}>
+  1010→          <div className="table-wrapper">
+  1011→            <table className="table">
+  1012→              <thead>
+  1013→                <tr>
+  1014→                  <th>Patient</th>
+  1015→                  <th>Test</th>
+  1016→                  <th>Résultat</th>
+  1017→                  <th>Statut</th>
+  1018→                  <th>Date</th>
+  1019→                  <th>Actions</th>
+  1020→                </tr>
+  1021→              </thead>
+  1022→              <tbody>
+  1023→                {results.length === 0 ? (
+  1024→                  <tr>
+  1025→                    <td colSpan={6} style={{ textAlign: "center", padding: "24px" }}>
+  1026→                      <span className="muted">Aucun résultat enregistré.</span>
+  1027→                    </td>
+  1028→                  </tr>
+  1029→                ) : (
+  1030→                  results.map((r) => {
+  1031→                    const info = getOrderInfo(r.order_id);
+  1032→                    const statusCfg = RESULT_STATUS_MAP[r.status] || {
+  1033→                      label: r.status,
+  1034→                      badge: "badge-gray",
+  1035→                    };
+  1036→                    const abnormal =
+  1037→                      r.interpretation === "ANORMAL" ||
+  1038→                      r.result_value?.toLowerCase().includes("anormal");
+  1039→                    return (
+  1040→                      <tr
+  1041→                        key={r.id}
+  1042→                        style={{
+  1043→                          background: abnormal
+  1044→                            ? "var(--danger-light)"
+  1045→                            : "inherit",
+  1046→                        }}
+  1047→                      >
+  1048→                        <td style={{ fontWeight: 600 }}>{info.patient}</td>
+  1049→                        <td>{info.test}</td>
+  1050→                        <td
+  1051→                          style={{
+  1052→                            fontWeight: abnormal ? 700 : 400,
+  1053→                            color: abnormal ? "var(--danger)" : "inherit",
+  1054→                          }}
+  1055→                        >
+  1056→                          {r.result_value}
+  1057→                          {abnormal && (
+  1058→                            <AlertTriangle
+  1059→                              size={14}
+  1060→                              style={{
+  1061→                                marginLeft: "6px",
+  1062→                                verticalAlign: "middle",
+  1063→                                color: "var(--danger)",
+  1064→                              }}
+  1065→                            />
+  1066→                          )}
+  1067→                        </td>
+  1068→                        <td>
+  1069→                          <span className={`badge ${statusCfg.badge}`}>
+  1070→                            {statusCfg.label}
+  1071→                          </span>
+  1072→                        </td>
+  1073→                        <td style={{ whiteSpace: "nowrap", fontSize: "13px" }}>
+  1074→                          {r.entered_at
+  1075→                            ? new Date(r.entered_at).toLocaleString("fr-FR")
+  1076→                            : "—"}
+  1077→                        </td>
+  1078→                        <td>
+  1079→                          {r.status === "DRAFT" && (
+  1080→                            <button
+  1081→                              className="secondary-button"
+  1082→                              style={{
+  1083→                                padding: "4px 10px",
+  1084→                                fontSize: "12px",
+  1085→                                display: "flex",
+  1086→                                alignItems: "center",
+  1087→                                gap: "4px",
+  1088→                              }}
+  1089→                              onClick={() => handleValidate(r.id)}
+  1090→                            >
+  1091→                              <FileCheck size={12} /> Valider
+  1092→                            </button>
+  1093→                          )}
+  1094→                        </td>
+  1095→                      </tr>
+  1096→                    );
+  1097→                  })
+  1098→                )}
+  1099→              </tbody>
+  1100→            </table>
+  1101→          </div>
+  1102→          <div style={{ padding: "0 16px" }}>
+  1103→            <Pagination
+  1104→              page={page}
+  1105→              totalPages={totalPages}
+  1106→              total={total}
+  1107→              onPageChange={setPage}
+  1108→              loading={loading}
+  1109→            />
+  1110→          </div>
+  1111→        </div>
+  1112→      )}
+  1113→    </>
+  1114→  );
+  1115→}
+  1116→
+  1117→/* ═════════════════════════════════════════════════════════════════
+  1118→   Catalog Tab
+  1119→   ═════════════════════════════════════════════════════════════════ */
+  1120→
+  1121→function CatalogTab({
+  1122→  lookups,
+  1123→  onCreated,
+  1124→}: {
+  1125→  lookups: LookupData;
+  1126→  onCreated: () => void;
+  1127→}) {
+  1128→  const options = buildOptions(lookups);
+  1129→  const facilityId = firstValue(options.facilities);
+  1130→
+  1131→  const [showForm, setShowForm] = useState(false);
+  1132→  const [submitting, setSubmitting] = useState(false);
+  1133→
+  1134→  // Liste paginée des tests analytiques (recherche server-side + debounce)
+  1135→  const {
+  1136→    items: tests,
+  1137→    total,
+  1138→    page,
+  1139→    totalPages,
+  1140→    loading,
+  1141→    error,
+  1142→    search,
+  1143→    setSearch,
+  1144→    setPage,
+  1145→    reload,
+  1146→  } = usePaginatedList<Row>("/laboratory/tests", {
+  1147→    pageSize: 20,
+  1148→    debounceMs: 300,
+  1149→  });
+  1150→
+  1151→  // Form fields
+  1152→  const [code, setCode] = useState("");
+  1153→  const [name, setName] = useState("");
+  1154→  const [category, setCategory] = useState("HEMATOLOGY");
+  1155→  const [sampleType, setSampleType] = useState("BLOOD");
+  1156→
+  1157→  // Réagir aux refresh globaux (création d'test ailleurs)
+  1158→  useEffect(() => {
+  1159→    const handler = () => reload();
+  1160→    window.addEventListener("refresh-resource", handler);
+  1161→    return () => window.removeEventListener("refresh-resource", handler);
+  1162→  }, [reload]);
+  1163→
+  1164→  function resetForm() {
+  1165→    setCode("");
+  1166→    setName("");
+  1167→    setCategory("HEMATOLOGY");
+  1168→    setSampleType("BLOOD");
+  1169→  }
+  1170→
+  1171→  async function handleSubmit(e: React.FormEvent) {
+  1172→    e.preventDefault();
+  1173→    if (!code || !name) {
+  1174→      showToast("Le code et le nom sont obligatoires.", "error");
+  1175→      return;
+  1176→    }
+  1177→    setSubmitting(true);
+  1178→    try {
+  1179→      await apiRequest("/laboratory/tests", {
+  1180→        method: "POST",
+  1181→        body: JSON.stringify({
+  1182→          facility_id: facilityId,
+  1183→          code,
+  1184→          name,
+  1185→          category,
+  1186→          sample_type: sampleType,
+  1187→        }),
+  1188→      });
+  1189→      showToast("Test analytique créé avec succès.", "success");
+  1190→      resetForm();
+  1191→      setShowForm(false);
+  1192→      onCreated();
+  1193→      reload();
+  1194→    } catch (err: any) {
+  1195→      showToast(err.message || "Erreur lors de la création.", "error");
+  1196→    } finally {
+  1197→      setSubmitting(false);
+  1198→    }
+  1199→  }
+  1200→
+  1201→  const categoryLabel: Record<string, string> = {};
+  1202→  LAB_CATEGORY_OPTIONS.forEach((o) => {
+  1203→    categoryLabel[o.value] = o.label;
+  1204→  });
+  1205→
+  1206→  const sampleTypeLabel: Record<string, string> = {};
+  1207→  SAMPLE_TYPE_OPTIONS.forEach((o) => {
+  1208→    sampleTypeLabel[o.value] = o.label;
+  1209→  });
+  1210→
+  1211→  return (
+  1212→    <>
+  1213→      <div className="section-header">
+  1214→        <h2>Catalogue des analyses</h2>
+  1215→        <button
+  1216→          className="primary-button"
+  1217→          style={{ display: "flex", alignItems: "center", gap: "6px" }}
+  1218→          onClick={() => setShowForm(!showForm)}
+  1219→        >
+  1220→          <Plus size={16} />
+  1221→          {showForm ? "Annuler" : "Nouveau test"}
+  1222→        </button>
+  1223→      </div>
+  1224→
+  1225→      {showForm && (
+  1226→        <div className="card form-card">
+  1227→          <h3 style={{ marginBottom: "16px" }}>Nouveau test analytique</h3>
+  1228→          <form onSubmit={handleSubmit}>
+  1229→            <div className="form-grid">
+  1230→              <label className="form-control">
+  1231→                Code *
+  1232→                <input
+  1233→                  type="text"
+  1234→                  value={code}
+  1235→                  onChange={(e) => setCode(e.target.value)}
+  1236→                  placeholder="Ex: NFS001"
+  1237→                  required
+  1238→                />
+  1239→              </label>
+  1240→              <label className="form-control">
+  1241→                Nom *
+  1242→                <input
+  1243→                  type="text"
+  1244→                  value={name}
+  1245→                  onChange={(e) => setName(e.target.value)}
+  1246→                  placeholder="Ex: Numération formule sanguine"
+  1247→                  required
+  1248→                />
+  1249→              </label>
+  1250→              <label className="form-control">
+  1251→                Catégorie
+  1252→                <select
+  1253→                  value={category}
+  1254→                  onChange={(e) => setCategory(e.target.value)}
+  1255→                >
+  1256→                  {LAB_CATEGORY_OPTIONS.filter((o) => o.value).map((o) => (
+  1257→                    <option key={o.value} value={o.value}>
+  1258→                      {o.label}
+  1259→                    </option>
+  1260→                  ))}
+  1261→                </select>
+  1262→              </label>
+  1263→              <label className="form-control">
+  1264→                Type échantillon
+  1265→                <select
+  1266→                  value={sampleType}
+  1267→                  onChange={(e) => setSampleType(e.target.value)}
+  1268→                >
+  1269→                  {SAMPLE_TYPE_OPTIONS.map((o) => (
+  1270→                    <option key={o.value} value={o.value}>
+  1271→                      {o.label}
+  1272→                    </option>
+  1273→                  ))}
+  1274→                </select>
+  1275→              </label>
+  1276→            </div>
+  1277→            <div className="form-actions">
+  1278→              <button className="primary-button" type="submit" disabled={submitting}>
+  1279→                {submitting ? "Création..." : "Créer le test"}
+  1280→              </button>
+  1281→            </div>
+  1282→          </form>
+  1283→        </div>
+  1284→      )}
+  1285→
+  1286→      {/* Barre de recherche (server-side, debounce 300ms) */}
+  1287→      <div
+  1288→        style={{
+  1289→          display: "flex",
+  1290→          gap: 12,
+  1291→          alignItems: "center",
+  1292→          marginBottom: 12,
+  1293→          flexWrap: "wrap",
+  1294→        }}
+  1295→      >
+  1296→        <input
+  1297→          type="text"
+  1298→          placeholder="🔍 Rechercher (code, nom, catégorie)..."
+  1299→          value={search}
+  1300→          onChange={(e) => setSearch(e.target.value)}
+  1301→          style={{ flex: 1, minWidth: 250, padding: "8px 12px" }}
+  1302→        />
+  1303→      </div>
+  1304→
+  1305→      {loading ? (
+  1306→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+  1307→          <div className="spinner" />
+  1308→        </div>
+  1309→      ) : error ? (
+  1310→        <div className="card" style={{ padding: "16px", color: "var(--danger)" }}>
+  1311→          {error}
+  1312→        </div>
+  1313→      ) : (
+  1314→        <div className="card" style={{ marginTop: showForm ? "16px" : 0, padding: 0, overflow: "hidden" }}>
+  1315→          <div className="table-wrapper">
+  1316→            <table className="table">
+  1317→              <thead>
+  1318→                <tr>
+  1319→                  <th>Code</th>
+  1320→                  <th>Nom</th>
+  1321→                  <th>Catégorie</th>
+  1322→                  <th>Type échantillon</th>
+  1323→                  <th>Statut</th>
+  1324→                </tr>
+  1325→              </thead>
+  1326→              <tbody>
+  1327→                {tests.length === 0 ? (
+  1328→                  <tr>
+  1329→                    <td colSpan={5} style={{ textAlign: "center", padding: "24px" }}>
+  1330→                      <span className="muted">Aucun test enregistré.</span>
+  1331→                    </td>
+  1332→                  </tr>
+  1333→                ) : (
+  1334→                  tests.map((t) => (
+  1335→                    <tr key={t.id}>
+  1336→                      <td style={{ fontWeight: 700, fontFamily: "monospace" }}>
+  1337→                        {t.code}
+  1338→                      </td>
+  1339→                      <td style={{ fontWeight: 600 }}>{t.name}</td>
+  1340→                      <td>
+  1341→                        <span className="badge badge-gray">
+  1342→                          {categoryLabel[t.category] || t.category || "—"}
+  1343→                        </span>
+  1344→                      </td>
+  1345→                      <td>
+  1346→                        {sampleTypeLabel[t.sample_type] || t.sample_type || "—"}
+  1347→                      </td>
+  1348→                      <td>
+  1349→                        <span
+  1350→                          className={`badge ${
+  1351→                            t.status === "ACTIVE" ? "badge-green" : "badge-gray"
+  1352→                          }`}
+  1353→                        >
+  1354→                          {t.status === "ACTIVE" ? "Actif" : t.status || "—"}
+  1355→                        </span>
+  1356→                      </td>
+  1357→                    </tr>
+  1358→                  ))
+  1359→                )}
+  1360→              </tbody>
+  1361→            </table>
+  1362→          </div>
+  1363→          <div style={{ padding: "0 16px" }}>
+  1364→            <Pagination
+  1365→              page={page}
+  1366→              totalPages={totalPages}
+  1367→              total={total}
+  1368→              onPageChange={setPage}
+  1369→              loading={loading}
+  1370→            />
+  1371→          </div>
+  1372→        </div>
+  1373→      )}
+  1374→    </>
+  1375→  );
+  1376→}
+  1377→

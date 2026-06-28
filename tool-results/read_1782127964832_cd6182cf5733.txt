@@ -1,0 +1,1382 @@
+     1→import { useCallback, useEffect, useState } from "react";
+     2→import {
+     3→  DollarSign,
+     4→  FileText,
+     5→  CreditCard,
+     6→  AlertCircle,
+     7→  TrendingUp,
+     8→  Plus,
+     9→  Trash2,
+    10→  Receipt,
+    11→  Banknote,
+    12→  Smartphone,
+    13→  Shield,
+    14→} from "lucide-react";
+    15→import {
+    16→  LineChart,
+    17→  Line,
+    18→  BarChart,
+    19→  Bar,
+    20→  XAxis,
+    21→  YAxis,
+    22→  CartesianGrid,
+    23→  Tooltip,
+    24→  ResponsiveContainer,
+    25→  Cell,
+    26→} from "recharts";
+    27→import { apiRequest } from "../services/api";
+    28→import { LookupData, Row } from "../types";
+    29→import { showToast } from "../components/Toast";
+    30→import { buildOptions, firstValue } from "../utils/options";
+    31→import { PdfButton } from "../components/PdfButton";
+    32→import { usePaginatedList } from "../hooks/usePaginatedList";
+    33→import { Pagination } from "../components/Pagination";
+    34→
+    35→type TabKey = "dashboard" | "invoices" | "payments" | "tariffs";
+    36→
+    37→const TABS: { key: TabKey; label: string }[] = [
+    38→  { key: "dashboard", label: "Tableau de bord" },
+    39→  { key: "invoices", label: "Facturation" },
+    40→  { key: "payments", label: "Paiements" },
+    41→  { key: "tariffs", label: "Tarifs" },
+    42→];
+    43→
+    44→const TARIFF_CATEGORY_OPTIONS = [
+    45→  { value: "", label: "Toutes catégories" },
+    46→  { value: "CONSULTATION", label: "Consultation" },
+    47→  { value: "LABORATORY", label: "Laboratoire" },
+    48→  { value: "IMAGING", label: "Imagerie" },
+    49→  { value: "PHARMACY", label: "Pharmacie" },
+    50→  { value: "SURGERY", label: "Chirurgie" },
+    51→  { value: "HOSPITALIZATION", label: "Hospitalisation" },
+    52→  { value: "EMERGENCY", label: "Urgences" },
+    53→  { value: "MATERNITY", label: "Maternité" },
+    54→  { value: "OTHER", label: "Autre" },
+    55→];
+    56→
+    57→const PAYMENT_METHOD_OPTIONS = [
+    58→  { value: "CASH", label: "Espèces", icon: Banknote },
+    59→  { value: "MOBILE_MONEY", label: "Mobile Money", icon: Smartphone },
+    60→  { value: "CARD", label: "Carte bancaire", icon: CreditCard },
+    61→  { value: "INSURANCE", label: "Assurance", icon: Shield },
+    62→];
+    63→
+    64→const INVOICE_STATUS_MAP: Record<string, { label: string; badge: string }> = {
+    65→  DRAFT: { label: "Brouillon", badge: "badge-gray" },
+    66→  ISSUED: { label: "Émise", badge: "badge-blue" },
+    67→  PAID: { label: "Payée", badge: "badge-green" },
+    68→  PARTIALLY_PAID: { label: "Partiellement payée", badge: "badge-yellow" },
+    69→  CANCELLED: { label: "Annulée", badge: "badge-red" },
+    70→};
+    71→
+    72→const MOCK_REVENUE_30D = Array.from({ length: 30 }, (_, i) => {
+    73→  const date = new Date();
+    74→  date.setDate(date.getDate() - (29 - i));
+    75→  return {
+    76→    date: date.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }),
+    77→    revenus: Math.floor(Math.random() * 3000000) + 500000,
+    78→  };
+    79→});
+    80→
+    81→const MOCK_SERVICE_DISTRIBUTION = [
+    82→  { name: "Consultation", value: 2850000 },
+    83→  { name: "Laboratoire", value: 1920000 },
+    84→  { name: "Imagerie", value: 1450000 },
+    85→  { name: "Pharmacie", value: 980000 },
+    86→  { name: "Chirurgie", value: 3200000 },
+    87→  { name: "Hospitalisation", value: 2100000 },
+    88→];
+    89→
+    90→const BAR_COLORS = ["#0f6b3e", "#16a34a", "#22c55e", "#4ade80", "#86efac", "#bbf7d0"];
+    91→
+    92→export function FinancePage({
+    93→  lookups,
+    94→  onCreated,
+    95→}: {
+    96→  lookups: LookupData;
+    97→  onCreated: () => void;
+    98→}) {
+    99→  const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
+   100→
+   101→  return (
+   102→    <section>
+   103→      <h1>Facturation &amp; Finance</h1>
+   104→      <p className="muted">
+   105→        Gestion de la facturation, des paiements et des tarifs.
+   106→      </p>
+   107→
+   108→      <div className="tab-bar">
+   109→        {TABS.map((tab) => (
+   110→          <button
+   111→            key={tab.key}
+   112→            className={`tab-button ${activeTab === tab.key ? "active" : ""}`}
+   113→            onClick={() => setActiveTab(tab.key)}
+   114→          >
+   115→            {tab.label}
+   116→          </button>
+   117→        ))}
+   118→      </div>
+   119→
+   120→      {activeTab === "dashboard" && <DashboardTab lookups={lookups} />}
+   121→      {activeTab === "invoices" && (
+   122→        <InvoicesTab lookups={lookups} onCreated={onCreated} />
+   123→      )}
+   124→      {activeTab === "payments" && (
+   125→        <PaymentsTab lookups={lookups} onCreated={onCreated} />
+   126→      )}
+   127→      {activeTab === "tariffs" && (
+   128→        <TariffsTab lookups={lookups} onCreated={onCreated} />
+   129→      )}
+   130→    </section>
+   131→  );
+   132→}
+   133→
+   134→/* ═════════════════════════════════════════════════════════════════
+   135→   Dashboard Tab
+   136→   ═════════════════════════════════════════════════════════════════ */
+   137→
+   138→function DashboardTab({ lookups }: { lookups: LookupData }) {
+   139→  const [invoices, setInvoices] = useState<Row[]>([]);
+   140→  const [payments, setPayments] = useState<Row[]>([]);
+   141→  const [loading, setLoading] = useState(true);
+   142→
+   143→  const loadData = useCallback(async () => {
+   144→    setLoading(true);
+   145→    try {
+   146→      const [invoicesRes, paymentsRes] = await Promise.all([
+   147→        apiRequest<any>("/billing/invoices?page_size=1000"),
+   148→        apiRequest<any>("/billing/payments?page_size=1000"),
+   149→      ]);
+   150→      setInvoices(Array.isArray(invoicesRes.data) ? invoicesRes.data : []);
+   151→      setPayments(Array.isArray(paymentsRes.data) ? paymentsRes.data : []);
+   152→    } catch {
+   153→      /* silent */
+   154→    } finally {
+   155→      setLoading(false);
+   156→    }
+   157→  }, []);
+   158→
+   159→  useEffect(() => {
+   160→    loadData();
+   161→    const handler = () => loadData();
+   162→    window.addEventListener("refresh-resource", handler);
+   163→    return () => window.removeEventListener("refresh-resource", handler);
+   164→  }, [loadData]);
+   165→
+   166→  // KPIs
+   167→  const today = new Date().toDateString();
+   168→  const todayPayments = payments.filter(
+   169→    (p) => p.received_at && new Date(p.received_at).toDateString() === today
+   170→  );
+   171→  const todayRevenue = todayPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+   172→
+   173→  const pendingInvoices = invoices.filter(
+   174→    (inv) => inv.status === "ISSUED" || inv.status === "PARTIALLY_PAID"
+   175→  ).length;
+   176→
+   177→  const totalUnpaid = invoices
+   178→    .filter((inv) => inv.status !== "PAID" && inv.status !== "CANCELLED")
+   179→    .reduce((sum, inv) => sum + (inv.balance_due || 0), 0);
+   180→
+   181→  const recentInvoices = invoices.slice(0, 5);
+   182→
+   183→  if (loading) {
+   184→    return (
+   185→      <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   186→        <div className="spinner" />
+   187→        <p className="muted" style={{ marginTop: "12px" }}>
+   188→          Chargement du tableau de bord...
+   189→        </p>
+   190→      </div>
+   191→    );
+   192→  }
+   193→
+   194→  return (
+   195→    <>
+   196→      {/* KPI Cards */}
+   197→      <div className="kpi-row">
+   198→        <div className="kpi-card">
+   199→          <div
+   200→            className="kpi-card-icon"
+   201→            style={{ background: "var(--success-light)", color: "var(--success)" }}
+   202→          >
+   203→            <DollarSign size={22} />
+   204→          </div>
+   205→          <div className="kpi-card-content">
+   206→            <div className="kpi-card-value" style={{ fontSize: "22px" }}>
+   207→              {todayRevenue.toLocaleString("fr-FR")} GNF
+   208→            </div>
+   209→            <div className="kpi-card-title">CA du jour</div>
+   210→          </div>
+   211→        </div>
+   212→        <div className="kpi-card">
+   213→          <div
+   214→            className="kpi-card-icon"
+   215→            style={{ background: "var(--warning-light)", color: "var(--warning)" }}
+   216→          >
+   217→            <FileText size={22} />
+   218→          </div>
+   219→          <div className="kpi-card-content">
+   220→            <div className="kpi-card-value" style={{ color: "var(--warning)" }}>
+   221→              {pendingInvoices}
+   222→            </div>
+   223→            <div className="kpi-card-title">Factures en attente</div>
+   224→          </div>
+   225→        </div>
+   226→        <div className="kpi-card">
+   227→          <div
+   228→            className="kpi-card-icon"
+   229→            style={{ background: "var(--info-light)", color: "var(--info)" }}
+   230→          >
+   231→            <CreditCard size={22} />
+   232→          </div>
+   233→          <div className="kpi-card-content">
+   234→            <div className="kpi-card-value" style={{ color: "var(--info)" }}>
+   235→              {todayPayments.length}
+   236→            </div>
+   237→            <div className="kpi-card-title">Paiements reçus aujourd'hui</div>
+   238→          </div>
+   239→        </div>
+   240→        <div className="kpi-card">
+   241→          <div
+   242→            className="kpi-card-icon"
+   243→            style={{ background: "var(--danger-light)", color: "var(--danger)" }}
+   244→          >
+   245→            <AlertCircle size={22} />
+   246→          </div>
+   247→          <div className="kpi-card-content">
+   248→            <div className="kpi-card-value" style={{ color: "var(--danger)", fontSize: "22px" }}>
+   249→              {totalUnpaid.toLocaleString("fr-FR")} GNF
+   250→            </div>
+   251→            <div className="kpi-card-title">Impayés</div>
+   252→          </div>
+   253→        </div>
+   254→      </div>
+   255→
+   256→      {/* Charts Row */}
+   257→      <div className="dashboard-charts-row">
+   258→        {/* Line Chart — Revenue 30d */}
+   259→        <div className="card chart-container">
+   260→          <div className="chart-header">
+   261→            <h3 className="chart-title">
+   262→              <TrendingUp size={16} />
+   263→              Revenus 30 derniers jours
+   264→            </h3>
+   265→          </div>
+   266→          <div className="chart-body" style={{ height: 260 }}>
+   267→            <ResponsiveContainer width="100%" height="100%">
+   268→              <LineChart data={MOCK_REVENUE_30D}>
+   269→                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+   270→                <XAxis
+   271→                  dataKey="date"
+   272→                  tick={{ fontSize: 11 }}
+   273→                  interval={4}
+   274→                />
+   275→                <YAxis
+   276→                  tickFormatter={(v: number) => `${(v / 1000000).toFixed(1)}M`}
+   277→                  tick={{ fontSize: 11 }}
+   278→                />
+   279→                <Tooltip
+   280→                  formatter={(value: any) =>
+   281→                    [`${Number(value).toLocaleString("fr-FR")} GNF`, "Revenus"]
+   282→                  }
+   283→                />
+   284→                <Line
+   285→                  type="monotone"
+   286→                  dataKey="revenus"
+   287→                  stroke="#0f6b3e"
+   288→                  strokeWidth={2}
+   289→                  dot={false}
+   290→                />
+   291→              </LineChart>
+   292→            </ResponsiveContainer>
+   293→          </div>
+   294→        </div>
+   295→
+   296→        {/* Bar Chart — Service distribution */}
+   297→        <div className="card chart-container">
+   298→          <div className="chart-header">
+   299→            <h3 className="chart-title">
+   300→              <DollarSign size={16} />
+   301→              Répartition par service
+   302→            </h3>
+   303→          </div>
+   304→          <div className="chart-body" style={{ height: 260 }}>
+   305→            <ResponsiveContainer width="100%" height="100%">
+   306→              <BarChart data={MOCK_SERVICE_DISTRIBUTION} layout="vertical">
+   307→                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+   308→                <XAxis
+   309→                  type="number"
+   310→                  tickFormatter={(v: number) => `${(v / 1000000).toFixed(1)}M`}
+   311→                  tick={{ fontSize: 11 }}
+   312→                />
+   313→                <YAxis
+   314→                  type="category"
+   315→                  dataKey="name"
+   316→                  width={110}
+   317→                  tick={{ fontSize: 12 }}
+   318→                />
+   319→                <Tooltip
+   320→                  formatter={(value: any) =>
+   321→                    [`${Number(value).toLocaleString("fr-FR")} GNF`, "Montant"]
+   322→                  }
+   323→                />
+   324→                <Bar dataKey="value" radius={[0, 6, 6, 0]}>
+   325→                  {MOCK_SERVICE_DISTRIBUTION.map((_entry, index) => (
+   326→                    <Cell
+   327→                      key={index}
+   328→                      fill={BAR_COLORS[index % BAR_COLORS.length]}
+   329→                    />
+   330→                  ))}
+   331→                </Bar>
+   332→              </BarChart>
+   333→            </ResponsiveContainer>
+   334→          </div>
+   335→        </div>
+   336→      </div>
+   337→
+   338→      {/* Recent Invoices Table */}
+   339→      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+   340→        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
+   341→          <h3 style={{ fontSize: "15px" }}>Dernières factures</h3>
+   342→        </div>
+   343→        <div className="table-wrapper">
+   344→          <table className="table">
+   345→            <thead>
+   346→              <tr>
+   347→                <th>N° Facture</th>
+   348→                <th>Patient</th>
+   349→                <th>Date</th>
+   350→                <th style={{ textAlign: "right" }}>Montant</th>
+   351→                <th style={{ textAlign: "right" }}>Solde dû</th>
+   352→                <th>Statut</th>
+   353→              </tr>
+   354→            </thead>
+   355→            <tbody>
+   356→              {recentInvoices.length === 0 ? (
+   357→                <tr>
+   358→                  <td colSpan={6} style={{ textAlign: "center", padding: "24px" }}>
+   359→                    <span className="muted">Aucune facture récente.</span>
+   360→                  </td>
+   361→                </tr>
+   362→              ) : (
+   363→                recentInvoices.map((inv) => {
+   364→                  const statusCfg = INVOICE_STATUS_MAP[inv.status] || {
+   365→                    label: inv.status,
+   366→                    badge: "badge-gray",
+   367→                  };
+   368→                  const patient = lookups.patients.find(
+   369→                    (p) => p.id === inv.patient_id
+   370→                  );
+   371→                  return (
+   372→                    <tr key={inv.id}>
+   373→                      <td style={{ fontWeight: 700, fontFamily: "monospace" }}>
+   374→                        {inv.invoice_number}
+   375→                      </td>
+   376→                      <td style={{ fontWeight: 600 }}>
+   377→                        {patient
+   378→                          ? `${patient.first_name || ""} ${patient.last_name || ""}`.trim()
+   379→                          : inv.patient_id}
+   380→                      </td>
+   381→                      <td style={{ whiteSpace: "nowrap" }}>
+   382→                        {inv.created_at
+   383→                          ? new Date(inv.created_at).toLocaleDateString("fr-FR")
+   384→                          : "—"}
+   385→                      </td>
+   386→                      <td style={{ textAlign: "right", fontWeight: 700 }}>
+   387→                        {(inv.net_amount || 0).toLocaleString("fr-FR")} GNF
+   388→                      </td>
+   389→                      <td
+   390→                        style={{
+   391→                          textAlign: "right",
+   392→                          fontWeight: 600,
+   393→                          color:
+   394→                            inv.balance_due > 0 ? "var(--danger)" : "var(--success)",
+   395→                        }}
+   396→                      >
+   397→                        {(inv.balance_due || 0).toLocaleString("fr-FR")} GNF
+   398→                      </td>
+   399→                      <td>
+   400→                        <span className={`badge ${statusCfg.badge}`}>
+   401→                          {statusCfg.label}
+   402→                        </span>
+   403→                      </td>
+   404→                    </tr>
+   405→                  );
+   406→                })
+   407→              )}
+   408→            </tbody>
+   409→          </table>
+   410→        </div>
+   411→      </div>
+   412→    </>
+   413→  );
+   414→}
+   415→
+   416→/* ═════════════════════════════════════════════════════════════════
+   417→   Invoices Tab
+   418→   ═════════════════════════════════════════════════════════════════ */
+   419→
+   420→interface InvoiceLine {
+   421→  id: string;
+   422→  tariff_item_id: string;
+   423→  quantity: number;
+   424→  unit_price: number;
+   425→}
+   426→
+   427→function InvoicesTab({
+   428→  lookups,
+   429→  onCreated,
+   430→}: {
+   431→  lookups: LookupData;
+   432→  onCreated: () => void;
+   433→}) {
+   434→  const options = buildOptions(lookups);
+   435→  const facilityId = firstValue(options.facilities);
+   436→
+   437→  // Tarifs chargés en plein (petite table de référence pour le dropdown du formulaire)
+   438→  const [tariffs, setTariffs] = useState<Row[]>([]);
+   439→  const [showForm, setShowForm] = useState(false);
+   440→  const [submitting, setSubmitting] = useState(false);
+   441→
+   442→  // Liste paginée des factures (recherche server-side + filtre statut)
+   443→  const [statusFilter, setStatusFilter] = useState<string>("");
+   444→  const {
+   445→    items: invoices,
+   446→    total,
+   447→    page,
+   448→    totalPages,
+   449→    loading,
+   450→    error,
+   451→    search,
+   452→    setSearch,
+   453→    setPage,
+   454→    reload,
+   455→  } = usePaginatedList<Row>("/billing/invoices", {
+   456→    pageSize: 20,
+   457→    debounceMs: 300,
+   458→    extraParams: { status: statusFilter || null },
+   459→  });
+   460→
+   461→  // Charger les tarifs (petite table de référence) une seule fois
+   462→  useEffect(() => {
+   463→    async function loadTariffs() {
+   464→      try {
+   465→        const tariffsRes = await apiRequest<any>("/billing/tariffs?page_size=1000");
+   466→        setTariffs(Array.isArray(tariffsRes.data) ? tariffsRes.data : []);
+   467→      } catch {
+   468→        // silent — le form ne sera pas bloqué
+   469→      }
+   470→    }
+   471→    loadTariffs();
+   472→  }, []);
+   473→
+   474→  // Réagir aux refresh globaux (création d'facture ailleurs)
+   475→  useEffect(() => {
+   476→    const handler = () => reload();
+   477→    window.addEventListener("refresh-resource", handler);
+   478→    return () => window.removeEventListener("refresh-resource", handler);
+   479→  }, [reload]);
+   480→
+   481→  // Form fields
+   482→  const [patientId, setPatientId] = useState("");
+   483→  const [invoiceLines, setInvoiceLines] = useState<InvoiceLine[]>([]);
+   484→  const [invoiceNumber, setInvoiceNumber] = useState("");
+   485→  const [description, setDescription] = useState("");
+   486→
+   487→  function addLine() {
+   488→    setInvoiceLines([
+   489→      ...invoiceLines,
+   490→      { id: `line-${Date.now()}`, tariff_item_id: "", quantity: 1, unit_price: 0 },
+   491→    ]);
+   492→  }
+   493→
+   494→  function removeLine(lineId: string) {
+   495→    setInvoiceLines(invoiceLines.filter((l) => l.id !== lineId));
+   496→  }
+   497→
+   498→  function updateLine(
+   499→    lineId: string,
+   500→    field: "tariff_item_id" | "quantity",
+   501→    value: string | number
+   502→  ) {
+   503→    setInvoiceLines(
+   504→      invoiceLines.map((l) => {
+   505→        if (l.id !== lineId) return l;
+   506→        if (field === "tariff_item_id") {
+   507→          const tariff = tariffs.find((t) => t.id === value);
+   508→          return {
+   509→            ...l,
+   510→            tariff_item_id: value as string,
+   511→            unit_price: tariff?.unit_price || 0,
+   512→          };
+   513→        }
+   514→        return { ...l, quantity: Number(value) || 1 };
+   515→      })
+   516→    );
+   517→  }
+   518→
+   519→  const totalAmount = invoiceLines.reduce(
+   520→    (sum, l) => sum + l.unit_price * l.quantity,
+   521→    0
+   522→  );
+   523→
+   524→  function generateInvoiceNumber(): string {
+   525→    const now = new Date();
+   526→    const y = now.getFullYear();
+   527→    const m = String(now.getMonth() + 1).padStart(2, "0");
+   528→    const seq = String(total + 1).padStart(4, "0");
+   529→    return `FAC-${y}${m}-${seq}`;
+   530→  }
+   531→
+   532→  async function handleSubmit(e: React.FormEvent) {
+   533→    e.preventDefault();
+   534→    if (!patientId || invoiceLines.length === 0) {
+   535→      showToast("Veuillez sélectionner un patient et ajouter au moins une ligne.", "error");
+   536→      return;
+   537→    }
+   538→    const invalidLines = invoiceLines.filter(
+   539→      (l) => !l.tariff_item_id || l.quantity <= 0
+   540→    );
+   541→    if (invalidLines.length > 0) {
+   542→      showToast("Veuillez remplir toutes les lignes de facturation.", "error");
+   543→      return;
+   544→    }
+   545→
+   546→    setSubmitting(true);
+   547→    try {
+   548→      const invNum = invoiceNumber || generateInvoiceNumber();
+   549→      await apiRequest("/billing/invoices", {
+   550→        method: "POST",
+   551→        body: JSON.stringify({
+   552→          facility_id: facilityId,
+   553→          patient_id: patientId,
+   554→          invoice_number: invNum,
+   555→          description: description || undefined,
+   556→          net_amount: totalAmount,
+   557→        }),
+   558→      });
+   559→      showToast("Facture créée avec succès.", "success");
+   560→      setPatientId("");
+   561→      setInvoiceLines([]);
+   562→      setInvoiceNumber("");
+   563→      setDescription("");
+   564→      setShowForm(false);
+   565→      onCreated();
+   566→      reload();
+   567→    } catch (err: any) {
+   568→      showToast(err.message || "Erreur lors de la création.", "error");
+   569→    } finally {
+   570→      setSubmitting(false);
+   571→    }
+   572→  }
+   573→
+   574→  const tariffOptions = tariffs.map((t) => ({
+   575→    value: t.id,
+   576→    label: `${t.code} — ${t.name} (${(t.unit_price || 0).toLocaleString("fr-FR")} GNF)`,
+   577→  }));
+   578→
+   579→  function getPatientName(patientId: string): string {
+   580→    const pat = lookups.patients.find((p) => p.id === patientId);
+   581→    return pat
+   582→      ? `${pat.first_name || ""} ${pat.last_name || ""}`.trim() || patientId
+   583→      : patientId;
+   584→  }
+   585→
+   586→  return (
+   587→    <>
+   588→      <div className="section-header">
+   589→        <h2>Facturation</h2>
+   590→        <button
+   591→          className="primary-button"
+   592→          style={{ display: "flex", alignItems: "center", gap: "6px" }}
+   593→          onClick={() => {
+   594→            setShowForm(!showForm);
+   595→            if (!showForm) setInvoiceNumber(generateInvoiceNumber());
+   596→          }}
+   597→        >
+   598→          <Plus size={16} />
+   599→          {showForm ? "Annuler" : "Nouvelle facture"}
+   600→        </button>
+   601→      </div>
+   602→
+   603→      {showForm && (
+   604→        <div className="card form-card">
+   605→          <h3 style={{ marginBottom: "16px" }}>Nouvelle facture</h3>
+   606→          <form onSubmit={handleSubmit}>
+   607→            <div className="form-grid">
+   608→              <label className="form-control">
+   609→                Patient *
+   610→                <select
+   611→                  value={patientId}
+   612→                  onChange={(e) => setPatientId(e.target.value)}
+   613→                  required
+   614→                >
+   615→                  <option value="">— Choisir un patient —</option>
+   616→                  {options.patients.map((o) => (
+   617→                    <option key={o.value} value={o.value}>
+   618→                      {o.label}
+   619→                    </option>
+   620→                  ))}
+   621→                </select>
+   622→              </label>
+   623→              <label className="form-control">
+   624→                N° Facture
+   625→                <input
+   626→                  type="text"
+   627→                  value={invoiceNumber}
+   628→                  onChange={(e) => setInvoiceNumber(e.target.value)}
+   629→                  placeholder="Auto-généré si vide"
+   630→                />
+   631→              </label>
+   632→            </div>
+   633→            <label className="form-control" style={{ marginTop: "8px" }}>
+   634→              Description
+   635→              <input
+   636→                type="text"
+   637→                value={description}
+   638→                onChange={(e) => setDescription(e.target.value)}
+   639→                placeholder="Description de la facture"
+   640→              />
+   641→            </label>
+   642→
+   643→            {/* Invoice Lines */}
+   644→            <div style={{ marginTop: "16px", marginBottom: "16px" }}>
+   645→              <div
+   646→                style={{
+   647→                  display: "flex",
+   648→                  justifyContent: "space-between",
+   649→                  alignItems: "center",
+   650→                  marginBottom: "8px",
+   651→                }}
+   652→              >
+   653→                <strong style={{ fontSize: "14px" }}>Lignes de facturation</strong>
+   654→                <button
+   655→                  type="button"
+   656→                  className="secondary-button"
+   657→                  style={{ padding: "6px 12px", fontSize: "13px", display: "flex", alignItems: "center", gap: "4px" }}
+   658→                  onClick={addLine}
+   659→                >
+   660→                  <Plus size={14} /> Ajouter ligne
+   661→                </button>
+   662→              </div>
+   663→
+   664→              {invoiceLines.length === 0 && (
+   665→                <p className="muted" style={{ fontSize: "13px" }}>
+   666→                  Aucune ligne ajoutée. Cliquez sur "Ajouter ligne" pour commencer.
+   667→                </p>
+   668→              )}
+   669→
+   670→              {invoiceLines.map((line) => (
+   671→                <div
+   672→                  key={line.id}
+   673→                  style={{
+   674→                    display: "flex",
+   675→                    gap: "12px",
+   676→                    alignItems: "center",
+   677→                    marginBottom: "8px",
+   678→                    padding: "8px 12px",
+   679→                    background: "var(--bg)",
+   680→                    borderRadius: "var(--radius-md)",
+   681→                    border: "1px solid var(--border-light)",
+   682→                  }}
+   683→                >
+   684→                  <select
+   685→                    value={line.tariff_item_id}
+   686→                    onChange={(e) =>
+   687→                      updateLine(line.id, "tariff_item_id", e.target.value)
+   688→                    }
+   689→                    style={{ flex: 2 }}
+   690→                    required
+   691→                  >
+   692→                    <option value="">— Article tarifaire —</option>
+   693→                    {tariffOptions.map((o) => (
+   694→                      <option key={o.value} value={o.value}>
+   695→                        {o.label}
+   696→                      </option>
+   697→                    ))}
+   698→                  </select>
+   699→                  <input
+   700→                    type="number"
+   701→                    min={1}
+   702→                    value={line.quantity}
+   703→                    onChange={(e) =>
+   704→                      updateLine(line.id, "quantity", parseInt(e.target.value) || 1)
+   705→                    }
+   706→                    style={{ flex: 0.4, minWidth: "70px" }}
+   707→                    required
+   708→                  />
+   709→                  <span
+   710→                    style={{
+   711→                      fontWeight: 600,
+   712→                      fontSize: "13px",
+   713→                      minWidth: "120px",
+   714→                      textAlign: "right",
+   715→                    }}
+   716→                  >
+   717→                    {(line.unit_price * line.quantity).toLocaleString("fr-FR")} GNF
+   718→                  </span>
+   719→                  <button
+   720→                    type="button"
+   721→                    onClick={() => removeLine(line.id)}
+   722→                    style={{
+   723→                      border: "none",
+   724→                      background: "transparent",
+   725→                      color: "var(--danger)",
+   726→                      cursor: "pointer",
+   727→                      padding: "4px",
+   728→                    }}
+   729→                  >
+   730→                    <Trash2 size={16} />
+   731→                  </button>
+   732→                </div>
+   733→              ))}
+   734→
+   735→              {invoiceLines.length > 0 && (
+   736→                <div
+   737→                  style={{
+   738→                    display: "flex",
+   739→                    justifyContent: "flex-end",
+   740→                    padding: "12px 12px 0",
+   741→                    borderTop: "2px solid var(--border)",
+   742→                    marginTop: "8px",
+   743→                  }}
+   744→                >
+   745→                  <span style={{ fontWeight: 700, fontSize: "16px" }}>
+   746→                    Total : {totalAmount.toLocaleString("fr-FR")} GNF
+   747→                  </span>
+   748→                </div>
+   749→              )}
+   750→            </div>
+   751→
+   752→            <div className="form-actions">
+   753→              <button className="primary-button" type="submit" disabled={submitting}>
+   754→                {submitting ? "Création..." : "Créer la facture"}
+   755→              </button>
+   756→            </div>
+   757→          </form>
+   758→        </div>
+   759→      )}
+   760→
+   761→      {/* Barre de recherche + filtre statut (server-side, debounce 300ms) */}
+   762→      <div
+   763→        style={{
+   764→          display: "flex",
+   765→          gap: 12,
+   766→          alignItems: "center",
+   767→          marginBottom: 12,
+   768→          flexWrap: "wrap",
+   769→        }}
+   770→      >
+   771→        <input
+   772→          type="text"
+   773→          placeholder="🔍 Rechercher (n° facture, description)..."
+   774→          value={search}
+   775→          onChange={(e) => setSearch(e.target.value)}
+   776→          style={{ flex: 1, minWidth: 250, padding: "8px 12px" }}
+   777→        />
+   778→        <select
+   779→          value={statusFilter}
+   780→          onChange={(e) => {
+   781→            setStatusFilter(e.target.value);
+   782→            setPage(1);
+   783→          }}
+   784→          style={{ padding: "8px 12px", minWidth: 180 }}
+   785→        >
+   786→          <option value="">Tous statuts</option>
+   787→          <option value="PENDING">En attente</option>
+   788→          <option value="PARTIALLY_PAID">Partiellement payée</option>
+   789→          <option value="PAID">Payée</option>
+   790→          <option value="CANCELLED">Annulée</option>
+   791→        </select>
+   792→        <button className="primary-button" onClick={() => setShowForm(!showForm)}>
+   793→          {showForm ? "Annuler" : "+ Nouvelle facture"}
+   794→        </button>
+   795→      </div>
+   796→
+   797→      {loading ? (
+   798→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   799→          <div className="spinner" />
+   800→        </div>
+   801→      ) : error ? (
+   802→        <div className="card" style={{ padding: "16px", color: "var(--danger)" }}>
+   803→          {error}
+   804→        </div>
+   805→      ) : (
+   806→        <div className="card" style={{ marginTop: showForm ? "16px" : 0, padding: 0, overflow: "hidden" }}>
+   807→          <div className="table-wrapper">
+   808→            <table className="table">
+   809→              <thead>
+   810→                <tr>
+   811→                  <th>N° Facture</th>
+   812→                  <th>Patient</th>
+   813→                  <th>Date</th>
+   814→                  <th style={{ textAlign: "right" }}>Montant</th>
+   815→                  <th style={{ textAlign: "right" }}>Payé</th>
+   816→                  <th style={{ textAlign: "right" }}>Solde dû</th>
+   817→                  <th>Statut</th>
+   818→                  <th>PDF</th>
+   819→                </tr>
+   820→              </thead>
+   821→              <tbody>
+   822→                {invoices.length === 0 ? (
+   823→                  <tr>
+   824→                    <td colSpan={8} style={{ textAlign: "center", padding: "24px" }}>
+   825→                      <span className="muted">Aucune facture trouvée.</span>
+   826→                    </td>
+   827→                  </tr>
+   828→                ) : (
+   829→                  invoices.map((inv) => {
+   830→                    const statusCfg = INVOICE_STATUS_MAP[inv.status] || {
+   831→                      label: inv.status,
+   832→                      badge: "badge-gray",
+   833→                    };
+   834→                    return (
+   835→                      <tr key={inv.id}>
+   836→                        <td style={{ fontWeight: 700, fontFamily: "monospace" }}>
+   837→                          {inv.invoice_number}
+   838→                        </td>
+   839→                        <td style={{ fontWeight: 600 }}>
+   840→                          {getPatientName(inv.patient_id)}
+   841→                        </td>
+   842→                        <td style={{ whiteSpace: "nowrap" }}>
+   843→                          {inv.created_at
+   844→                            ? new Date(inv.created_at).toLocaleDateString("fr-FR")
+   845→                            : "—"}
+   846→                        </td>
+   847→                        <td style={{ textAlign: "right", fontWeight: 700 }}>
+   848→                          {(inv.net_amount || 0).toLocaleString("fr-FR")} GNF
+   849→                        </td>
+   850→                        <td style={{ textAlign: "right" }}>
+   851→                          {(inv.paid_amount || 0).toLocaleString("fr-FR")} GNF
+   852→                        </td>
+   853→                        <td
+   854→                          style={{
+   855→                            textAlign: "right",
+   856→                            fontWeight: 600,
+   857→                            color:
+   858→                              inv.balance_due > 0
+   859→                                ? "var(--danger)"
+   860→                                : "var(--success)",
+   861→                          }}
+   862→                        >
+   863→                          {(inv.balance_due || 0).toLocaleString("fr-FR")} GNF
+   864→                        </td>
+   865→                        <td>
+   866→                          <span className={`badge ${statusCfg.badge}`}>
+   867→                            {statusCfg.label}
+   868→                          </span>
+   869→                        </td>
+   870→                        <td style={{ whiteSpace: "nowrap" }}>
+   871→                          <PdfButton
+   872→                            documentPath={`invoices/${inv.id}/pdf`}
+   873→                            label="PDF"
+   874→                          />
+   875→                        </td>
+   876→                      </tr>
+   877→                    );
+   878→                  })
+   879→                )}
+   880→              </tbody>
+   881→            </table>
+   882→          </div>
+   883→          <div style={{ padding: "0 16px" }}>
+   884→            <Pagination
+   885→              page={page}
+   886→              totalPages={totalPages}
+   887→              total={total}
+   888→              onPageChange={setPage}
+   889→              loading={loading}
+   890→            />
+   891→          </div>
+   892→        </div>
+   893→      )}
+   894→    </>
+   895→  );
+   896→}
+   897→
+   898→/* ═════════════════════════════════════════════════════════════════
+   899→   Payments Tab
+   900→   ═════════════════════════════════════════════════════════════════ */
+   901→
+   902→function PaymentsTab({
+   903→  lookups,
+   904→  onCreated,
+   905→}: {
+   906→  lookups: LookupData;
+   907→  onCreated: () => void;
+   908→}) {
+   909→  const options = buildOptions(lookups);
+   910→  const facilityId = firstValue(options.facilities);
+   911→
+   912→  const [payments, setPayments] = useState<Row[]>([]);
+   913→  const [invoices, setInvoices] = useState<Row[]>([]);
+   914→  const [loading, setLoading] = useState(true);
+   915→  const [showForm, setShowForm] = useState(false);
+   916→  const [submitting, setSubmitting] = useState(false);
+   917→
+   918→  // Form fields
+   919→  const [invoiceId, setInvoiceId] = useState("");
+   920→  const [amount, setAmount] = useState("");
+   921→  const [method, setMethod] = useState("CASH");
+   922→  const [reference, setReference] = useState("");
+   923→
+   924→  const loadData = useCallback(async () => {
+   925→    setLoading(true);
+   926→    try {
+   927→      const [paymentsRes, invoicesRes] = await Promise.all([
+   928→        apiRequest<any>("/billing/payments?page_size=1000"),
+   929→        apiRequest<any>("/billing/invoices?page_size=1000"),
+   930→      ]);
+   931→      setPayments(Array.isArray(paymentsRes.data) ? paymentsRes.data : []);
+   932→      setInvoices(Array.isArray(invoicesRes.data) ? invoicesRes.data : []);
+   933→    } catch {
+   934→      showToast("Erreur de chargement des paiements.", "error");
+   935→    } finally {
+   936→      setLoading(false);
+   937→    }
+   938→  }, []);
+   939→
+   940→  useEffect(() => {
+   941→    loadData();
+   942→    const handler = () => loadData();
+   943→    window.addEventListener("refresh-resource", handler);
+   944→    return () => window.removeEventListener("refresh-resource", handler);
+   945→  }, [loadData]);
+   946→
+   947→  // Unpaid/partially paid invoices for selection
+   948→  const unpaidInvoices = invoices.filter(
+   949→    (inv) =>
+   950→      inv.status === "ISSUED" ||
+   951→      inv.status === "PARTIALLY_PAID" ||
+   952→      inv.status === "DRAFT"
+   953→  );
+   954→
+   955→  const invoiceOptions = unpaidInvoices.map((inv) => {
+   956→    const patient = lookups.patients.find((p) => p.id === inv.patient_id);
+   957→    return {
+   958→      value: inv.id,
+   959→      label: `${inv.invoice_number} — ${patient ? `${patient.first_name} ${patient.last_name}` : inv.patient_id} — Solde: ${(inv.balance_due || 0).toLocaleString("fr-FR")} GNF`,
+   960→    };
+   961→  });
+   962→
+   963→  // Auto-fill amount when invoice is selected
+   964→  function handleInvoiceChange(invId: string) {
+   965→    setInvoiceId(invId);
+   966→    const inv = invoices.find((i) => i.id === invId);
+   967→    if (inv && inv.balance_due > 0) {
+   968→      setAmount(String(inv.balance_due));
+   969→    }
+   970→  }
+   971→
+   972→  async function handleSubmit(e: React.FormEvent) {
+   973→    e.preventDefault();
+   974→    if (!invoiceId || !amount || parseFloat(amount) <= 0) {
+   975→      showToast("Veuillez sélectionner une facture et saisir un montant.", "error");
+   976→      return;
+   977→    }
+   978→    setSubmitting(true);
+   979→    try {
+   980→      await apiRequest(`/billing/invoices/${invoiceId}/payments`, {
+   981→        method: "POST",
+   982→        body: JSON.stringify({
+   983→          facility_id: facilityId,
+   984→          amount: parseFloat(amount),
+   985→          payment_method: method,
+   986→        }),
+   987→      });
+   988→      showToast("Paiement enregistré avec succès.", "success");
+   989→      setInvoiceId("");
+   990→      setAmount("");
+   991→      setMethod("CASH");
+   992→      setReference("");
+   993→      setShowForm(false);
+   994→      onCreated();
+   995→      loadData();
+   996→    } catch (err: any) {
+   997→      showToast(err.message || "Erreur lors du paiement.", "error");
+   998→    } finally {
+   999→      setSubmitting(false);
+  1000→    }
+  1001→  }
+  1002→
+  1003→  function getPatientName(patientId: string): string {
+  1004→    const pat = lookups.patients.find((p) => p.id === patientId);
+  1005→    return pat
+  1006→      ? `${pat.first_name || ""} ${pat.last_name || ""}`.trim() || patientId
+  1007→      : patientId;
+  1008→  }
+  1009→
+  1010→  function getInvoicePatient(invoiceId: string): string {
+  1011→    const inv = invoices.find((i) => i.id === invoiceId);
+  1012→    if (!inv) return "—";
+  1013→    return getPatientName(inv.patient_id);
+  1014→  }
+  1015→
+  1016→  const methodLabel: Record<string, string> = {};
+  1017→  PAYMENT_METHOD_OPTIONS.forEach((o) => {
+  1018→    methodLabel[o.value] = o.label;
+  1019→  });
+  1020→
+  1021→  return (
+  1022→    <>
+  1023→      <div className="section-header">
+  1024→        <h2>Paiements</h2>
+  1025→        <button
+  1026→          className="primary-button"
+  1027→          style={{ display: "flex", alignItems: "center", gap: "6px" }}
+  1028→          onClick={() => setShowForm(!showForm)}
+  1029→        >
+  1030→          <Plus size={16} />
+  1031→          {showForm ? "Annuler" : "Enregistrer un paiement"}
+  1032→        </button>
+  1033→      </div>
+  1034→
+  1035→      {showForm && (
+  1036→        <div className="card form-card">
+  1037→          <h3 style={{ marginBottom: "16px" }}>Enregistrer un paiement</h3>
+  1038→          <form onSubmit={handleSubmit}>
+  1039→            <div className="form-grid">
+  1040→              <label className="form-control">
+  1041→                Facture *
+  1042→                <select
+  1043→                  value={invoiceId}
+  1044→                  onChange={(e) => handleInvoiceChange(e.target.value)}
+  1045→                  required
+  1046→                >
+  1047→                  <option value="">— Choisir une facture —</option>
+  1048→                  {invoiceOptions.map((o) => (
+  1049→                    <option key={o.value} value={o.value}>
+  1050→                      {o.label}
+  1051→                    </option>
+  1052→                  ))}
+  1053→                </select>
+  1054→              </label>
+  1055→              <label className="form-control">
+  1056→                Montant (GNF) *
+  1057→                <input
+  1058→                  type="number"
+  1059→                  min={1}
+  1060→                  value={amount}
+  1061→                  onChange={(e) => setAmount(e.target.value)}
+  1062→                  placeholder="0"
+  1063→                  required
+  1064→                />
+  1065→              </label>
+  1066→              <label className="form-control">
+  1067→                Mode de paiement
+  1068→                <select
+  1069→                  value={method}
+  1070→                  onChange={(e) => setMethod(e.target.value)}
+  1071→                >
+  1072→                  {PAYMENT_METHOD_OPTIONS.map((o) => (
+  1073→                    <option key={o.value} value={o.value}>
+  1074→                      {o.label}
+  1075→                    </option>
+  1076→                  ))}
+  1077→                </select>
+  1078→              </label>
+  1079→              <label className="form-control">
+  1080→                Référence
+  1081→                <input
+  1082→                  type="text"
+  1083→                  value={reference}
+  1084→                  onChange={(e) => setReference(e.target.value)}
+  1085→                  placeholder="N° de transaction"
+  1086→                />
+  1087→              </label>
+  1088→            </div>
+  1089→            <div className="form-actions">
+  1090→              <button className="primary-button" type="submit" disabled={submitting}>
+  1091→                {submitting ? "Enregistrement..." : "Enregistrer le paiement"}
+  1092→              </button>
+  1093→            </div>
+  1094→          </form>
+  1095→        </div>
+  1096→      )}
+  1097→
+  1098→      {loading ? (
+  1099→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+  1100→          <div className="spinner" />
+  1101→        </div>
+  1102→      ) : (
+  1103→        <div className="card" style={{ marginTop: showForm ? "16px" : 0, padding: 0, overflow: "hidden" }}>
+  1104→          <div className="table-wrapper">
+  1105→            <table className="table">
+  1106→              <thead>
+  1107→                <tr>
+  1108→                  <th>Date</th>
+  1109→                  <th>Patient</th>
+  1110→                  <th style={{ textAlign: "right" }}>Montant</th>
+  1111→                  <th>Mode</th>
+  1112→                  <th>Statut</th>
+  1113→                </tr>
+  1114→              </thead>
+  1115→              <tbody>
+  1116→                {payments.length === 0 ? (
+  1117→                  <tr>
+  1118→                    <td colSpan={5} style={{ textAlign: "center", padding: "24px" }}>
+  1119→                      <span className="muted">Aucun paiement enregistré.</span>
+  1120→                    </td>
+  1121→                  </tr>
+  1122→                ) : (
+  1123→                  payments.map((p) => (
+  1124→                    <tr key={p.id}>
+  1125→                      <td style={{ whiteSpace: "nowrap" }}>
+  1126→                        {p.received_at
+  1127→                          ? new Date(p.received_at).toLocaleString("fr-FR")
+  1128→                          : "—"}
+  1129→                      </td>
+  1130→                      <td style={{ fontWeight: 600 }}>
+  1131→                        {getInvoicePatient(p.invoice_id)}
+  1132→                      </td>
+  1133→                      <td style={{ textAlign: "right", fontWeight: 700 }}>
+  1134→                        {(p.amount || 0).toLocaleString("fr-FR")} GNF
+  1135→                      </td>
+  1136→                      <td>
+  1137→                        <span className="badge badge-gray">
+  1138→                          {methodLabel[p.payment_method] || p.payment_method || "—"}
+  1139→                        </span>
+  1140→                      </td>
+  1141→                      <td>
+  1142→                        <span
+  1143→                          className={`badge ${
+  1144→                            p.status === "COMPLETED"
+  1145→                              ? "badge-green"
+  1146→                              : "badge-yellow"
+  1147→                          }`}
+  1148→                        >
+  1149→                          {p.status === "COMPLETED" ? "Complété" : p.status || "—"}
+  1150→                        </span>
+  1151→                      </td>
+  1152→                    </tr>
+  1153→                  ))
+  1154→                )}
+  1155→              </tbody>
+  1156→            </table>
+  1157→          </div>
+  1158→        </div>
+  1159→      )}
+  1160→    </>
+  1161→  );
+  1162→}
+  1163→
+  1164→/* ═════════════════════════════════════════════════════════════════
+  1165→   Tariffs Tab
+  1166→   ═════════════════════════════════════════════════════════════════ */
+  1167→
+  1168→function TariffsTab({
+  1169→  lookups,
+  1170→  onCreated,
+  1171→}: {
+  1172→  lookups: LookupData;
+  1173→  onCreated: () => void;
+  1174→}) {
+  1175→  const options = buildOptions(lookups);
+  1176→  const facilityId = firstValue(options.facilities);
+  1177→
+  1178→  const [tariffs, setTariffs] = useState<Row[]>([]);
+  1179→  const [loading, setLoading] = useState(true);
+  1180→  const [showForm, setShowForm] = useState(false);
+  1181→  const [submitting, setSubmitting] = useState(false);
+  1182→
+  1183→  // Form fields
+  1184→  const [code, setCode] = useState("");
+  1185→  const [name, setName] = useState("");
+  1186→  const [category, setCategory] = useState("CONSULTATION");
+  1187→  const [unitPrice, setUnitPrice] = useState("");
+  1188→
+  1189→  const loadTariffs = useCallback(async () => {
+  1190→    setLoading(true);
+  1191→    try {
+  1192→      const res = await apiRequest<any>("/billing/tariffs?page_size=1000");
+  1193→      setTariffs(Array.isArray(res.data) ? res.data : []);
+  1194→    } catch {
+  1195→      showToast("Erreur de chargement des tarifs.", "error");
+  1196→    } finally {
+  1197→      setLoading(false);
+  1198→    }
+  1199→  }, []);
+  1200→
+  1201→  useEffect(() => {
+  1202→    loadTariffs();
+  1203→    const handler = () => loadTariffs();
+  1204→    window.addEventListener("refresh-resource", handler);
+  1205→    return () => window.removeEventListener("refresh-resource", handler);
+  1206→  }, [loadTariffs]);
+  1207→
+  1208→  function resetForm() {
+  1209→    setCode("");
+  1210→    setName("");
+  1211→    setCategory("CONSULTATION");
+  1212→    setUnitPrice("");
+  1213→  }
+  1214→
+  1215→  async function handleSubmit(e: React.FormEvent) {
+  1216→    e.preventDefault();
+  1217→    if (!code || !name || !unitPrice) {
+  1218→      showToast("Tous les champs sont obligatoires.", "error");
+  1219→      return;
+  1220→    }
+  1221→    setSubmitting(true);
+  1222→    try {
+  1223→      await apiRequest("/billing/tariffs", {
+  1224→        method: "POST",
+  1225→        body: JSON.stringify({
+  1226→          facility_id: facilityId,
+  1227→          code,
+  1228→          name,
+  1229→          category,
+  1230→          unit_price: parseFloat(unitPrice),
+  1231→        }),
+  1232→      });
+  1233→      showToast("Tarif créé avec succès.", "success");
+  1234→      resetForm();
+  1235→      setShowForm(false);
+  1236→      onCreated();
+  1237→      loadTariffs();
+  1238→    } catch (err: any) {
+  1239→      showToast(err.message || "Erreur lors de la création.", "error");
+  1240→    } finally {
+  1241→      setSubmitting(false);
+  1242→    }
+  1243→  }
+  1244→
+  1245→  const categoryLabel: Record<string, string> = {};
+  1246→  TARIFF_CATEGORY_OPTIONS.forEach((o) => {
+  1247→    categoryLabel[o.value] = o.label;
+  1248→  });
+  1249→
+  1250→  return (
+  1251→    <>
+  1252→      <div className="section-header">
+  1253→        <h2>Catalogue des tarifs</h2>
+  1254→        <button
+  1255→          className="primary-button"
+  1256→          style={{ display: "flex", alignItems: "center", gap: "6px" }}
+  1257→          onClick={() => setShowForm(!showForm)}
+  1258→        >
+  1259→          <Plus size={16} />
+  1260→          {showForm ? "Annuler" : "Nouveau tarif"}
+  1261→        </button>
+  1262→      </div>
+  1263→
+  1264→      {showForm && (
+  1265→        <div className="card form-card">
+  1266→          <h3 style={{ marginBottom: "16px" }}>Nouveau tarif</h3>
+  1267→          <form onSubmit={handleSubmit}>
+  1268→            <div className="form-grid">
+  1269→              <label className="form-control">
+  1270→                Code *
+  1271→                <input
+  1272→                  type="text"
+  1273→                  value={code}
+  1274→                  onChange={(e) => setCode(e.target.value)}
+  1275→                  placeholder="Ex: CONS001"
+  1276→                  required
+  1277→                />
+  1278→              </label>
+  1279→              <label className="form-control">
+  1280→                Nom *
+  1281→                <input
+  1282→                  type="text"
+  1283→                  value={name}
+  1284→                  onChange={(e) => setName(e.target.value)}
+  1285→                  placeholder="Ex: Consultation générale"
+  1286→                  required
+  1287→                />
+  1288→              </label>
+  1289→              <label className="form-control">
+  1290→                Catégorie
+  1291→                <select
+  1292→                  value={category}
+  1293→                  onChange={(e) => setCategory(e.target.value)}
+  1294→                >
+  1295→                  {TARIFF_CATEGORY_OPTIONS.filter((o) => o.value).map((o) => (
+  1296→                    <option key={o.value} value={o.value}>
+  1297→                      {o.label}
+  1298→                    </option>
+  1299→                  ))}
+  1300→                </select>
+  1301→              </label>
+  1302→              <label className="form-control">
+  1303→                Prix unitaire (GNF) *
+  1304→                <input
+  1305→                  type="number"
+  1306→                  min={0}
+  1307→                  value={unitPrice}
+  1308→                  onChange={(e) => setUnitPrice(e.target.value)}
+  1309→                  placeholder="0"
+  1310→                  required
+  1311→                />
+  1312→              </label>
+  1313→            </div>
+  1314→            <div className="form-actions">
+  1315→              <button className="primary-button" type="submit" disabled={submitting}>
+  1316→                {submitting ? "Création..." : "Créer le tarif"}
+  1317→              </button>
+  1318→            </div>
+  1319→          </form>
+  1320→        </div>
+  1321→      )}
+  1322→
+  1323→      {loading ? (
+  1324→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+  1325→          <div className="spinner" />
+  1326→        </div>
+  1327→      ) : (
+  1328→        <div className="card" style={{ marginTop: showForm ? "16px" : 0, padding: 0, overflow: "hidden" }}>
+  1329→          <div className="table-wrapper">
+  1330→            <table className="table">
+  1331→              <thead>
+  1332→                <tr>
+  1333→                  <th>Code</th>
+  1334→                  <th>Nom</th>
+  1335→                  <th>Catégorie</th>
+  1336→                  <th style={{ textAlign: "right" }}>Prix unitaire</th>
+  1337→                  <th>Statut</th>
+  1338→                </tr>
+  1339→              </thead>
+  1340→              <tbody>
+  1341→                {tariffs.length === 0 ? (
+  1342→                  <tr>
+  1343→                    <td colSpan={5} style={{ textAlign: "center", padding: "24px" }}>
+  1344→                      <span className="muted">Aucun tarif enregistré.</span>
+  1345→                    </td>
+  1346→                  </tr>
+  1347→                ) : (
+  1348→                  tariffs.map((t) => (
+  1349→                    <tr key={t.id}>
+  1350→                      <td style={{ fontWeight: 700, fontFamily: "monospace" }}>
+  1351→                        {t.code}
+  1352→                      </td>
+  1353→                      <td style={{ fontWeight: 600 }}>{t.name}</td>
+  1354→                      <td>
+  1355→                        <span className="badge badge-gray">
+  1356→                          {categoryLabel[t.category] || t.category || "—"}
+  1357→                        </span>
+  1358→                      </td>
+  1359→                      <td style={{ textAlign: "right", fontWeight: 700 }}>
+  1360→                        {(t.unit_price || 0).toLocaleString("fr-FR")} GNF
+  1361→                      </td>
+  1362→                      <td>
+  1363→                        <span
+  1364→                          className={`badge ${
+  1365→                            t.status === "ACTIVE" ? "badge-green" : "badge-gray"
+  1366→                          }`}
+  1367→                        >
+  1368→                          {t.status === "ACTIVE" ? "Actif" : t.status || "—"}
+  1369→                        </span>
+  1370→                      </td>
+  1371→                    </tr>
+  1372→                  ))
+  1373→                )}
+  1374→              </tbody>
+  1375→            </table>
+  1376→          </div>
+  1377→        </div>
+  1378→      )}
+  1379→    </>
+  1380→  );
+  1381→}
+  1382→

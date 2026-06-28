@@ -1,0 +1,770 @@
+     1→import { useCallback, useEffect, useState } from "react";
+     2→import { apiRequest } from "../services/api";
+     3→import { LookupData, Row } from "../types";
+     4→import { showToast } from "../components/Toast";
+     5→import { buildOptions, firstValue } from "../utils/options";
+     6→
+     7→type TabKey = "records" | "new_record" | "consultations" | "deliveries";
+     8→
+     9→const TABS: { key: TabKey; label: string }[] = [
+    10→  { key: "records", label: "Dossiers maternité" },
+    11→  { key: "new_record", label: "Nouveau dossier" },
+    12→  { key: "consultations", label: "Consultations" },
+    13→  { key: "deliveries", label: "Accouchements" },
+    14→];
+    15→
+    16→const PREGNANCY_STATUS_OPTIONS = [
+    17→  { value: "ONGOING", label: "En cours" },
+    18→  { value: "COMPLETED", label: "Terminée" },
+    19→  { value: "COMPLICATED", label: "Compliquée" },
+    20→  { value: "MISCARRIAGE", label: "Fausse couche" },
+    21→];
+    22→
+    23→const DELIVERY_TYPE_OPTIONS = [
+    24→  { value: "VAGINAL", label: "Vaginal" },
+    25→  { value: "CESAREAN", label: "Césarienne" },
+    26→  { value: "INSTRUMENTAL", label: "Instrumental" },
+    27→];
+    28→
+    29→const BABY_STATUS_OPTIONS = [
+    30→  { value: "ALIVE", label: "Vivant" },
+    31→  { value: "STILLBORN", label: "Mort-né" },
+    32→];
+    33→
+    34→export function MaternityPage({ lookups }: { lookups: LookupData }) {
+    35→  const [activeTab, setActiveTab] = useState<TabKey>("records");
+    36→  const [selectedRecord, setSelectedRecord] = useState<string>("");
+    37→
+    38→  return (
+    39→    <section>
+    40→      <h1>Maternité</h1>
+    41→      <p className="muted">Suivi des grossesses, consultations prénatales et accouchements.</p>
+    42→
+    43→      <div className="tab-bar">
+    44→        {TABS.map((tab) => (
+    45→          <button
+    46→            key={tab.key}
+    47→            className={`tab-button ${activeTab === tab.key ? "active" : ""}`}
+    48→            onClick={() => setActiveTab(tab.key)}
+    49→          >
+    50→            {tab.label}
+    51→          </button>
+    52→        ))}
+    53→      </div>
+    54→
+    55→      {activeTab === "records" && (
+    56→        <RecordsTab
+    57→          lookups={lookups}
+    58→          onSelectRecord={(id) => {
+    59→            setSelectedRecord(id);
+    60→            setActiveTab("consultations");
+    61→          }}
+    62→        />
+    63→      )}
+    64→      {activeTab === "new_record" && (
+    65→        <NewRecordTab lookups={lookups} onCreated={() => setActiveTab("records")} />
+    66→      )}
+    67→      {activeTab === "consultations" && (
+    68→        <ConsultationsTab lookups={lookups} selectedRecord={selectedRecord} />
+    69→      )}
+    70→      {activeTab === "deliveries" && (
+    71→        <DeliveriesTab lookups={lookups} selectedRecord={selectedRecord} />
+    72→      )}
+    73→    </section>
+    74→  );
+    75→}
+    76→
+    77→/* ─── Records Tab ────────────────────────────────────────────── */
+    78→
+    79→function RecordsTab({
+    80→  lookups,
+    81→  onSelectRecord,
+    82→}: {
+    83→  lookups: LookupData;
+    84→  onSelectRecord: (id: string) => void;
+    85→}) {
+    86→  const [records, setRecords] = useState<Row[]>([]);
+    87→  const [loading, setLoading] = useState(true);
+    88→  const [error, setError] = useState("");
+    89→
+    90→  async function loadRecords() {
+    91→    setLoading(true);
+    92→    setError("");
+    93→    try {
+    94→      const payload = await apiRequest<any>("/maternity/records?page_size=1000");
+    95→      setRecords(Array.isArray(payload.data) ? payload.data : []);
+    96→    } catch {
+    97→      setError("Impossible de charger les dossiers maternité.");
+    98→    } finally {
+    99→      setLoading(false);
+   100→    }
+   101→  }
+   102→
+   103→  useEffect(() => {
+   104→    loadRecords();
+   105→    const handler = () => loadRecords();
+   106→    window.addEventListener("refresh-resource", handler);
+   107→    return () => window.removeEventListener("refresh-resource", handler);
+   108→  }, []);
+   109→
+   110→  const statusBadge: Record<string, string> = {
+   111→    ONGOING: "badge-blue",
+   112→    COMPLETED: "badge-green",
+   113→    COMPLICATED: "badge-yellow",
+   114→    MISCARRIAGE: "badge-red",
+   115→  };
+   116→
+   117→  const statusLabel: Record<string, string> = {
+   118→    ONGOING: "En cours",
+   119→    COMPLETED: "Terminée",
+   120→    COMPLICATED: "Compliquée",
+   121→    MISCARRIAGE: "Fausse couche",
+   122→  };
+   123→
+   124→  return (
+   125→    <>
+   126→      {loading ? (
+   127→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   128→          <div className="spinner" />
+   129→          <p className="muted" style={{ marginTop: "12px" }}>Chargement...</p>
+   130→        </div>
+   131→      ) : error ? (
+   132→        <p style={{ color: "crimson" }}>{error}</p>
+   133→      ) : records.length === 0 ? (
+   134→        <div className="card">
+   135→          <p className="muted">Aucun dossier maternité enregistré.</p>
+   136→        </div>
+   137→      ) : (
+   138→        <div className="card">
+   139→          <div className="table-wrapper">
+   140→            <table className="table">
+   141→              <thead>
+   142→                <tr>
+   143→                  <th>Patient</th>
+   144→                  <th>Date prévue</th>
+   145→                  <th>Statut</th>
+   146→                  <th>Nombre de consultations</th>
+   147→                  <th>Actions</th>
+   148→                </tr>
+   149→              </thead>
+   150→              <tbody>
+   151→                {records.map((rec) => (
+   152→                  <tr key={rec.id}>
+   153→                    <td style={{ fontWeight: 600 }}>{rec.patient_id || "—"}</td>
+   154→                    <td>
+   155→                      {rec.expected_due_date
+   156→                        ? new Date(rec.expected_due_date).toLocaleDateString("fr-FR")
+   157→                        : "—"}
+   158→                    </td>
+   159→                    <td>
+   160→                      <span className={`badge ${statusBadge[rec.status] || "badge-gray"}`}>
+   161→                        {statusLabel[rec.status] || rec.status}
+   162→                      </span>
+   163→                    </td>
+   164→                    <td>{rec.consultation_count ?? "—"}</td>
+   165→                    <td>
+   166→                      <button
+   167→                        className="secondary-button"
+   168→                        style={{ padding: "4px 12px", fontSize: "13px" }}
+   169→                        onClick={() => onSelectRecord(rec.id)}
+   170→                      >
+   171→                        Voir
+   172→                      </button>
+   173→                    </td>
+   174→                  </tr>
+   175→                ))}
+   176→              </tbody>
+   177→            </table>
+   178→          </div>
+   179→        </div>
+   180→      )}
+   181→    </>
+   182→  );
+   183→}
+   184→
+   185→/* ─── New Record Tab ─────────────────────────────────────────── */
+   186→
+   187→function NewRecordTab({
+   188→  lookups,
+   189→  onCreated,
+   190→}: {
+   191→  lookups: LookupData;
+   192→  onCreated: () => void;
+   193→}) {
+   194→  const options = buildOptions(lookups);
+   195→  const [patientId, setPatientId] = useState("");
+   196→  const [expectedDueDate, setExpectedDueDate] = useState("");
+   197→  const [gravida, setGravida] = useState("");
+   198→  const [para, setPara] = useState("");
+   199→  const [bloodType, setBloodType] = useState("");
+   200→  const [submitting, setSubmitting] = useState(false);
+   201→
+   202→  async function handleSubmit(e: React.FormEvent) {
+   203→    e.preventDefault();
+   204→    if (!patientId) return;
+   205→    setSubmitting(true);
+   206→    try {
+   207→      await apiRequest("/maternity/records", {
+   208→        method: "POST",
+   209→        body: JSON.stringify({
+   210→          facility_id: firstValue(options.facilities),
+   211→          patient_id: patientId,
+   212→          expected_due_date: expectedDueDate || undefined,
+   213→          gravida: gravida || undefined,
+   214→          para: para || undefined,
+   215→          blood_type: bloodType || undefined,
+   216→        }),
+   217→      });
+   218→      showToast("Dossier maternité créé avec succès.", "success");
+   219→      onCreated();
+   220→    } catch {
+   221→      showToast("Erreur lors de la création du dossier.", "error");
+   222→    } finally {
+   223→      setSubmitting(false);
+   224→    }
+   225→  }
+   226→
+   227→  return (
+   228→    <div className="card form-card">
+   229→      <h2>Nouveau dossier maternité</h2>
+   230→      <form onSubmit={handleSubmit} className="form-grid">
+   231→        <label className="form-control">
+   232→          Patient
+   233→          <select value={patientId} onChange={(e) => setPatientId(e.target.value)} required>
+   234→            <option value="">-- Choisir une patiente --</option>
+   235→            {options.patients.map((o) => (
+   236→              <option key={o.value} value={o.value}>{o.label}</option>
+   237→            ))}
+   238→          </select>
+   239→        </label>
+   240→        <label className="form-control">
+   241→          Date prévue d'accouchement
+   242→          <input
+   243→            type="date"
+   244→            value={expectedDueDate}
+   245→            onChange={(e) => setExpectedDueDate(e.target.value)}
+   246→          />
+   247→        </label>
+   248→        <label className="form-control">
+   249→          Geste (Gravida)
+   250→          <input
+   251→            type="number"
+   252→            min="0"
+   253→            value={gravida}
+   254→            onChange={(e) => setGravida(e.target.value)}
+   255→            placeholder="Nombre de grossesses"
+   256→          />
+   257→        </label>
+   258→        <label className="form-control">
+   259→          Parité (Para)
+   260→          <input
+   261→            type="number"
+   262→            min="0"
+   263→            value={para}
+   264→            onChange={(e) => setPara(e.target.value)}
+   265→            placeholder="Nombre d'accouchements"
+   266→          />
+   267→        </label>
+   268→        <label className="form-control">
+   269→          Groupe sanguin
+   270→          <select value={bloodType} onChange={(e) => setBloodType(e.target.value)}>
+   271→            <option value="">-- Choisir --</option>
+   272→            {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((bt) => (
+   273→              <option key={bt} value={bt}>{bt}</option>
+   274→            ))}
+   275→          </select>
+   276→        </label>
+   277→        <div className="form-actions">
+   278→          <button className="primary-button" type="submit" disabled={submitting}>
+   279→            {submitting ? "Création..." : "Créer le dossier"}
+   280→          </button>
+   281→        </div>
+   282→      </form>
+   283→    </div>
+   284→  );
+   285→}
+   286→
+   287→/* ─── Consultations Tab ──────────────────────────────────────── */
+   288→
+   289→function ConsultationsTab({
+   290→  lookups,
+   291→  selectedRecord,
+   292→}: {
+   293→  lookups: LookupData;
+   294→  selectedRecord: string;
+   295→}) {
+   296→  const [records, setRecords] = useState<Row[]>([]);
+   297→  const [consultations, setConsultations] = useState<Row[]>([]);
+   298→  const [loading, setLoading] = useState(true);
+   299→  const [currentRecord, setCurrentRecord] = useState(selectedRecord);
+   300→  const [showForm, setShowForm] = useState(false);
+   301→  const [submitting, setSubmitting] = useState(false);
+   302→
+   303→  // Consultation form fields
+   304→  const [consultDate, setConsultDate] = useState("");
+   305→  const [gestationalAge, setGestationalAge] = useState("");
+   306→  const [weight, setWeight] = useState("");
+   307→  const [bloodPressure, setBloodPressure] = useState("");
+   308→  const [notes, setNotes] = useState("");
+   309→
+   310→  const options = buildOptions(lookups);
+   311→
+   312→  async function loadRecords() {
+   313→    try {
+   314→      const payload = await apiRequest<any>("/maternity/records?page_size=1000");
+   315→      setRecords(Array.isArray(payload.data) ? payload.data : []);
+   316→    } catch {
+   317→      // Silently fail
+   318→    }
+   319→  }
+   320→
+   321→  async function loadConsultations(recordId: string) {
+   322→    setLoading(true);
+   323→    try {
+   324→      const payload = await apiRequest<any>(`/maternity/records/${recordId}`);
+   325→      setConsultations(Array.isArray(payload.data?.consultations) ? payload.data.consultations : []);
+   326→    } catch {
+   327→      setConsultations([]);
+   328→    } finally {
+   329→      setLoading(false);
+   330→    }
+   331→  }
+   332→
+   333→  useEffect(() => {
+   334→    loadRecords();
+   335→  }, []);
+   336→
+   337→  useEffect(() => {
+   338→    if (currentRecord) {
+   339→      loadConsultations(currentRecord);
+   340→    } else {
+   341→      setConsultations([]);
+   342→      setLoading(false);
+   343→    }
+   344→  }, [currentRecord]);
+   345→
+   346→  // Sync with external selection
+   347→  useEffect(() => {
+   348→    if (selectedRecord) {
+   349→      setCurrentRecord(selectedRecord);
+   350→    }
+   351→  }, [selectedRecord]);
+   352→
+   353→  async function handleSubmit(e: React.FormEvent) {
+   354→    e.preventDefault();
+   355→    if (!currentRecord) return;
+   356→    setSubmitting(true);
+   357→    try {
+   358→      await apiRequest(`/maternity/records/${currentRecord}/consultations`, {
+   359→        method: "POST",
+   360→        body: JSON.stringify({
+   361→          facility_id: firstValue(options.facilities),
+   362→          consultation_date: consultDate || undefined,
+   363→          gestational_age_weeks: gestationalAge ? parseInt(gestationalAge) : undefined,
+   364→          weight: weight || undefined,
+   365→          blood_pressure: bloodPressure || undefined,
+   366→          notes: notes.trim() || undefined,
+   367→        }),
+   368→      });
+   369→      setConsultDate("");
+   370→      setGestationalAge("");
+   371→      setWeight("");
+   372→      setBloodPressure("");
+   373→      setNotes("");
+   374→      setShowForm(false);
+   375→      loadConsultations(currentRecord);
+   376→      showToast("Consultation enregistrée.", "success");
+   377→    } catch {
+   378→      showToast("Erreur lors de l'enregistrement.", "error");
+   379→    } finally {
+   380→      setSubmitting(false);
+   381→    }
+   382→  }
+   383→
+   384→  const recordOptions = records.map((r) => ({
+   385→    value: r.id,
+   386→    label: `${r.patient_id || r.id} — ${r.status || ""}`,
+   387→  }));
+   388→
+   389→  return (
+   390→    <>
+   391→      <div className="section-header">
+   392→        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+   393→          <h2 style={{ margin: 0 }}>Consultations prénatales</h2>
+   394→          <label className="toolbar-control" style={{ marginBottom: 0 }}>
+   395→            <select
+   396→              value={currentRecord}
+   397→              onChange={(e) => setCurrentRecord(e.target.value)}
+   398→              style={{ minWidth: "200px" }}
+   399→            >
+   400→              <option value="">-- Sélectionner un dossier --</option>
+   401→              {recordOptions.map((o) => (
+   402→                <option key={o.value} value={o.value}>{o.label}</option>
+   403→              ))}
+   404→            </select>
+   405→          </label>
+   406→        </div>
+   407→        {currentRecord && (
+   408→          <button className="primary-button" onClick={() => setShowForm(!showForm)}>
+   409→            {showForm ? "Annuler" : "Nouvelle consultation"}
+   410→          </button>
+   411→        )}
+   412→      </div>
+   413→
+   414→      {showForm && (
+   415→        <div className="card form-card">
+   416→          <h3>Nouvelle consultation prénatale</h3>
+   417→          <form onSubmit={handleSubmit} className="form-grid">
+   418→            <label className="form-control">
+   419→              Date de consultation
+   420→              <input type="date" value={consultDate} onChange={(e) => setConsultDate(e.target.value)} />
+   421→            </label>
+   422→            <label className="form-control">
+   423→              Âge gestationnel (semaines)
+   424→              <input type="number" min="0" max="45" value={gestationalAge} onChange={(e) => setGestationalAge(e.target.value)} />
+   425→            </label>
+   426→            <label className="form-control">
+   427→              Poids (kg)
+   428→              <input type="text" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="Ex: 68" />
+   429→            </label>
+   430→            <label className="form-control">
+   431→              Tension artérielle
+   432→              <input type="text" value={bloodPressure} onChange={(e) => setBloodPressure(e.target.value)} placeholder="Ex: 120/80" />
+   433→            </label>
+   434→            <label className="form-control" style={{ gridColumn: "1 / -1" }}>
+   435→              Notes
+   436→              <textarea
+   437→                value={notes}
+   438→                onChange={(e) => setNotes(e.target.value)}
+   439→                rows={3}
+   440→                style={{
+   441→                  width: "100%",
+   442→                  border: "1px solid var(--border)",
+   443→                  borderRadius: "10px",
+   444→                  padding: "12px",
+   445→                  font: "inherit",
+   446→                  resize: "vertical",
+   447→                }}
+   448→                placeholder="Observations..."
+   449→              />
+   450→            </label>
+   451→            <div className="form-actions">
+   452→              <button className="primary-button" type="submit" disabled={submitting}>
+   453→                {submitting ? "Enregistrement..." : "Enregistrer"}
+   454→              </button>
+   455→            </div>
+   456→          </form>
+   457→        </div>
+   458→      )}
+   459→
+   460→      {!currentRecord ? (
+   461→        <div className="card">
+   462→          <p className="muted">Sélectionnez un dossier maternité pour voir les consultations.</p>
+   463→        </div>
+   464→      ) : loading ? (
+   465→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   466→          <div className="spinner" />
+   467→        </div>
+   468→      ) : consultations.length === 0 ? (
+   469→        <div className="card">
+   470→          <p className="muted">Aucune consultation pour ce dossier.</p>
+   471→        </div>
+   472→      ) : (
+   473→        <div className="card">
+   474→          <div className="table-wrapper">
+   475→            <table className="table">
+   476→              <thead>
+   477→                <tr>
+   478→                  <th>Date</th>
+   479→                  <th>Âge gestationnel</th>
+   480→                  <th>Poids</th>
+   481→                  <th>Tension</th>
+   482→                  <th>Notes</th>
+   483→                </tr>
+   484→              </thead>
+   485→              <tbody>
+   486→                {consultations.map((c) => (
+   487→                  <tr key={c.id}>
+   488→                    <td style={{ whiteSpace: "nowrap" }}>
+   489→                      {c.consultation_date
+   490→                        ? new Date(c.consultation_date).toLocaleDateString("fr-FR")
+   491→                        : "—"}
+   492→                    </td>
+   493→                    <td>{c.gestational_age_weeks ? `${c.gestational_age_weeks} SA` : "—"}</td>
+   494→                    <td>{c.weight ? `${c.weight} kg` : "—"}</td>
+   495→                    <td>{c.blood_pressure || "—"}</td>
+   496→                    <td style={{ maxWidth: "250px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+   497→                      {c.notes || "—"}
+   498→                    </td>
+   499→                  </tr>
+   500→                ))}
+   501→              </tbody>
+   502→            </table>
+   503→          </div>
+   504→        </div>
+   505→      )}
+   506→    </>
+   507→  );
+   508→}
+   509→
+   510→/* ─── Deliveries Tab ─────────────────────────────────────────── */
+   511→
+   512→function DeliveriesTab({
+   513→  lookups,
+   514→  selectedRecord,
+   515→}: {
+   516→  lookups: LookupData;
+   517→  selectedRecord: string;
+   518→}) {
+   519→  const [records, setRecords] = useState<Row[]>([]);
+   520→  const [deliveries, setDeliveries] = useState<Row[]>([]);
+   521→  const [loading, setLoading] = useState(true);
+   522→  const [currentRecord, setCurrentRecord] = useState(selectedRecord);
+   523→  const [showForm, setShowForm] = useState(false);
+   524→  const [submitting, setSubmitting] = useState(false);
+   525→
+   526→  // Delivery form fields
+   527→  const [deliveryDate, setDeliveryDate] = useState("");
+   528→  const [deliveryType, setDeliveryType] = useState("VAGINAL");
+   529→  const [babyGender, setBabyGender] = useState("M");
+   530→  const [babyWeight, setBabyWeight] = useState("");
+   531→  const [babyStatus, setBabyStatus] = useState("ALIVE");
+   532→  const [complications, setComplications] = useState("");
+   533→
+   534→  const options = buildOptions(lookups);
+   535→
+   536→  async function loadRecords() {
+   537→    try {
+   538→      const payload = await apiRequest<any>("/maternity/records?page_size=1000");
+   539→      setRecords(Array.isArray(payload.data) ? payload.data : []);
+   540→    } catch {
+   541→      // Silently fail
+   542→    }
+   543→  }
+   544→
+   545→  async function loadDeliveries(recordId: string) {
+   546→    setLoading(true);
+   547→    try {
+   548→      const payload = await apiRequest<any>(`/maternity/records/${recordId}`);
+   549→      setDeliveries(Array.isArray(payload.data?.deliveries) ? payload.data.deliveries : []);
+   550→    } catch {
+   551→      setDeliveries([]);
+   552→    } finally {
+   553→      setLoading(false);
+   554→    }
+   555→  }
+   556→
+   557→  useEffect(() => {
+   558→    loadRecords();
+   559→  }, []);
+   560→
+   561→  useEffect(() => {
+   562→    if (currentRecord) {
+   563→      loadDeliveries(currentRecord);
+   564→    } else {
+   565→      setDeliveries([]);
+   566→      setLoading(false);
+   567→    }
+   568→  }, [currentRecord]);
+   569→
+   570→  useEffect(() => {
+   571→    if (selectedRecord) {
+   572→      setCurrentRecord(selectedRecord);
+   573→    }
+   574→  }, [selectedRecord]);
+   575→
+   576→  async function handleSubmit(e: React.FormEvent) {
+   577→    e.preventDefault();
+   578→    if (!currentRecord) return;
+   579→    setSubmitting(true);
+   580→    try {
+   581→      await apiRequest(`/maternity/records/${currentRecord}/deliveries`, {
+   582→        method: "POST",
+   583→        body: JSON.stringify({
+   584→          facility_id: firstValue(options.facilities),
+   585→          delivery_date: deliveryDate || undefined,
+   586→          delivery_type: deliveryType,
+   587→          baby_gender: babyGender,
+   588→          baby_weight: babyWeight || undefined,
+   589→          baby_status: babyStatus,
+   590→          complications: complications.trim() || undefined,
+   591→        }),
+   592→      });
+   593→      setDeliveryDate("");
+   594→      setDeliveryType("VAGINAL");
+   595→      setBabyGender("M");
+   596→      setBabyWeight("");
+   597→      setBabyStatus("ALIVE");
+   598→      setComplications("");
+   599→      setShowForm(false);
+   600→      loadDeliveries(currentRecord);
+   601→      showToast("Accouchement enregistré.", "success");
+   602→    } catch {
+   603→      showToast("Erreur lors de l'enregistrement.", "error");
+   604→    } finally {
+   605→      setSubmitting(false);
+   606→    }
+   607→  }
+   608→
+   609→  const recordOptions = records.map((r) => ({
+   610→    value: r.id,
+   611→    label: `${r.patient_id || r.id} — ${r.status || ""}`,
+   612→  }));
+   613→
+   614→  const deliveryTypeLabel: Record<string, string> = {
+   615→    VAGINAL: "Vaginal",
+   616→    CESAREAN: "Césarienne",
+   617→    INSTRUMENTAL: "Instrumental",
+   618→  };
+   619→
+   620→  const babyStatusLabel: Record<string, string> = {
+   621→    ALIVE: "Vivant",
+   622→    STILLBORN: "Mort-né",
+   623→  };
+   624→
+   625→  return (
+   626→    <>
+   627→      <div className="section-header">
+   628→        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+   629→          <h2 style={{ margin: 0 }}>Accouchements</h2>
+   630→          <label className="toolbar-control" style={{ marginBottom: 0 }}>
+   631→            <select
+   632→              value={currentRecord}
+   633→              onChange={(e) => setCurrentRecord(e.target.value)}
+   634→              style={{ minWidth: "200px" }}
+   635→            >
+   636→              <option value="">-- Sélectionner un dossier --</option>
+   637→              {recordOptions.map((o) => (
+   638→                <option key={o.value} value={o.value}>{o.label}</option>
+   639→              ))}
+   640→            </select>
+   641→          </label>
+   642→        </div>
+   643→        {currentRecord && (
+   644→          <button className="primary-button" onClick={() => setShowForm(!showForm)}>
+   645→            {showForm ? "Annuler" : "Nouvel accouchement"}
+   646→          </button>
+   647→        )}
+   648→      </div>
+   649→
+   650→      {showForm && (
+   651→        <div className="card form-card">
+   652→          <h3>Enregistrer un accouchement</h3>
+   653→          <form onSubmit={handleSubmit} className="form-grid">
+   654→            <label className="form-control">
+   655→              Date d'accouchement
+   656→              <input type="datetime-local" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} />
+   657→            </label>
+   658→            <label className="form-control">
+   659→              Type d'accouchement
+   660→              <select value={deliveryType} onChange={(e) => setDeliveryType(e.target.value)}>
+   661→                {DELIVERY_TYPE_OPTIONS.map((o) => (
+   662→                  <option key={o.value} value={o.value}>{o.label}</option>
+   663→                ))}
+   664→              </select>
+   665→            </label>
+   666→            <label className="form-control">
+   667→              Sexe du bébé
+   668→              <select value={babyGender} onChange={(e) => setBabyGender(e.target.value)}>
+   669→                <option value="M">Masculin</option>
+   670→                <option value="F">Féminin</option>
+   671→              </select>
+   672→            </label>
+   673→            <label className="form-control">
+   674→              Poids du bébé (g)
+   675→              <input type="number" min="0" value={babyWeight} onChange={(e) => setBabyWeight(e.target.value)} placeholder="Ex: 3200" />
+   676→            </label>
+   677→            <label className="form-control">
+   678→              État du bébé
+   679→              <select value={babyStatus} onChange={(e) => setBabyStatus(e.target.value)}>
+   680→                {BABY_STATUS_OPTIONS.map((o) => (
+   681→                  <option key={o.value} value={o.value}>{o.label}</option>
+   682→                ))}
+   683→              </select>
+   684→            </label>
+   685→            <label className="form-control" style={{ gridColumn: "1 / -1" }}>
+   686→              Complications
+   687→              <textarea
+   688→                value={complications}
+   689→                onChange={(e) => setComplications(e.target.value)}
+   690→                rows={2}
+   691→                style={{
+   692→                  width: "100%",
+   693→                  border: "1px solid var(--border)",
+   694→                  borderRadius: "10px",
+   695→                  padding: "12px",
+   696→                  font: "inherit",
+   697→                  resize: "vertical",
+   698→                }}
+   699→                placeholder="Décrivez les complications éventuelles..."
+   700→              />
+   701→            </label>
+   702→            <div className="form-actions">
+   703→              <button className="primary-button" type="submit" disabled={submitting}>
+   704→                {submitting ? "Enregistrement..." : "Enregistrer"}
+   705→              </button>
+   706→            </div>
+   707→          </form>
+   708→        </div>
+   709→      )}
+   710→
+   711→      {!currentRecord ? (
+   712→        <div className="card">
+   713→          <p className="muted">Sélectionnez un dossier maternité pour voir les accouchements.</p>
+   714→        </div>
+   715→      ) : loading ? (
+   716→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   717→          <div className="spinner" />
+   718→        </div>
+   719→      ) : deliveries.length === 0 ? (
+   720→        <div className="card">
+   721→          <p className="muted">Aucun accouchement pour ce dossier.</p>
+   722→        </div>
+   723→      ) : (
+   724→        <div className="card">
+   725→          <div className="table-wrapper">
+   726→            <table className="table">
+   727→              <thead>
+   728→                <tr>
+   729→                  <th>Date</th>
+   730→                  <th>Type</th>
+   731→                  <th>Sexe bébé</th>
+   732→                  <th>Poids</th>
+   733→                  <th>État bébé</th>
+   734→                  <th>Complications</th>
+   735→                </tr>
+   736→              </thead>
+   737→              <tbody>
+   738→                {deliveries.map((d) => (
+   739→                  <tr key={d.id}>
+   740→                    <td style={{ whiteSpace: "nowrap" }}>
+   741→                      {d.delivery_date
+   742→                        ? new Date(d.delivery_date).toLocaleString("fr-FR")
+   743→                        : "—"}
+   744→                    </td>
+   745→                    <td>
+   746→                      <span className="badge badge-blue">
+   747→                        {deliveryTypeLabel[d.delivery_type] || d.delivery_type}
+   748→                      </span>
+   749→                    </td>
+   750→                    <td>{d.baby_gender === "M" ? "Masculin" : d.baby_gender === "F" ? "Féminin" : d.baby_gender || "—"}</td>
+   751→                    <td>{d.baby_weight ? `${d.baby_weight} g` : "—"}</td>
+   752→                    <td>
+   753→                      <span className={`badge ${d.baby_status === "ALIVE" ? "badge-green" : "badge-red"}`}>
+   754→                        {babyStatusLabel[d.baby_status] || d.baby_status}
+   755→                      </span>
+   756→                    </td>
+   757→                    <td style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+   758→                      {d.complications || "—"}
+   759→                    </td>
+   760→                  </tr>
+   761→                ))}
+   762→              </tbody>
+   763→            </table>
+   764→          </div>
+   765→        </div>
+   766→      )}
+   767→    </>
+   768→  );
+   769→}
+   770→

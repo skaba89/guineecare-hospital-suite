@@ -1,0 +1,850 @@
+     1→import { useCallback, useEffect, useState } from "react";
+     2→import { apiRequest } from "../services/api";
+     3→import { LookupData, Row } from "../types";
+     4→import { showToast } from "../components/Toast";
+     5→import { buildOptions, firstValue } from "../utils/options";
+     6→import { useAuth } from "../contexts/AuthContext";
+     7→
+     8→type TabKey = "staff" | "oncall" | "leaves" | "contracts" | "stats";
+     9→
+    10→const TABS: { key: TabKey; label: string; permission: string }[] = [
+    11→  { key: "staff", label: "Personnel", permission: "personnel.read" },
+    12→  { key: "oncall", label: "Gardes", permission: "personnel.read" },
+    13→  { key: "leaves", label: "Congés", permission: "personnel.read" },
+    14→  { key: "contracts", label: "Contrats", permission: "personnel.read" },
+    15→  { key: "stats", label: "Statistiques", permission: "personnel.read" },
+    16→];
+    17→
+    18→const STAFF_ROLE_OPTIONS = [
+    19→  { value: "MEDECIN", label: "Médecin" },
+    20→  { value: "INFIRMIER", label: "Infirmier(e)" },
+    21→  { value: "SAGE_FEMME", label: "Sage-femme" },
+    22→  { value: "TECHNICIEN", label: "Technicien" },
+    23→  { value: "ADMINISTRATIF", label: "Administratif" },
+    24→  { value: "PHARMACIEN", label: "Pharmacien" },
+    25→  { value: "LABORANTIN", label: "Laborantin" },
+    26→  { value: "AUTRE", label: "Autre" },
+    27→];
+    28→
+    29→const LEAVE_TYPE_OPTIONS = [
+    30→  { value: "CONGE_ANNUEL", label: "Congé annuel" },
+    31→  { value: "MALADIE", label: "Maladie" },
+    32→  { value: "MATERNITE", label: "Maternité" },
+    33→  { value: "PATERNITE", label: "Paternité" },
+    34→  { value: "SANS_SOLDE", label: "Sans solde" },
+    35→  { value: "AUTORISATION", label: "Autorisation d'absence" },
+    36→];
+    37→
+    38→const CONTRACT_TYPE_OPTIONS = [
+    39→  { value: "CDI", label: "CDI" },
+    40→  { value: "CDD", label: "CDD" },
+    41→  { value: "INTERIM", label: "Intérim" },
+    42→  { value: "STAGIAIRE", label: "Stagiaire" },
+    43→  { value: "CONSULTANT", label: "Consultant" },
+    44→];
+    45→
+    46→const STATUS_OPTIONS = [
+    47→  { value: "ACTIVE", label: "Actif" },
+    48→  { value: "ON_LEAVE", label: "En congé" },
+    49→  { value: "RESIGNED", label: "Démissionné" },
+    50→  { value: "RETIRED", label: "Retraité" },
+    51→  { value: "SUSPENDED", label: "Suspendu" },
+    52→];
+    53→
+    54→const roleLabel: Record<string, string> = Object.fromEntries(
+    55→  STAFF_ROLE_OPTIONS.map((o) => [o.value, o.label])
+    56→);
+    57→
+    58→const leaveTypeLabel: Record<string, string> = Object.fromEntries(
+    59→  LEAVE_TYPE_OPTIONS.map((o) => [o.value, o.label])
+    60→);
+    61→
+    62→const contractTypeLabel: Record<string, string> = Object.fromEntries(
+    63→  CONTRACT_TYPE_OPTIONS.map((o) => [o.value, o.label])
+    64→);
+    65→
+    66→const roleBadge: Record<string, string> = {
+    67→  MEDECIN: "badge-blue",
+    68→  INFIRMIER: "badge-green",
+    69→  SAGE_FEMME: "badge-yellow",
+    70→  TECHNICIEN: "badge-gray",
+    71→  ADMINISTRATIF: "badge-gray",
+    72→  PHARMACIEN: "badge-green",
+    73→  LABORANTIN: "badge-gray",
+    74→  AUTRE: "badge-gray",
+    75→  DOCTOR: "badge-blue",
+    76→  NURSE: "badge-green",
+    77→  MIDWIFE: "badge-yellow",
+    78→  PHARMACIST: "badge-green",
+    79→  LAB_TECH: "badge-gray",
+    80→};
+    81→
+    82→const statusBadge: Record<string, string> = {
+    83→  ACTIVE: "badge-green",
+    84→  ON_LEAVE: "badge-yellow",
+    85→  RESIGNED: "badge-gray",
+    86→  RETIRED: "badge-gray",
+    87→  SUSPENDED: "badge-red",
+    88→  PENDING: "badge-yellow",
+    89→  APPROVED: "badge-green",
+    90→  REJECTED: "badge-red",
+    91→  CANCELLED: "badge-gray",
+    92→};
+    93→
+    94→const shiftLabel: Record<string, string> = { DAY: "Jour", NIGHT: "Nuit", FULL_DAY: "24h" };
+    95→const shiftBadge: Record<string, string> = { DAY: "badge-yellow", NIGHT: "badge-blue", FULL_DAY: "badge-red" };
+    96→
+    97→export function PersonnelPage({ lookups, onCreated }: { lookups: LookupData; onCreated?: () => void }) {
+    98→  const { hasPermission } = useAuth();
+    99→  const canManage = hasPermission("personnel.manage");
+   100→  const [activeTab, setActiveTab] = useState<TabKey>("staff");
+   101→
+   102→  const visibleTabs = TABS.filter((tab) => hasPermission(tab.permission));
+   103→
+   104→  return (
+   105→    <section>
+   106→      <h1>Personnel</h1>
+   107→      <p className="muted">Gestion du personnel, planning de garde, congés et contrats.</p>
+   108→
+   109→      <div className="tab-bar">
+   110→        {visibleTabs.map((tab) => (
+   111→          <button
+   112→            key={tab.key}
+   113→            className={`tab-button ${activeTab === tab.key ? "active" : ""}`}
+   114→            onClick={() => setActiveTab(tab.key)}
+   115→          >
+   116→            {tab.label}
+   117→          </button>
+   118→        ))}
+   119→      </div>
+   120→
+   121→      {activeTab === "staff" && <StaffTab lookups={lookups} canManage={canManage} onCreated={onCreated} />}
+   122→      {activeTab === "oncall" && <OnCallTab lookups={lookups} canManage={canManage} />}
+   123→      {activeTab === "leaves" && <LeavesTab lookups={lookups} canManage={canManage} />}
+   124→      {activeTab === "contracts" && <ContractsTab lookups={lookups} canManage={canManage} />}
+   125→      {activeTab === "stats" && <StatsTab />}
+   126→    </section>
+   127→  );
+   128→}
+   129→
+   130→/* ─── Staff Tab ──────────────────────────────────────────────── */
+   131→
+   132→function StaffTab({ lookups, canManage, onCreated }: { lookups: LookupData; canManage: boolean; onCreated?: () => void }) {
+   133→  const [staff, setStaff] = useState<Row[]>([]);
+   134→  const [loading, setLoading] = useState(true);
+   135→  const [error, setError] = useState("");
+   136→  const [showForm, setShowForm] = useState(false);
+   137→  const [submitting, setSubmitting] = useState(false);
+   138→  const [search, setSearch] = useState("");
+   139→  const [roleFilter, setRoleFilter] = useState("");
+   140→  const [statusFilter, setStatusFilter] = useState("");
+   141→
+   142→  // Form fields
+   143→  const [firstName, setFirstName] = useState("");
+   144→  const [lastName, setLastName] = useState("");
+   145→  const [role, setRole] = useState("MEDECIN");
+   146→  const [specialty, setSpecialty] = useState("");
+   147→  const [phone, setPhone] = useState("");
+   148→  const [email, setEmail] = useState("");
+   149→  const [contractType, setContractType] = useState("CDI");
+   150→  const [salaryGrade, setSalaryGrade] = useState("");
+   151→  const [hireDate, setHireDate] = useState("");
+   152→
+   153→  const loadStaff = useCallback(async () => {
+   154→    setLoading(true);
+   155→    setError("");
+   156→    try {
+   157→      const params = new URLSearchParams();
+   158→      if (search) params.set("search", search);
+   159→      if (roleFilter) params.set("profession", roleFilter);
+   160→      if (statusFilter) params.set("status", statusFilter);
+   161→      const qs = params.toString();
+   162→      const payload = await apiRequest<any>(`/personnel/staff${qs ? `?${qs}` : ""}`);
+   163→      setStaff(Array.isArray(payload.data) ? payload.data : []);
+   164→    } catch {
+   165→      setError("Impossible de charger le personnel.");
+   166→    } finally {
+   167→      setLoading(false);
+   168→    }
+   169→  }, [search, roleFilter, statusFilter]);
+   170→
+   171→  useEffect(() => {
+   172→    loadStaff();
+   173→    const handler = () => loadStaff();
+   174→    window.addEventListener("refresh-resource", handler);
+   175→    return () => window.removeEventListener("refresh-resource", handler);
+   176→  }, [loadStaff]);
+   177→
+   178→  async function handleSubmit(e: React.FormEvent) {
+   179→    e.preventDefault();
+   180→    if (!firstName.trim() || !lastName.trim()) return;
+   181→    setSubmitting(true);
+   182→    try {
+   183→      await apiRequest("/personnel/staff", {
+   184→        method: "POST",
+   185→        body: JSON.stringify({
+   186→          first_name: firstName.trim(),
+   187→          last_name: lastName.trim(),
+   188→          role,
+   189→          specialty: specialty.trim() || undefined,
+   190→          phone: phone.trim() || undefined,
+   191→          email: email.trim() || undefined,
+   192→          contract_type: contractType || undefined,
+   193→          salary_grade: salaryGrade.trim() || undefined,
+   194→          hire_date: hireDate || undefined,
+   195→        }),
+   196→      });
+   197→      setFirstName(""); setLastName(""); setRole("MEDECIN"); setSpecialty("");
+   198→      setPhone(""); setEmail(""); setContractType("CDI"); setSalaryGrade(""); setHireDate("");
+   199→      setShowForm(false);
+   200→      loadStaff();
+   201→      onCreated?.();
+   202→      showToast("Membre du personnel ajouté.", "success");
+   203→    } catch {
+   204→      showToast("Erreur lors de l'ajout.", "error");
+   205→    } finally {
+   206→      setSubmitting(false);
+   207→    }
+   208→  }
+   209→
+   210→  return (
+   211→    <>
+   212→      <div className="section-header">
+   213→        <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+   214→          <h2 style={{ margin: 0 }}>Personnel</h2>
+   215→          <label className="toolbar-control" style={{ marginBottom: 0 }}>
+   216→            <input type="text" placeholder="Rechercher..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ minWidth: "180px" }} />
+   217→          </label>
+   218→          <label className="toolbar-control" style={{ marginBottom: 0 }}>
+   219→            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} style={{ minWidth: "160px" }}>
+   220→              <option value="">Tous les rôles</option>
+   221→              {STAFF_ROLE_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+   222→            </select>
+   223→          </label>
+   224→          <label className="toolbar-control" style={{ marginBottom: 0 }}>
+   225→            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ minWidth: "140px" }}>
+   226→              <option value="">Tous les statuts</option>
+   227→              {STATUS_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+   228→            </select>
+   229→          </label>
+   230→        </div>
+   231→        {canManage && (
+   232→          <button className="primary-button" onClick={() => setShowForm(!showForm)}>
+   233→            {showForm ? "Annuler" : "Ajouter"}
+   234→          </button>
+   235→        )}
+   236→      </div>
+   237→
+   238→      {showForm && (
+   239→        <div className="card form-card">
+   240→          <h3>Nouveau membre du personnel</h3>
+   241→          <form onSubmit={handleSubmit} className="form-grid">
+   242→            <label className="form-control">Prénom<input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} required /></label>
+   243→            <label className="form-control">Nom<input type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} required /></label>
+   244→            <label className="form-control">Profession
+   245→              <select value={role} onChange={(e) => setRole(e.target.value)}>
+   246→                {STAFF_ROLE_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+   247→              </select>
+   248→            </label>
+   249→            <label className="form-control">Spécialité<input type="text" value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="Ex: Chirurgie" /></label>
+   250→            <label className="form-control">Téléphone<input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} /></label>
+   251→            <label className="form-control">Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+   252→            <label className="form-control">Type contrat
+   253→              <select value={contractType} onChange={(e) => setContractType(e.target.value)}>
+   254→                {CONTRACT_TYPE_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+   255→              </select>
+   256→            </label>
+   257→            <label className="form-control">Échelle salariale<input type="text" value={salaryGrade} onChange={(e) => setSalaryGrade(e.target.value)} placeholder="Ex: A5" /></label>
+   258→            <label className="form-control">Date d'embauche<input type="date" value={hireDate} onChange={(e) => setHireDate(e.target.value)} /></label>
+   259→            <div className="form-actions">
+   260→              <button className="primary-button" type="submit" disabled={submitting}>{submitting ? "Ajout..." : "Ajouter"}</button>
+   261→            </div>
+   262→          </form>
+   263→        </div>
+   264→      )}
+   265→
+   266→      {loading ? (
+   267→        <div className="card" style={{ textAlign: "center", padding: "32px" }}><div className="spinner" /></div>
+   268→      ) : error ? (
+   269→        <p style={{ color: "crimson" }}>{error}</p>
+   270→      ) : staff.length === 0 ? (
+   271→        <div className="card"><p className="muted">Aucun membre du personnel trouvé.</p></div>
+   272→      ) : (
+   273→        <div className="card">
+   274→          <div className="table-wrapper">
+   275→            <table className="table">
+   276→              <thead>
+   277→                <tr><th>N° Employé</th><th>Nom</th><th>Prénom</th><th>Profession</th><th>Spécialité</th><th>Statut</th><th>Contrat</th><th>Téléphone</th></tr>
+   278→              </thead>
+   279→              <tbody>
+   280→                {staff.map((s) => (
+   281→                  <tr key={s.id}>
+   282→                    <td style={{ fontFamily: "monospace", fontSize: "12px" }}>{s.employee_number || "—"}</td>
+   283→                    <td style={{ fontWeight: 600 }}>{s.last_name || "—"}</td>
+   284→                    <td>{s.first_name || "—"}</td>
+   285→                    <td>
+   286→                      <span className={`badge ${roleBadge[s.profession || s.role] || "badge-gray"}`}>
+   287→                        {roleLabel[s.profession || s.role] || s.profession || s.role}
+   288→                      </span>
+   289→                    </td>
+   290→                    <td>{s.specialty || "—"}</td>
+   291→                    <td>
+   292→                      <span className={`badge ${statusBadge[s.status] || "badge-gray"}`}>
+   293→                        {STATUS_OPTIONS.find((o) => o.value === s.status)?.label || s.status}
+   294→                      </span>
+   295→                    </td>
+   296→                    <td>{contractTypeLabel[s.contract_type] || s.contract_type || "—"}</td>
+   297→                    <td>{s.phone || "—"}</td>
+   298→                  </tr>
+   299→                ))}
+   300→              </tbody>
+   301→            </table>
+   302→          </div>
+   303→        </div>
+   304→      )}
+   305→    </>
+   306→  );
+   307→}
+   308→
+   309→/* ─── On-Call Tab ────────────────────────────────────────────── */
+   310→
+   311→function OnCallTab({ lookups, canManage }: { lookups: LookupData; canManage: boolean }) {
+   312→  const [onCallList, setOnCallList] = useState<Row[]>([]);
+   313→  const [loading, setLoading] = useState(true);
+   314→  const [error, setError] = useState("");
+   315→  const [showForm, setShowForm] = useState(false);
+   316→  const [submitting, setSubmitting] = useState(false);
+   317→  const [staffId, setStaffId] = useState("");
+   318→  const [onCallDate, setOnCallDate] = useState("");
+   319→  const [shift, setShift] = useState("DAY");
+   320→  const [staffOptions, setStaffOptions] = useState<{ value: string; label: string }[]>([]);
+   321→
+   322→  const loadOnCall = useCallback(async () => {
+   323→    setLoading(true);
+   324→    setError("");
+   325→    try {
+   326→      const payload = await apiRequest<any>("/personnel/on-call?page_size=1000");
+   327→      setOnCallList(Array.isArray(payload.data) ? payload.data : []);
+   328→    } catch {
+   329→      setError("Impossible de charger le planning de garde.");
+   330→    } finally {
+   331→      setLoading(false);
+   332→    }
+   333→  }, []);
+   334→
+   335→  const loadStaffForDropdown = useCallback(async () => {
+   336→    try {
+   337→      const payload = await apiRequest<any>("/personnel/staff?page_size=1000");
+   338→      const list = Array.isArray(payload.data) ? payload.data : [];
+   339→      setStaffOptions(
+   340→        list.map((s: Row) => ({
+   341→          value: s.id,
+   342→          label: `${s.last_name || ""} ${s.first_name || ""} — ${roleLabel[s.profession || s.role] || s.profession || s.role || ""}`.trim(),
+   343→        }))
+   344→      );
+   345→    } catch { /* silent */ }
+   346→  }, []);
+   347→
+   348→  useEffect(() => {
+   349→    loadOnCall();
+   350→    const handler = () => loadOnCall();
+   351→    window.addEventListener("refresh-resource", handler);
+   352→    return () => window.removeEventListener("refresh-resource", handler);
+   353→  }, [loadOnCall]);
+   354→
+   355→  useEffect(() => {
+   356→    if (showForm) loadStaffForDropdown();
+   357→  }, [showForm, loadStaffForDropdown]);
+   358→
+   359→  async function handleSubmit(e: React.FormEvent) {
+   360→    e.preventDefault();
+   361→    if (!staffId || !onCallDate) return;
+   362→    setSubmitting(true);
+   363→    try {
+   364→      await apiRequest("/personnel/on-call", {
+   365→        method: "POST",
+   366→        body: JSON.stringify({ staff_id: staffId, on_call_date: onCallDate, shift }),
+   367→      });
+   368→      setStaffId(""); setOnCallDate(""); setShift("DAY"); setShowForm(false);
+   369→      loadOnCall();
+   370→      showToast("Garde planifiée.", "success");
+   371→    } catch {
+   372→      showToast("Erreur lors de la planification.", "error");
+   373→    } finally {
+   374→      setSubmitting(false);
+   375→    }
+   376→  }
+   377→
+   378→  function getStaffName(sid: string): string {
+   379→    const staffMember = lookups.staff.find((s) => s.id === sid);
+   380→    if (!staffMember) return "Inconnu";
+   381→    return `${staffMember.first_name || ""} ${staffMember.last_name || ""}`.trim() || staffMember.employee_number || "N/A";
+   382→  }
+   383→
+   384→  const byDate = onCallList.reduce<Record<string, Row[]>>((acc, item) => {
+   385→    const dateKey = item.on_call_date ? item.on_call_date.toString().split("T")[0] : "—";
+   386→    if (!acc[dateKey]) acc[dateKey] = [];
+   387→    acc[dateKey].push(item);
+   388→    return acc;
+   389→  }, {});
+   390→
+   391→  const sortedDates = Object.keys(byDate).sort((a, b) => a.localeCompare(b));
+   392→
+   393→  return (
+   394→    <>
+   395→      <div className="section-header">
+   396→        <h2>Planning de garde</h2>
+   397→        {canManage && (
+   398→          <button className="primary-button" onClick={() => setShowForm(!showForm)}>
+   399→            {showForm ? "Annuler" : "Planifier une garde"}
+   400→          </button>
+   401→        )}
+   402→      </div>
+   403→
+   404→      {showForm && (
+   405→        <div className="card form-card">
+   406→          <h3>Planifier une garde</h3>
+   407→          <form onSubmit={handleSubmit} className="form-grid">
+   408→            <label className="form-control">Personnel
+   409→              <select value={staffId} onChange={(e) => setStaffId(e.target.value)} required>
+   410→                <option value="">-- Choisir --</option>
+   411→                {staffOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+   412→              </select>
+   413→            </label>
+   414→            <label className="form-control">Date de garde<input type="date" value={onCallDate} onChange={(e) => setOnCallDate(e.target.value)} required /></label>
+   415→            <label className="form-control">Tranche horaire
+   416→              <select value={shift} onChange={(e) => setShift(e.target.value)}>
+   417→                <option value="DAY">Jour</option><option value="NIGHT">Nuit</option><option value="FULL_DAY">24h</option>
+   418→              </select>
+   419→            </label>
+   420→            <div className="form-actions">
+   421→              <button className="primary-button" type="submit" disabled={submitting}>{submitting ? "Planification..." : "Planifier"}</button>
+   422→            </div>
+   423→          </form>
+   424→        </div>
+   425→      )}
+   426→
+   427→      {loading ? (
+   428→        <div className="card" style={{ textAlign: "center", padding: "32px" }}><div className="spinner" /></div>
+   429→      ) : error ? (
+   430→        <p style={{ color: "crimson" }}>{error}</p>
+   431→      ) : onCallList.length === 0 ? (
+   432→        <div className="card"><p className="muted">Aucune garde planifiée.</p></div>
+   433→      ) : (
+   434→        sortedDates.map((date) => (
+   435→          <div className="card" key={date}>
+   436→            <h3 style={{ marginBottom: "12px" }}>
+   437→              {new Date(date).toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+   438→            </h3>
+   439→            <div className="table-wrapper">
+   440→              <table className="table">
+   441→                <thead><tr><th>Personnel</th><th>Tranche</th></tr></thead>
+   442→                <tbody>
+   443→                  {byDate[date].map((item) => (
+   444→                    <tr key={item.id}>
+   445→                      <td style={{ fontWeight: 600 }}>{getStaffName(item.staff_id)}</td>
+   446→                      <td>
+   447→                        <span className={`badge ${shiftBadge[item.shift_type || item.shift] || "badge-gray"}`}>
+   448→                          {shiftLabel[item.shift_type || item.shift] || item.shift_type || item.shift}
+   449→                        </span>
+   450→                      </td>
+   451→                    </tr>
+   452→                  ))}
+   453→                </tbody>
+   454→              </table>
+   455→            </div>
+   456→          </div>
+   457→        ))
+   458→      )}
+   459→    </>
+   460→  );
+   461→}
+   462→
+   463→/* ─── Leaves Tab ─────────────────────────────────────────────── */
+   464→
+   465→function LeavesTab({ lookups, canManage }: { lookups: LookupData; canManage: boolean }) {
+   466→  const [leaves, setLeaves] = useState<Row[]>([]);
+   467→  const [loading, setLoading] = useState(true);
+   468→  const [error, setError] = useState("");
+   469→  const [showForm, setShowForm] = useState(false);
+   470→  const [submitting, setSubmitting] = useState(false);
+   471→  const [statusFilter, setStatusFilter] = useState("");
+   472→
+   473→  const [staffId, setStaffId] = useState("");
+   474→  const [leaveType, setLeaveType] = useState("CONGE_ANNUEL");
+   475→  const [startDate, setStartDate] = useState("");
+   476→  const [endDate, setEndDate] = useState("");
+   477→  const [reason, setReason] = useState("");
+   478→  const [staffOptions, setStaffOptions] = useState<{ value: string; label: string }[]>([]);
+   479→
+   480→  const loadLeaves = useCallback(async () => {
+   481→    setLoading(true);
+   482→    setError("");
+   483→    try {
+   484→      const params = new URLSearchParams();
+   485→      if (statusFilter) params.set("status", statusFilter);
+   486→      const qs = params.toString();
+   487→      const payload = await apiRequest<any>(`/personnel/leaves${qs ? `?${qs}` : ""}`);
+   488→      setLeaves(Array.isArray(payload.data) ? payload.data : []);
+   489→    } catch {
+   490→      setError("Impossible de charger les congés.");
+   491→    } finally {
+   492→      setLoading(false);
+   493→    }
+   494→  }, [statusFilter]);
+   495→
+   496→  const loadStaffForDropdown = useCallback(async () => {
+   497→    try {
+   498→      const payload = await apiRequest<any>("/personnel/staff?status=ACTIVE&page_size=1000");
+   499→      const list = Array.isArray(payload.data) ? payload.data : [];
+   500→      setStaffOptions(
+   501→        list.map((s: Row) => ({
+   502→          value: s.id,
+   503→          label: `${s.last_name || ""} ${s.first_name || ""}`.trim(),
+   504→        }))
+   505→      );
+   506→    } catch { /* silent */ }
+   507→  }, []);
+   508→
+   509→  useEffect(() => {
+   510→    loadLeaves();
+   511→    const handler = () => loadLeaves();
+   512→    window.addEventListener("refresh-resource", handler);
+   513→    return () => window.removeEventListener("refresh-resource", handler);
+   514→  }, [loadLeaves]);
+   515→
+   516→  useEffect(() => {
+   517→    if (showForm) loadStaffForDropdown();
+   518→  }, [showForm, loadStaffForDropdown]);
+   519→
+   520→  async function handleSubmit(e: React.FormEvent) {
+   521→    e.preventDefault();
+   522→    if (!staffId || !startDate || !endDate) return;
+   523→    setSubmitting(true);
+   524→    try {
+   525→      await apiRequest("/personnel/leaves", {
+   526→        method: "POST",
+   527→        body: JSON.stringify({ staff_id: staffId, leave_type: leaveType, start_date: startDate, end_date: endDate, reason: reason.trim() || undefined }),
+   528→      });
+   529→      setStaffId(""); setLeaveType("CONGE_ANNUEL"); setStartDate(""); setEndDate(""); setReason(""); setShowForm(false);
+   530→      loadLeaves();
+   531→      showToast("Demande de congé créée.", "success");
+   532→    } catch {
+   533→      showToast("Erreur lors de la création.", "error");
+   534→    } finally {
+   535→      setSubmitting(false);
+   536→    }
+   537→  }
+   538→
+   539→  async function handleAction(leaveId: string, action: string) {
+   540→    try {
+   541→      await apiRequest(`/personnel/leaves/${leaveId}`, {
+   542→        method: "PUT",
+   543→        body: JSON.stringify({ status: action }),
+   544→      });
+   545→      loadLeaves();
+   546→      showToast(`Congé ${action === "APPROVED" ? "approuvé" : "refusé"}.`, "success");
+   547→    } catch {
+   548→      showToast("Erreur.", "error");
+   549→    }
+   550→  }
+   551→
+   552→  function getStaffName(sid: string): string {
+   553→    const s = lookups.staff.find((s) => s.id === sid);
+   554→    return s ? `${s.first_name || ""} ${s.last_name || ""}`.trim() : "Inconnu";
+   555→  }
+   556→
+   557→  return (
+   558→    <>
+   559→      <div className="section-header">
+   560→        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+   561→          <h2 style={{ margin: 0 }}>Congés</h2>
+   562→          <label className="toolbar-control" style={{ marginBottom: 0 }}>
+   563→            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ minWidth: "160px" }}>
+   564→              <option value="">Tous</option>
+   565→              <option value="PENDING">En attente</option>
+   566→              <option value="APPROVED">Approuvé</option>
+   567→              <option value="REJECTED">Refusé</option>
+   568→            </select>
+   569→          </label>
+   570→        </div>
+   571→        {canManage && (
+   572→          <button className="primary-button" onClick={() => setShowForm(!showForm)}>
+   573→            {showForm ? "Annuler" : "Nouveau congé"}
+   574→          </button>
+   575→        )}
+   576→      </div>
+   577→
+   578→      {showForm && (
+   579→        <div className="card form-card">
+   580→          <h3>Nouvelle demande de congé</h3>
+   581→          <form onSubmit={handleSubmit} className="form-grid">
+   582→            <label className="form-control">Personnel
+   583→              <select value={staffId} onChange={(e) => setStaffId(e.target.value)} required>
+   584→                <option value="">-- Choisir --</option>
+   585→                {staffOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+   586→              </select>
+   587→            </label>
+   588→            <label className="form-control">Type de congé
+   589→              <select value={leaveType} onChange={(e) => setLeaveType(e.target.value)}>
+   590→                {LEAVE_TYPE_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+   591→              </select>
+   592→            </label>
+   593→            <label className="form-control">Date début<input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required /></label>
+   594→            <label className="form-control">Date fin<input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required /></label>
+   595→            <label className="form-control">Motif<input type="text" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Optionnel" /></label>
+   596→            <div className="form-actions">
+   597→              <button className="primary-button" type="submit" disabled={submitting}>{submitting ? "Création..." : "Créer"}</button>
+   598→            </div>
+   599→          </form>
+   600→        </div>
+   601→      )}
+   602→
+   603→      {loading ? (
+   604→        <div className="card" style={{ textAlign: "center", padding: "32px" }}><div className="spinner" /></div>
+   605→      ) : error ? (
+   606→        <p style={{ color: "crimson" }}>{error}</p>
+   607→      ) : leaves.length === 0 ? (
+   608→        <div className="card"><p className="muted">Aucun congé trouvé.</p></div>
+   609→      ) : (
+   610→        <div className="card">
+   611→          <div className="table-wrapper">
+   612→            <table className="table">
+   613→              <thead><tr><th>Personnel</th><th>Type</th><th>Début</th><th>Fin</th><th>Statut</th><th>Actions</th></tr></thead>
+   614→              <tbody>
+   615→                {leaves.map((l) => (
+   616→                  <tr key={l.id}>
+   617→                    <td style={{ fontWeight: 600 }}>{getStaffName(l.staff_id)}</td>
+   618→                    <td>{leaveTypeLabel[l.leave_type] || l.leave_type}</td>
+   619→                    <td>{l.start_date ? new Date(l.start_date).toLocaleDateString("fr-FR") : "—"}</td>
+   620→                    <td>{l.end_date ? new Date(l.end_date).toLocaleDateString("fr-FR") : "—"}</td>
+   621→                    <td><span className={`badge ${statusBadge[l.status] || "badge-gray"}`}>{STATUS_OPTIONS.find((o) => o.value === l.status)?.label || l.status}</span></td>
+   622→                    <td>
+   623→                      {canManage && l.status === "PENDING" && (
+   624→                        <div style={{ display: "flex", gap: "6px" }}>
+   625→                          <button className="primary-button" style={{ padding: "2px 10px", fontSize: "12px" }} onClick={() => handleAction(l.id, "APPROVED")}>Approuver</button>
+   626→                          <button className="button" style={{ padding: "2px 10px", fontSize: "12px", background: "#ef4444", color: "white" }} onClick={() => handleAction(l.id, "REJECTED")}>Refuser</button>
+   627→                        </div>
+   628→                      )}
+   629→                    </td>
+   630→                  </tr>
+   631→                ))}
+   632→              </tbody>
+   633→            </table>
+   634→          </div>
+   635→        </div>
+   636→      )}
+   637→    </>
+   638→  );
+   639→}
+   640→
+   641→/* ─── Contracts Tab ──────────────────────────────────────────── */
+   642→
+   643→function ContractsTab({ lookups, canManage }: { lookups: LookupData; canManage: boolean }) {
+   644→  const [contracts, setContracts] = useState<Row[]>([]);
+   645→  const [loading, setLoading] = useState(true);
+   646→  const [error, setError] = useState("");
+   647→  const [showForm, setShowForm] = useState(false);
+   648→  const [submitting, setSubmitting] = useState(false);
+   649→
+   650→  const [staffId, setStaffId] = useState("");
+   651→  const [contractType, setContractType] = useState("CDI");
+   652→  const [startDate, setStartDate] = useState("");
+   653→  const [endDate, setEndDate] = useState("");
+   654→  const [position, setPosition] = useState("");
+   655→  const [salaryGrade, setSalaryGrade] = useState("");
+   656→  const [staffOptions, setStaffOptions] = useState<{ value: string; label: string }[]>([]);
+   657→
+   658→  const loadContracts = useCallback(async () => {
+   659→    setLoading(true);
+   660→    setError("");
+   661→    try {
+   662→      const payload = await apiRequest<any>("/personnel/contracts?page_size=1000");
+   663→      setContracts(Array.isArray(payload.data) ? payload.data : []);
+   664→    } catch {
+   665→      setError("Impossible de charger les contrats.");
+   666→    } finally {
+   667→      setLoading(false);
+   668→    }
+   669→  }, []);
+   670→
+   671→  const loadStaffForDropdown = useCallback(async () => {
+   672→    try {
+   673→      const payload = await apiRequest<any>("/personnel/staff?page_size=1000");
+   674→      const list = Array.isArray(payload.data) ? payload.data : [];
+   675→      setStaffOptions(
+   676→        list.map((s: Row) => ({
+   677→          value: s.id,
+   678→          label: `${s.last_name || ""} ${s.first_name || ""}`.trim(),
+   679→        }))
+   680→      );
+   681→    } catch { /* silent */ }
+   682→  }, []);
+   683→
+   684→  useEffect(() => {
+   685→    loadContracts();
+   686→    const handler = () => loadContracts();
+   687→    window.addEventListener("refresh-resource", handler);
+   688→    return () => window.removeEventListener("refresh-resource", handler);
+   689→  }, [loadContracts]);
+   690→
+   691→  useEffect(() => {
+   692→    if (showForm) loadStaffForDropdown();
+   693→  }, [showForm, loadStaffForDropdown]);
+   694→
+   695→  async function handleSubmit(e: React.FormEvent) {
+   696→    e.preventDefault();
+   697→    if (!staffId || !startDate) return;
+   698→    setSubmitting(true);
+   699→    try {
+   700→      await apiRequest("/personnel/contracts", {
+   701→        method: "POST",
+   702→        body: JSON.stringify({
+   703→          staff_id: staffId, contract_type: contractType, start_date: startDate,
+   704→          end_date: endDate || undefined, position: position.trim() || undefined,
+   705→          salary_grade: salaryGrade.trim() || undefined,
+   706→        }),
+   707→      });
+   708→      setStaffId(""); setContractType("CDI"); setStartDate(""); setEndDate("");
+   709→      setPosition(""); setSalaryGrade(""); setShowForm(false);
+   710→      loadContracts();
+   711→      showToast("Contrat créé.", "success");
+   712→    } catch {
+   713→      showToast("Erreur lors de la création.", "error");
+   714→    } finally {
+   715→      setSubmitting(false);
+   716→    }
+   717→  }
+   718→
+   719→  function getStaffName(sid: string): string {
+   720→    const s = lookups.staff.find((s) => s.id === sid);
+   721→    return s ? `${s.first_name || ""} ${s.last_name || ""}`.trim() : "Inconnu";
+   722→  }
+   723→
+   724→  return (
+   725→    <>
+   726→      <div className="section-header">
+   727→        <h2>Contrats</h2>
+   728→        {canManage && (
+   729→          <button className="primary-button" onClick={() => setShowForm(!showForm)}>
+   730→            {showForm ? "Annuler" : "Nouveau contrat"}
+   731→          </button>
+   732→        )}
+   733→      </div>
+   734→
+   735→      {showForm && (
+   736→        <div className="card form-card">
+   737→          <h3>Nouveau contrat</h3>
+   738→          <form onSubmit={handleSubmit} className="form-grid">
+   739→            <label className="form-control">Personnel
+   740→              <select value={staffId} onChange={(e) => setStaffId(e.target.value)} required>
+   741→                <option value="">-- Choisir --</option>
+   742→                {staffOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+   743→              </select>
+   744→            </label>
+   745→            <label className="form-control">Type
+   746→              <select value={contractType} onChange={(e) => setContractType(e.target.value)}>
+   747→                {CONTRACT_TYPE_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+   748→              </select>
+   749→            </label>
+   750→            <label className="form-control">Date début<input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required /></label>
+   751→            <label className="form-control">Date fin (CDD)<input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label>
+   752→            <label className="form-control">Poste<input type="text" value={position} onChange={(e) => setPosition(e.target.value)} placeholder="Ex: Médecin chef de service" /></label>
+   753→            <label className="form-control">Échelle salariale<input type="text" value={salaryGrade} onChange={(e) => setSalaryGrade(e.target.value)} placeholder="Ex: A5" /></label>
+   754→            <div className="form-actions">
+   755→              <button className="primary-button" type="submit" disabled={submitting}>{submitting ? "Création..." : "Créer"}</button>
+   756→            </div>
+   757→          </form>
+   758→        </div>
+   759→      )}
+   760→
+   761→      {loading ? (
+   762→        <div className="card" style={{ textAlign: "center", padding: "32px" }}><div className="spinner" /></div>
+   763→      ) : error ? (
+   764→        <p style={{ color: "crimson" }}>{error}</p>
+   765→      ) : contracts.length === 0 ? (
+   766→        <div className="card"><p className="muted">Aucun contrat trouvé.</p></div>
+   767→      ) : (
+   768→        <div className="card">
+   769→          <div className="table-wrapper">
+   770→            <table className="table">
+   771→              <thead><tr><th>Personnel</th><th>Type</th><th>Poste</th><th>Début</th><th>Fin</th><th>Échelle</th><th>Statut</th></tr></thead>
+   772→              <tbody>
+   773→                {contracts.map((c) => (
+   774→                  <tr key={c.id}>
+   775→                    <td style={{ fontWeight: 600 }}>{getStaffName(c.staff_id)}</td>
+   776→                    <td>{contractTypeLabel[c.contract_type] || c.contract_type}</td>
+   777→                    <td>{c.position || "—"}</td>
+   778→                    <td>{c.start_date ? new Date(c.start_date).toLocaleDateString("fr-FR") : "—"}</td>
+   779→                    <td>{c.end_date ? new Date(c.end_date).toLocaleDateString("fr-FR") : "—"}</td>
+   780→                    <td>{c.salary_grade || "—"}</td>
+   781→                    <td><span className={`badge ${statusBadge[c.status] || "badge-gray"}`}>{c.status === "ACTIVE" ? "Actif" : c.status}</span></td>
+   782→                  </tr>
+   783→                ))}
+   784→              </tbody>
+   785→            </table>
+   786→          </div>
+   787→        </div>
+   788→      )}
+   789→    </>
+   790→  );
+   791→}
+   792→
+   793→/* ─── Stats Tab ──────────────────────────────────────────────── */
+   794→
+   795→function StatsTab() {
+   796→  const [stats, setStats] = useState<any>(null);
+   797→  const [loading, setLoading] = useState(true);
+   798→  const [error, setError] = useState("");
+   799→
+   800→  const loadStats = useCallback(async () => {
+   801→    setLoading(true);
+   802→    setError("");
+   803→    try {
+   804→      const payload = await apiRequest<any>("/personnel/stats?page_size=1000");
+   805→      setStats(payload.data);
+   806→    } catch {
+   807→      setError("Impossible de charger les statistiques.");
+   808→    } finally {
+   809→      setLoading(false);
+   810→    }
+   811→  }, []);
+   812→
+   813→  useEffect(() => { loadStats(); }, [loadStats]);
+   814→
+   815→  if (loading) return <div className="card" style={{ textAlign: "center", padding: "32px" }}><div className="spinner" /></div>;
+   816→  if (error) return <p style={{ color: "crimson" }}>{error}</p>;
+   817→  if (!stats) return <div className="card"><p className="muted">Aucune donnée.</p></div>;
+   818→
+   819→  return (
+   820→    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "16px" }}>
+   821→      <div className="card">
+   822→        <h3>Effectif total</h3>
+   823→        <p style={{ fontSize: "2rem", fontWeight: 700, margin: "8px 0" }}>{stats.total_staff || 0}</p>
+   824→      </div>
+   825→      <div className="card">
+   826→        <h3>Par profession</h3>
+   827→        {Object.entries(stats.by_profession || {}).map(([prof, count]) => (
+   828→          <div key={prof} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+   829→            <span>{roleLabel[prof] || prof}</span>
+   830→            <span style={{ fontWeight: 600 }}>{count as number}</span>
+   831→          </div>
+   832→        ))}
+   833→      </div>
+   834→      <div className="card">
+   835→        <h3>Par statut</h3>
+   836→        {Object.entries(stats.by_status || {}).map(([st, count]) => (
+   837→          <div key={st} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+   838→            <span>{STATUS_OPTIONS.find((o) => o.value === st)?.label || st}</span>
+   839→            <span style={{ fontWeight: 600 }}>{count as number}</span>
+   840→          </div>
+   841→        ))}
+   842→      </div>
+   843→      <div className="card">
+   844→        <h3>Congés en attente</h3>
+   845→        <p style={{ fontSize: "2rem", fontWeight: 700, margin: "8px 0", color: "#f59e0b" }}>{stats.pending_leaves || 0}</p>
+   846→      </div>
+   847→    </div>
+   848→  );
+   849→}
+   850→
