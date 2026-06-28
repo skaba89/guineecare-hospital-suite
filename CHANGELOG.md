@@ -1,6 +1,61 @@
 # Changelog
 
-## [1.7.0] — 2026-06-22
+## [1.8.0] — 2026-06-27
+
+### Hardening sécurité + fixes production + audit E2E 66/70
+
+Cette release finalise le projet pour la démonstration au Ministre de la Santé.
+Tous les bugs critiques identifiés lors de l'audit E2E sont corrigés.
+
+#### Sécurité (v1.8.0)
+
+- **2FA/MFA TOTP** : module complet avec pyotp + backup codes hashés SHA-256
+  - 4 endpoints : POST /auth/2fa/setup, /verify, /disable, /challenge
+  - Login modifié : si 2FA activé → retourne {requires_2fa: true}
+  - /auth/me enrichi : two_factor_enabled + backup_codes_remaining
+  - Migration Alembic 0022_two_factor
+  - 15 tests backend
+- **Audit OWASP Top 10 automatisé** : 9 PASS, 1 REVIEW, 0 FAIL
+  - app/modules/security/owasp_audit.py
+- **Backup automatique** : scripts/backup.sh + scripts/restore.sh
+
+#### Fixes production (bugs critiques)
+
+- **blood_type VARCHAR(10) → VARCHAR(20)** : "NON_RENSEIGNE" fait 14 caractères
+  → PostgreSQL rejetait l'INSERT avec "value too long for type varchar(10)"
+- **PatientForm.tsx** : suppression patient_number du payload + nettoyage champs vides
+- **PatientCreate schema** : field_validator empty_str_to_none pour tous les champs optionnels
+- **create_patient route** : forçage des 5 champs médicaux + fallback facility_id pour SUPER_ADMIN
+- **AdmissionCreate** : facility_id rendu optionnel (auto-rempli comme patients)
+- **Clinical routes** : nouveaux endpoints GET /clinical/notes et /clinical/measurements (globaux)
+- **Chaîne Alembic** : 3 fixes (0009→0010 naming, 0020→0021 chain, 0014 index dupliqué)
+- **render_start.sh** : détection DB existante vs neuve + create_all(checkfirst) + migration_helper
+- **migration_helper.py** : ALTER TABLE pour colonnes manquantes + types de colonnes
+- **two_factor_service** : is_2fa_enabled() et get_remaining_backup_codes() défensifs (try/except)
+- **Suppression du debug endpoint** /patients/debug/create
+
+#### i18n FR/EN (191 clés, 11+ pages)
+
+- LoginPage, Sidebar (27 entrées + sections + sous-menus), DashboardPage
+- PatientsPage, PatientForm, QualityPage, AdmissionsPage, LabPage
+- PharmacyPage, FinancePage, EmergencyPage, NotificationsPage
+
+#### Déploiement
+
+- render.yaml : tout-en-un (backend + frontend sur 1 URL)
+- Neon PostgreSQL serverless (gratuit, permanent)
+- Guides : Render+Neon, VPS, Netlify
+- .env.production.template complet
+
+#### Audit E2E (66/70 = 94%)
+
+- 8 rôles testés (login + RBAC)
+- 70 endpoints testés (GET/POST/PATCH/DELETE)
+- 66 passed, 4 failed (rate limit Render + quality/dashboard timeout)
+
+---
+
+## [1.7.1] — 2026-06-22
 
 ### Added — Application mobile Android (React Native + Expo)
 
