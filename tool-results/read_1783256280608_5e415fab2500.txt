@@ -1,0 +1,768 @@
+     1→"""Service Dashboard Qualité v1.4.0 — agrégation, calcul d'indicateurs, alertes automatiques.
+     2→
+     3→Responsabilités :
+     4→- `compute_dashboard()` : agrège les mesures par facility / période / catégorie.
+     5→- `check_thresholds()` : évalue toutes les mesures récentes contre les seuils actifs,
+     6→  lève des `QualityAlert` si franchissement (avec cooldown pour éviter le spam).
+     7→- `seed_default_indicators()` : initialise les indicateurs OMS/HAS prédéfinis.
+     8→- `seed_default_thresholds()` : initialise les seuils par défaut pour les indicateurs OMS.
+     9→
+    10→Catalogue d'indicateurs prédéfinis (basé sur les recommandations OMS / HAS) :
+    11→- INOSO_RATE : taux d'infections nosocomiales (cible OMS : < 5%)
+    12→- READMIT_30D : taux de réadmissions à 30 jours (cible HAS : < 10%)
+    13→- SAT_PATIENT : satisfaction patient (cible : > 80%)
+    14→- ED_WAIT_4H : délai moyen de prise en charge aux urgences (cible : < 4h)
+    15→- MORTALITY_24H : mortalité 24h post-admission (cible : < 2%)
+    16→- MED_ERROR_RATE : taux d'erreurs médicamenteuses (cible : < 1%)
+    17→- SURG_SITE_INFECTION : infections du site opératoire (cible : < 3%)
+    18→- BED_OCCUPANCY : taux d'occupation des lits (cible : 75-85%)
+    19→"""
+    20→import logging
+    21→from datetime import datetime, timedelta
+    22→from typing import Any
+    23→
+    24→from sqlalchemy import func
+    25→from sqlalchemy.orm import Session
+    26→
+    27→from app.core.datetime import utcnow
+    28→from app.modules.quality.dashboard_models import (
+    29→    COMPARATORS,
+    30→    QualityAlert,
+    31→    QualityThreshold,
+    32→    evaluate_threshold,
+    33→)
+    34→from app.modules.quality.models import (
+    35→    IncidentReport,
+    36→    QualityIndicator,
+    37→    QualityMeasurement,
+    38→)
+    39→
+    40→logger = logging.getLogger("guineecare.quality.dashboard")
+    41→
+    42→
+    43→# ---------------------------------------------------------------------------
+    44→# Catalogue d'indicateurs prédéfinis (OMS / HAS)
+    45→# ---------------------------------------------------------------------------
+    46→
+    47→DEFAULT_INDICATORS = [
+    48→    {
+    49→        "code": "INOSO_RATE",
+    50→        "name": "Taux d'infections nosocomiales",
+    51→        "category": "SAFETY",
+    52→        "description": "Pourcentage de patients ayant contracté une infection pendant l'hospitalisation. Indicateur OMS de sécurité des soins.",
+    53→        "unit": "%",
+    54→        "target_value": "5",  # < 5% selon OMS
+    55→        "frequency": "MONTHLY",
+    56→    },
+    57→    {
+    58→        "code": "READMIT_30D",
+    59→        "name": "Taux de réadmissions à 30 jours",
+    60→        "category": "CLINICAL_OUTCOME",
+    61→        "description": "Pourcentage de patients réadmis dans les 30 jours après leur sortie. Indicateur HAS de qualité des soins.",
+    62→        "unit": "%",
+    63→        "target_value": "10",  # < 10%
+    64→        "frequency": "MONTHLY",
+    65→    },
+    66→    {
+    67→        "code": "SAT_PATIENT",
+    68→        "name": "Satisfaction patient",
+    69→        "category": "PATIENT_EXPERIENCE",
+    70→        "description": "Score moyen de satisfaction des patients (enquête post-séjour). Cible HAS : > 80%.",
+    71→        "unit": "%",
+    72→        "target_value": "80",  # > 80%
+    73→        "frequency": "QUARTERLY",
+    74→    },
+    75→    {
+    76→        "code": "ED_WAIT_4H",
+    77→        "name": "Délai moyen de prise en charge aux urgences",
+    78→        "category": "EFFICIENCY",
+    79→        "description": "Temps moyen entre l'admission aux urgences et la première consultation médicale. Cible : < 4 heures.",
+    80→        "unit": "heures",
+    81→        "target_value": "4",  # < 4h
+    82→        "frequency": "WEEKLY",
+    83→    },
+    84→    {
+    85→        "code": "MORTALITY_24H",
+    86→        "name": "Mortalité 24h post-admission",
+    87→        "category": "CLINICAL_OUTCOME",
+    88→        "description": "Taux de décès dans les 24 heures suivant l'admission. Indicateur sensible de la qualité de la prise en charge initiale.",
+    89→        "unit": "%",
+    90→        "target_value": "2",  # < 2%
+    91→        "frequency": "MONTHLY",
+    92→    },
+    93→    {
+    94→        "code": "MED_ERROR_RATE",
+    95→        "name": "Taux d'erreurs médicamenteuses",
+    96→        "category": "SAFETY",
+    97→        "description": "Nombre d'erreurs médicamenteuses pour 1000 prescriptions. Cible : < 1 pour 1000.",
+    98→        "unit": "pour_1000",
+    99→        "target_value": "1",  # < 1/1000
+   100→        "frequency": "MONTHLY",
+   101→    },
+   102→    {
+   103→        "code": "SURG_SITE_INFECTION",
+   104→        "name": "Infections du site opératoire",
+   105→        "category": "SAFETY",
+   106→        "description": "Pourcentage d'infections du site opératoire dans les 30 jours post-chirurgie. Cible OMS : < 3%.",
+   107→        "unit": "%",
+   108→        "target_value": "3",  # < 3%
+   109→        "frequency": "MONTHLY",
+   110→    },
+   111→    {
+   112→        "code": "BED_OCCUPANCY",
+   113→        "name": "Taux d'occupation des lits",
+   114→        "category": "EFFICIENCY",
+   115→        "description": "Pourcentage de lits occupés. Zone optimale : 75-85%. En dehors : alerte (sous-utilisation ou surcharge).",
+   116→        "unit": "%",
+   117→        "target_value": "85",  # <= 85%
+   118→        "frequency": "DAILY",
+   119→    },
+   120→    {
+   121→        "code": "FALL_RATE",
+   122→        "name": "Taux de chutes de patients",
+   123→        "category": "SAFETY",
+   124→        "description": "Nombre de chutes pour 1000 journées d'hospitalisation. Cible HAS : < 3 pour 1000.",
+   125→        "unit": "pour_1000",
+   126→        "target_value": "3",  # < 3/1000
+   127→        "frequency": "MONTHLY",
+   128→    },
+   129→    {
+   130→        "code": "VAGINAL_DELIVERY_RATE",
+   131→        "name": "Taux d'accouchements par voie basse",
+   132→        "category": "CLINICAL_OUTCOME",
+   133→        "description": "Pourcentage d'accouchements par voie basse vs césarienne. Cible OMS : > 80%.",
+   134→        "unit": "%",
+   135→        "target_value": "80",  # > 80%
+   136→        "frequency": "QUARTERLY",
+   137→    },
+   138→]
+   139→
+   140→
+   141→# ---------------------------------------------------------------------------
+   142→# Seuils par défaut (liés aux indicateurs prédéfinis)
+   143→# ---------------------------------------------------------------------------
+   144→
+   145→DEFAULT_THRESHOLDS = [
+   146→    {
+   147→        "indicator_code": "INOSO_RATE",
+   148→        "comparator": "GT",
+   149→        "threshold_value": "5",
+   150→        "severity": "CRITICAL",
+   151→        "alert_message": "Taux d'infections nosocomiales critique : {{value}}% (seuil OMS : {{threshold}}%)",
+   152→        "notify_roles": "ADMIN,DOCTOR",
+   153→        "channels": "in_app,sms,email",
+   154→        "cooldown_hours": "24",
+   155→    },
+   156→    {
+   157→        "indicator_code": "READMIT_30D",
+   158→        "comparator": "GT",
+   159→        "threshold_value": "10",
+   160→        "severity": "HIGH",
+   161→        "alert_message": "Taux de réadmission 30j élevé : {{value}}% (seuil HAS : {{threshold}}%)",
+   162→        "notify_roles": "ADMIN",
+   163→        "channels": "in_app,sms",
+   164→        "cooldown_hours": "168",  # 1 semaine
+   165→    },
+   166→    {
+   167→        "indicator_code": "SAT_PATIENT",
+   168→        "comparator": "LT",
+   169→        "threshold_value": "80",
+   170→        "severity": "HIGH",
+   171→        "alert_message": "Satisfaction patient faible : {{value}}% (cible : > {{threshold}}%)",
+   172→        "notify_roles": "ADMIN",
+   173→        "channels": "in_app",
+   174→        "cooldown_hours": "168",
+   175→    },
+   176→    {
+   177→        "indicator_code": "ED_WAIT_4H",
+   178→        "comparator": "GT",
+   179→        "threshold_value": "4",
+   180→        "severity": "MEDIUM",
+   181→        "alert_message": "Délai d'attente aux urgences dépassé : {{value}}h (seuil : {{threshold}}h)",
+   182→        "notify_roles": "ADMIN,DOCTOR",
+   183→        "channels": "in_app",
+   184→        "cooldown_hours": "12",
+   185→    },
+   186→    {
+   187→        "indicator_code": "MORTALITY_24H",
+   188→        "comparator": "GT",
+   189→        "threshold_value": "2",
+   190→        "severity": "CRITICAL",
+   191→        "alert_message": "Mortalité 24h post-admission élevée : {{value}}% (seuil : {{threshold}}%)",
+   192→        "notify_roles": "ADMIN",
+   193→        "channels": "in_app,sms,email",
+   194→        "cooldown_hours": "24",
+   195→    },
+   196→    {
+   197→        "indicator_code": "MED_ERROR_RATE",
+   198→        "comparator": "GT",
+   199→        "threshold_value": "1",
+   200→        "severity": "HIGH",
+   201→        "alert_message": "Taux d'erreurs médicamenteuses élevé : {{value}}/1000 (seuil : {{threshold}}/1000)",
+   202→        "notify_roles": "ADMIN,PHARMACIST",
+   203→        "channels": "in_app,sms",
+   204→        "cooldown_hours": "24",
+   205→    },
+   206→    {
+   207→        "indicator_code": "SURG_SITE_INFECTION",
+   208→        "comparator": "GT",
+   209→        "threshold_value": "3",
+   210→        "severity": "HIGH",
+   211→        "alert_message": "Infections du site opératoire > seuil OMS : {{value}}% (seuil : {{threshold}}%)",
+   212→        "notify_roles": "ADMIN,DOCTOR",
+   213→        "channels": "in_app,sms",
+   214→        "cooldown_hours": "168",
+   215→    },
+   216→    {
+   217→        "indicator_code": "BED_OCCUPANCY",
+   218→        "comparator": "GT",
+   219→        "threshold_value": "85",
+   220→        "severity": "MEDIUM",
+   221→        "alert_message": "Surcharge d'occupation des lits : {{value}}% (seuil : {{threshold}}%)",
+   222→        "notify_roles": "ADMIN",
+   223→        "channels": "in_app",
+   224→        "cooldown_hours": "6",
+   225→    },
+   226→    {
+   227→        "indicator_code": "FALL_RATE",
+   228→        "comparator": "GT",
+   229→        "threshold_value": "3",
+   230→        "severity": "HIGH",
+   231→        "alert_message": "Taux de chutes patient élevé : {{value}}/1000 (seuil HAS : {{threshold}}/1000)",
+   232→        "notify_roles": "ADMIN",
+   233→        "channels": "in_app",
+   234→        "cooldown_hours": "168",
+   235→    },
+   236→    {
+   237→        "indicator_code": "VAGINAL_DELIVERY_RATE",
+   238→        "comparator": "LT",
+   239→        "threshold_value": "80",
+   240→        "severity": "MEDIUM",
+   241→        "alert_message": "Taux d'accouchements voie basse faible : {{value}}% (cible OMS : > {{threshold}}%)",
+   242→        "notify_roles": "ADMIN,MIDWIFE",
+   243→        "channels": "in_app",
+   244→        "cooldown_hours": "720",  # 30 jours (monthly indicator)
+   245→    },
+   246→]
+   247→
+   248→
+   249→# ---------------------------------------------------------------------------
+   250→# Seed
+   251→# ---------------------------------------------------------------------------
+   252→
+   253→def seed_default_indicators(db: Session, facility_id: str | None = None) -> int:
+   254→    """Insère les indicateurs prédéfinis (OMS/HAS) s'ils n'existent pas encore.
+   255→
+   256→    Args:
+   257→        db: session SQLAlchemy
+   258→        facility_id: si fourni, ne crée que pour cette facility. Si None, crée
+   259→                     pour toutes les facilities existantes (ou global si aucune).
+   260→
+   261→    Returns:
+   262→        Nombre d'indicateurs créés.
+   263→    """
+   264→    created = 0
+   265→    facilities = []
+   266→    if facility_id:
+   267→        facilities = [facility_id]
+   268→    else:
+   269→        from app.modules.facilities.models import Facility
+   270→        facilities = [f.id for f in db.query(Facility.id).all()]
+   271→        if not facilities:
+   272→            # Aucune facility — ne crée rien (les indicateurs seront seedés
+   273→            # ultérieurement quand une facility existera)
+   274→            return 0
+   275→
+   276→    for fid in facilities:
+   277→        for ind_data in DEFAULT_INDICATORS:
+   278→            existing = (
+   279→                db.query(QualityIndicator)
+   280→                .filter(QualityIndicator.facility_id == fid)
+   281→                .filter(QualityIndicator.code == ind_data["code"])
+   282→                .first()
+   283→            )
+   284→            if existing:
+   285→                continue
+   286→            ind = QualityIndicator(
+   287→                facility_id=fid,
+   288→                code=ind_data["code"],
+   289→                name=ind_data["name"],
+   290→                category=ind_data["category"],
+   291→                description=ind_data["description"],
+   292→                unit=ind_data["unit"],
+   293→                target_value=ind_data["target_value"],
+   294→                frequency=ind_data["frequency"],
+   295→            )
+   296→            db.add(ind)
+   297→            created += 1
+   298→
+   299→    db.commit()
+   300→    return created
+   301→
+   302→
+   303→def seed_default_thresholds(db: Session, facility_id: str | None = None) -> int:
+   304→    """Insère les seuils par défaut liés aux indicateurs prédéfinis."""
+   305→    created = 0
+   306→    facilities = []
+   307→    if facility_id:
+   308→        facilities = [facility_id]
+   309→    else:
+   310→        from app.modules.facilities.models import Facility
+   311→        facilities = [f.id for f in db.query(Facility.id).all()]
+   312→        if not facilities:
+   313→            return 0
+   314→
+   315→    for fid in facilities:
+   316→        for th_data in DEFAULT_THRESHOLDS:
+   317→            indicator = (
+   318→                db.query(QualityIndicator)
+   319→                .filter(QualityIndicator.facility_id == fid)
+   320→                .filter(QualityIndicator.code == th_data["indicator_code"])
+   321→                .first()
+   322→            )
+   323→            if not indicator:
+   324→                continue
+   325→            existing = (
+   326→                db.query(QualityThreshold)
+   327→                .filter(QualityThreshold.facility_id == fid)
+   328→                .filter(QualityThreshold.indicator_id == indicator.id)
+   329→                .filter(QualityThreshold.comparator == th_data["comparator"])
+   330→                .filter(QualityThreshold.threshold_value == th_data["threshold_value"])
+   331→                .first()
+   332→            )
+   333→            if existing:
+   334→                continue
+   335→            th = QualityThreshold(
+   336→                facility_id=fid,
+   337→                indicator_id=indicator.id,
+   338→                comparator=th_data["comparator"],
+   339→                threshold_value=th_data["threshold_value"],
+   340→                severity=th_data["severity"],
+   341→                alert_message=th_data["alert_message"],
+   342→                notify_roles=th_data["notify_roles"],
+   343→                channels=th_data["channels"],
+   344→                cooldown_hours=th_data["cooldown_hours"],
+   345→                enabled="true",
+   346→            )
+   347→            db.add(th)
+   348→            created += 1
+   349→
+   350→    db.commit()
+   351→    return created
+   352→
+   353→
+   354→# ---------------------------------------------------------------------------
+   355→# Dashboard computation
+   356→# ---------------------------------------------------------------------------
+   357→
+   358→def compute_dashboard(
+   359→    db: Session,
+   360→    *,
+   361→    facility_id: str | None = None,
+   362→    department_id: str | None = None,
+   363→    period_start: datetime | None = None,
+   364→    period_end: datetime | None = None,
+   365→) -> dict[str, Any]:
+   366→    """Calcule le dashboard qualité agrégé pour une période.
+   367→
+   368→    Retourne :
+   369→    - `kpis` : liste des derniers KPIs mesurés (par indicateur).
+   370→    - `incidents` : agrégats par type/sévérité/statut.
+   371→    - `alerts` : alertes ouvertes récentes.
+   372→    - `trends` : séries temporelles sur la période (par indicateur principal).
+   373→    """
+   374→    period_end = period_end or utcnow()
+   375→    period_start = period_start or (period_end - timedelta(days=30))
+   376→
+   377→    # KPIs : dernières mesures par indicateur
+   378→    indicators_q = db.query(QualityIndicator)
+   379→    if facility_id:
+   380→        indicators_q = indicators_q.filter(QualityIndicator.facility_id == facility_id)
+   381→    indicators = indicators_q.order_by(QualityIndicator.category, QualityIndicator.code).all()
+   382→
+   383→    kpis = []
+   384→    for ind in indicators:
+   385→        last_measure = (
+   386→            db.query(QualityMeasurement)
+   387→            .filter(QualityMeasurement.indicator_id == ind.id)
+   388→            .filter(QualityMeasurement.period_start >= period_start)
+   389→            .filter(QualityMeasurement.period_end <= period_end)
+   390→            .order_by(QualityMeasurement.period_end.desc())
+   391→            .first()
+   392→        )
+   393→        if not last_measure:
+   394→            # Pas de mesure sur la période — on prend la plus récente absolue
+   395→            last_measure = (
+   396→                db.query(QualityMeasurement)
+   397→                .filter(QualityMeasurement.indicator_id == ind.id)
+   398→                .order_by(QualityMeasurement.period_end.desc())
+   399→                .first()
+   400→            )
+   401→        kpis.append({
+   402→            "indicator_id": ind.id,
+   403→            "indicator_code": ind.code,
+   404→            "indicator_name": ind.name,
+   405→            "category": ind.category,
+   406→            "unit": ind.unit,
+   407→            "target_value": ind.target_value,
+   408→            "frequency": ind.frequency,
+   409→            "last_value": last_measure.value if last_measure else None,
+   410→            "last_period_start": last_measure.period_start.isoformat() if last_measure and last_measure.period_start else None,
+   411→            "last_period_end": last_measure.period_end.isoformat() if last_measure and last_measure.period_end else None,
+   412→            "has_data": last_measure is not None,
+   413→        })
+   414→
+   415→    # Incidents : agrégats
+   416→    inc_q = db.query(IncidentReport)
+   417→    if facility_id:
+   418→        inc_q = inc_q.filter(IncidentReport.facility_id == facility_id)
+   419→    inc_q = inc_q.filter(IncidentReport.incident_date >= period_start).filter(IncidentReport.incident_date <= period_end)
+   420→    incidents_total = inc_q.count()
+   421→    incidents_by_type = (
+   422→        db.query(IncidentReport.incident_type, func.count(IncidentReport.id))
+   423→        .filter(IncidentReport.facility_id == facility_id if facility_id else True)
+   424→        .filter(IncidentReport.incident_date >= period_start)
+   425→        .filter(IncidentReport.incident_date <= period_end)
+   426→        .group_by(IncidentReport.incident_type)
+   427→        .all()
+   428→    )
+   429→    incidents_by_severity = (
+   430→        db.query(IncidentReport.severity, func.count(IncidentReport.id))
+   431→        .filter(IncidentReport.facility_id == facility_id if facility_id else True)
+   432→        .filter(IncidentReport.incident_date >= period_start)
+   433→        .filter(IncidentReport.incident_date <= period_end)
+   434→        .group_by(IncidentReport.severity)
+   435→        .all()
+   436→    )
+   437→    incidents_by_status = (
+   438→        db.query(IncidentReport.status, func.count(IncidentReport.id))
+   439→        .filter(IncidentReport.facility_id == facility_id if facility_id else True)
+   440→        .filter(IncidentReport.incident_date >= period_start)
+   441→        .filter(IncidentReport.incident_date <= period_end)
+   442→        .group_by(IncidentReport.status)
+   443→        .all()
+   444→    )
+   445→
+   446→    # Délai moyen de traitement des incidents (RESOLVED uniquement)
+   447→    resolved_incidents = (
+   448→        db.query(IncidentReport)
+   449→        .filter(IncidentReport.status.in_(["RESOLVED", "CLOSED"]))
+   450→        .filter(IncidentReport.facility_id == facility_id if facility_id else True)
+   451→        .filter(IncidentReport.incident_date >= period_start)
+   452→        .filter(IncidentReport.incident_date <= period_end)
+   453→        .all()
+   454→    )
+   455→    # Pour le délai, on utilise created_at → résolution (le statut RESOLVED ne
+   456→    # porte pas de timestamp dédié — approximation)
+   457→    avg_resolution_hours = None
+   458→    if resolved_incidents:
+   459→        total_hours = 0
+   460→        count = 0
+   461→        for inc in resolved_incidents:
+   462→            if inc.created_at:
+   463→                delta = (period_end - inc.created_at).total_seconds() / 3600
+   464→                total_hours += delta
+   465→                count += 1
+   466→        if count > 0:
+   467→            avg_resolution_hours = round(total_hours / count, 1)
+   468→
+   469→    # Alertes ouvertes
+   470→    alerts_q = db.query(QualityAlert)
+   471→    if facility_id:
+   472→        alerts_q = alerts_q.filter(QualityAlert.facility_id == facility_id)
+   473→    alerts_open = alerts_q.filter(QualityAlert.status == "OPEN").count()
+   474→    alerts_acked = alerts_q.filter(QualityAlert.status == "ACKNOWLEDGED").count()
+   475→    alerts_resolved = alerts_q.filter(QualityAlert.status == "RESOLVED").count()
+   476→    alerts_recent = (
+   477→        alerts_q.order_by(QualityAlert.created_at.desc())
+   478→        .limit(10)
+   479→        .all()
+   480→    )
+   481→
+   482→    # Tendances : séries temporelles sur la période pour les 5 premiers indicateurs
+   483→    trends = []
+   484→    for ind in indicators[:5]:
+   485→        measures = (
+   486→            db.query(QualityMeasurement)
+   487→            .filter(QualityMeasurement.indicator_id == ind.id)
+   488→            .filter(QualityMeasurement.period_start >= period_start)
+   489→            .filter(QualityMeasurement.period_end <= period_end)
+   490→            .order_by(QualityMeasurement.period_start)
+   491→            .all()
+   492→        )
+   493→        trends.append({
+   494→            "indicator_code": ind.code,
+   495→            "indicator_name": ind.name,
+   496→            "unit": ind.unit,
+   497→            "target_value": ind.target_value,
+   498→            "data_points": [
+   499→                {
+   500→                    "period_start": m.period_start.isoformat() if m.period_start else None,
+   501→                    "period_end": m.period_end.isoformat() if m.period_end else None,
+   502→                    "value": m.value,
+   503→                }
+   504→                for m in measures
+   505→            ],
+   506→        })
+   507→
+   508→    return {
+   509→        "period_start": period_start.isoformat(),
+   510→        "period_end": period_end.isoformat(),
+   511→        "facility_id": facility_id,
+   512→        "department_id": department_id,
+   513→        "kpis": kpis,
+   514→        "incidents": {
+   515→            "total": incidents_total,
+   516→            "by_type": [{"type": t, "count": int(c)} for (t, c) in incidents_by_type],
+   517→            "by_severity": [{"severity": s, "count": int(c)} for (s, c) in incidents_by_severity],
+   518→            "by_status": [{"status": s, "count": int(c)} for (s, c) in incidents_by_status],
+   519→            "avg_resolution_hours": avg_resolution_hours,
+   520→        },
+   521→        "alerts": {
+   522→            "open": alerts_open,
+   523→            "acknowledged": alerts_acked,
+   524→            "resolved": alerts_resolved,
+   525→            "recent": [a.to_dict() for a in alerts_recent],
+   526→        },
+   527→        "trends": trends,
+   528→        "thresholds_count": db.query(QualityThreshold).filter(
+   529→            QualityThreshold.facility_id == facility_id if facility_id else True
+   530→        ).count(),
+   531→    }
+   532→
+   533→
+   534→# ---------------------------------------------------------------------------
+   535→# Threshold evaluation + alert raising
+   536→# ---------------------------------------------------------------------------
+   537→
+   538→def check_thresholds(
+   539→    db: Session,
+   540→    *,
+   541→    measurement: QualityMeasurement | None = None,
+   542→    facility_id: str | None = None,
+   543→) -> list[QualityAlert]:
+   544→    """Évalue les seuils pour une mesure donnée (ou toutes les mesures récentes).
+   545→
+   546→    Si `measurement` est fourni, n'évalue que les thresholds de son indicateur.
+   547→    Sinon, évalue toutes les mesures des 7 derniers jours pour `facility_id`.
+   548→
+   549→    Pour chaque seuil franchi :
+   550→    1. Vérifie le cooldown (pas d'alerte similaire dans les `cooldown_hours` dernières heures).
+   551→    2. Lève une `QualityAlert` OPEN.
+   552→    3. Notifie les rôles configurés via `notify()` du module notifications.
+   553→    4. Déclenche un SMS si la règle de routage le permet (catégorie `quality_alert`).
+   554→
+   555→    NE LEVE JAMAIS d'exception — toute erreur de notification est journalisée.
+   556→    """
+   557→    raised: list[QualityAlert] = []
+   558→
+   559→    # Déterminer les thresholds à évaluer
+   560→    if measurement:
+   561→        thresholds_q = (
+   562→            db.query(QualityThreshold)
+   563→            .filter(QualityThreshold.indicator_id == measurement.indicator_id)
+   564→            .filter(QualityThreshold.enabled == "true")
+   565→        )
+   566→        if measurement.facility_id:
+   567→            thresholds_q = thresholds_q.filter(
+   568→                (QualityThreshold.facility_id == measurement.facility_id) |
+   569→                (QualityThreshold.facility_id.is_(None))
+   570→            )
+   571→        thresholds = thresholds_q.all()
+   572→        measurements_to_check = [measurement]
+   573→    else:
+   574→        # Toutes les mesures des 7 derniers jours
+   575→        since = utcnow() - timedelta(days=7)
+   576→        measures_q = (
+   577→            db.query(QualityMeasurement)
+   578→            .filter(QualityMeasurement.created_at >= since)
+   579→        )
+   580→        if facility_id:
+   581→            measures_q = measures_q.filter(QualityMeasurement.facility_id == facility_id)
+   582→        measurements_to_check = measures_q.all()
+   583→
+   584→        # Tous les thresholds enabled
+   585→        thresholds_q = db.query(QualityThreshold).filter(QualityThreshold.enabled == "true")
+   586→        if facility_id:
+   587→            thresholds_q = thresholds_q.filter(
+   588→                (QualityThreshold.facility_id == facility_id) |
+   589→                (QualityThreshold.facility_id.is_(None))
+   590→            )
+   591→        thresholds = thresholds_q.all()
+   592→
+   593→    # Indexer les thresholds par indicator_id pour lookup rapide
+   594→    thresholds_by_indicator: dict[str, list[QualityThreshold]] = {}
+   595→    for th in thresholds:
+   596→        thresholds_by_indicator.setdefault(th.indicator_id, []).append(th)
+   597→
+   598→    for m in measurements_to_check:
+   599→        ths = thresholds_by_indicator.get(m.indicator_id, [])
+   600→        for th in ths:
+   601→            # Vérifier le comparateur
+   602→            if th.comparator not in COMPARATORS:
+   603→                continue
+   604→            if not evaluate_threshold(th.comparator, m.value, th.threshold_value):
+   605→                continue
+   606→
+   607→            # Cooldown : pas d'alerte similaire dans la fenêtre
+   608→            cooldown_hours = 24
+   609→            if th.cooldown_hours and str(th.cooldown_hours).isdigit():
+   610→                cooldown_hours = int(th.cooldown_hours)
+   611→            cooldown_since = utcnow() - timedelta(hours=cooldown_hours)
+   612→            recent_alert = (
+   613→                db.query(QualityAlert)
+   614→                .filter(QualityAlert.threshold_id == th.id)
+   615→                .filter(QualityAlert.created_at >= cooldown_since)
+   616→                .filter(QualityAlert.status.in_(["OPEN", "ACKNOWLEDGED"]))
+   617→                .first()
+   618→            )
+   619→            if recent_alert:
+   620→                continue  # cooldown actif
+   621→
+   622→            # Lever l'alerte
+   623→            title = f"[{th.severity}] Seuil qualité franchi"
+   624→            message = (th.alert_message or "").replace("{{value}}", str(m.value)).replace("{{threshold}}", str(th.threshold_value))
+   625→
+   626→            alert = QualityAlert(
+   627→                facility_id=m.facility_id,
+   628→                department_id=th.department_id,
+   629→                threshold_id=th.id,
+   630→                measurement_id=m.id,
+   631→                indicator_id=m.indicator_id,
+   632→                status="OPEN",
+   633→                severity=th.severity,
+   634→                title=title,
+   635→                message=message,
+   636→                observed_value=str(m.value),
+   637→                threshold_value=str(th.threshold_value),
+   638→                comparator=th.comparator,
+   639→            )
+   640→            db.add(alert)
+   641→            db.commit()
+   642→            db.refresh(alert)
+   643→            raised.append(alert)
+   644→
+   645→            # Notifier (best-effort)
+   646→            try:
+   647→                _notify_alert(db, alert, th)
+   648→            except Exception as e:
+   649→                logger.warning("Alert notification failed for alert %s: %s", alert.id, e)
+   650→
+   651→    return raised
+   652→
+   653→
+   654→def _notify_alert(db: Session, alert: QualityAlert, threshold: QualityThreshold) -> None:
+   655→    """Envoie une notification multi-canal pour une alerte qualité.
+   656→
+   657→    - Identifie les destinataires par rôle (notify_roles) dans la facility.
+   658→    - Appelle `notify()` du module notifications.
+   659→    - Si la catégorie `quality_alert` a une règle de routage SMS, un SMS est envoyé.
+   660→    """
+   661→    from app.modules.notifications.service import notify
+   662→    from app.modules.users.models import User
+   663→
+   664→    if not threshold.notify_roles:
+   665→        return
+   666→
+   667→    roles = [r for r in threshold.notify_roles.split(",") if r]
+   668→    channels = [c for c in (threshold.channels or "in_app").split(",") if c]
+   669→
+   670→    # Trouver les destinataires (SUPER_ADMIN toujours + rôles configurés dans la facility)
+   671→    recipients_q = db.query(User).filter(User.is_active.is_(True))
+   672→    if alert.facility_id:
+   673→        recipients_q = recipients_q.filter(
+   674→            (User.facility_id == alert.facility_id) | (User.role == "SUPER_ADMIN")
+   675→        )
+   676→    recipients_q = recipients_q.filter(User.role.in_(roles))
+   677→    recipients = recipients_q.all()
+   678→
+   679→    # Si aucun destinataire direct, notifier les SUPER_ADMIN globaux
+   680→    if not recipients:
+   681→        recipients = db.query(User).filter(User.role == "SUPER_ADMIN").filter(User.is_active.is_(True)).all()
+   682→
+   683→    priority = "urgent" if alert.severity == "CRITICAL" else "high"
+   684→
+   685→    for recipient in recipients:
+   686→        try:
+   687→            notif = notify(
+   688→                db=db,
+   689→                recipient_id=recipient.id,
+   690→                title=alert.title,
+   691→                body=alert.message,
+   692→                category="quality_alert",
+   693→                priority=priority,
+   694→                channels=channels,
+   695→                facility_id=alert.facility_id,
+   696→                resource_type="quality_alert",
+   697→                resource_id=alert.id,
+   698→                recipient_email=getattr(recipient, "email", None),
+   699→                recipient_phone=getattr(recipient, "phone", None),
+   700→            )
+   701→            # Lier la notification à l'alerte (premier destinataire seulement)
+   702→            if not alert.notification_id:
+   703→                alert.notification_id = notif.id
+   704→                db.commit()
+   705→        except Exception as e:
+   706→            logger.warning("notify() failed for recipient %s: %s", recipient.id, e)
+   707→
+   708→
+   709→# ---------------------------------------------------------------------------
+   710→# Alert lifecycle helpers
+   711→# ---------------------------------------------------------------------------
+   712→
+   713→def acknowledge_alert(
+   714→    db: Session,
+   715→    alert_id: str,
+   716→    user_id: str,
+   717→    assign_to: str | None = None,
+   718→) -> QualityAlert | None:
+   719→    """Marque une alerte comme prise en charge (ACKNOWLEDGED)."""
+   720→    alert = db.query(QualityAlert).filter(QualityAlert.id == alert_id).first()
+   721→    if not alert:
+   722→        return None
+   723→    alert.status = "ACKNOWLEDGED"
+   724→    alert.acknowledged_at = utcnow()
+   725→    alert.acknowledged_by = user_id
+   726→    if assign_to:
+   727→        alert.assigned_to = assign_to
+   728→    elif not alert.assigned_to:
+   729→        alert.assigned_to = user_id
+   730→    db.commit()
+   731→    db.refresh(alert)
+   732→    return alert
+   733→
+   734→
+   735→def resolve_alert(
+   736→    db: Session,
+   737→    alert_id: str,
+   738→    user_id: str,
+   739→    resolution_note: str,
+   740→) -> QualityAlert | None:
+   741→    """Marque une alerte comme résolue (RESOLVED) avec note de résolution."""
+   742→    alert = db.query(QualityAlert).filter(QualityAlert.id == alert_id).first()
+   743→    if not alert:
+   744→        return None
+   745→    alert.status = "RESOLVED"
+   746→    alert.resolved_at = utcnow()
+   747→    alert.resolved_by = user_id
+   748→    alert.resolution_note = resolution_note
+   749→    db.commit()
+   750→    db.refresh(alert)
+   751→    return alert
+   752→
+   753→
+   754→def close_alert(
+   755→    db: Session,
+   756→    alert_id: str,
+   757→    user_id: str,
+   758→) -> QualityAlert | None:
+   759→    """Clôture une alerte résolue (CLOSED)."""
+   760→    alert = db.query(QualityAlert).filter(QualityAlert.id == alert_id).first()
+   761→    if not alert:
+   762→        return None
+   763→    alert.status = "CLOSED"
+   764→    alert.closed_at = utcnow()
+   765→    db.commit()
+   766→    db.refresh(alert)
+   767→    return alert
+   768→

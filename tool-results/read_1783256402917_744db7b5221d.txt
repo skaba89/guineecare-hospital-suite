@@ -1,0 +1,925 @@
+     1→import { useCallback, useEffect, useState } from "react";
+     2→import { apiRequest } from "../services/api";
+     3→import { LookupData, Row } from "../types";
+     4→import { showToast } from "../components/Toast";
+     5→import { buildOptions, firstValue } from "../utils/options";
+     6→import { useT } from "../i18n";
+     7→
+     8→type TabKey = "dashboard" | "reports" | "alerts" | "statistics";
+     9→
+    10→const TABS: { key: TabKey; label: string }[] = [
+    11→  { key: "dashboard", label: "Tableau de bord" },
+    12→  { key: "reports", label: "Rapports nationaux" },
+    13→  { key: "alerts", label: "Alertes épidémiques" },
+    14→  { key: "statistics", label: "Statistiques SNIS" },
+    15→];
+    16→
+    17→const REPORT_STATUS_BADGE: Record<string, string> = {
+    18→  DRAFT: "badge-gray",
+    19→  SUBMITTED: "badge-blue",
+    20→  VALIDATED: "badge-green",
+    21→  REJECTED: "badge-red",
+    22→};
+    23→
+    24→const REPORT_STATUS_LABEL: Record<string, string> = {
+    25→  DRAFT: "Brouillon",
+    26→  SUBMITTED: "Soumis",
+    27→  VALIDATED: "Validé",
+    28→  REJECTED: "Rejeté",
+    29→};
+    30→
+    31→const REPORT_TYPE_OPTIONS: { value: string; label: string }[] = [
+    32→  { value: "MONTHLY", label: "Mensuel" },
+    33→  { value: "QUARTERLY", label: "Trimestriel" },
+    34→  { value: "ANNUAL", label: "Annuel" },
+    35→  { value: "EPIDEMIC_ALERT", label: "Alerte épidémique" },
+    36→];
+    37→
+    38→const REPORT_TYPE_LABEL: Record<string, string> = {
+    39→  MONTHLY: "Mensuel",
+    40→  QUARTERLY: "Trimestriel",
+    41→  ANNUAL: "Annuel",
+    42→  EPIDEMIC_ALERT: "Alerte épidémique",
+    43→};
+    44→
+    45→const ALERT_LEVEL_BADGE: Record<string, string> = {
+    46→  WATCH: "badge-yellow",
+    47→  WARNING: "badge-yellow",
+    48→  ALERT: "badge-red",
+    49→  EMERGENCY: "badge-red",
+    50→};
+    51→
+    52→const ALERT_LEVEL_LABEL: Record<string, string> = {
+    53→  WATCH: "Veille",
+    54→  WARNING: "Alerte",
+    55→  ALERT: "Alerte",
+    56→  EMERGENCY: "Urgence",
+    57→};
+    58→
+    59→const ALERT_LEVEL_OPTIONS: { value: string; label: string }[] = [
+    60→  { value: "WATCH", label: "Veille" },
+    61→  { value: "WARNING", label: "Alerte" },
+    62→  { value: "ALERT", label: "Alerte" },
+    63→  { value: "EMERGENCY", label: "Urgence" },
+    64→];
+    65→
+    66→const STAT_SOURCE_OPTIONS: { value: string; label: string }[] = [
+    67→  { value: "SNIS", label: "SNIS" },
+    68→  { value: "DHIS2", label: "DHIS2" },
+    69→  { value: "MANUAL", label: "Manuel" },
+    70→];
+    71→
+    72→const STAT_SOURCE_LABEL: Record<string, string> = {
+    73→  SNIS: "SNIS",
+    74→  DHIS2: "DHIS2",
+    75→  MANUAL: "Manuel",
+    76→};
+    77→
+    78→export function ReportingPage({ lookups }: { lookups: LookupData }) {
+    79→  const t = useT();
+    80→  const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
+    81→
+    82→  return (
+    83→    <section>
+    84→      <h1>Reporting National</h1>
+    85→      <p className="muted">Rapports nationaux, alertes épidémiques et statistiques SNIS.</p>
+    86→
+    87→      <div className="tab-bar">
+    88→        {TABS.map((tab) => (
+    89→          <button
+    90→            key={tab.key}
+    91→            className={`tab-button ${activeTab === tab.key ? "active" : ""}`}
+    92→            onClick={() => setActiveTab(tab.key)}
+    93→          >
+    94→            {tab.label}
+    95→          </button>
+    96→        ))}
+    97→      </div>
+    98→
+    99→      {activeTab === "dashboard" && <DashboardTab lookups={lookups} />}
+   100→      {activeTab === "reports" && <ReportsTab lookups={lookups} />}
+   101→      {activeTab === "alerts" && <AlertsTab lookups={lookups} />}
+   102→      {activeTab === "statistics" && <StatisticsTab lookups={lookups} />}
+   103→    </section>
+   104→  );
+   105→}
+   106→
+   107→/* ─── Dashboard Tab ──────────────────────────────────────────── */
+   108→
+   109→function DashboardTab({ lookups }: { lookups: LookupData }) {
+   110→  const [dashboard, setDashboard] = useState<Row | null>(null);
+   111→  const [loading, setLoading] = useState(true);
+   112→  const [error, setError] = useState("");
+   113→
+   114→  const loadDashboard = useCallback(async () => {
+   115→    setLoading(true);
+   116→    setError("");
+   117→    try {
+   118→      const payload = await apiRequest<any>("/reporting/dashboard");
+   119→      setDashboard(payload.data || null);
+   120→    } catch {
+   121→      setError("Impossible de charger le tableau de bord.");
+   122→    } finally {
+   123→      setLoading(false);
+   124→    }
+   125→  }, []);
+   126→
+   127→  useEffect(() => {
+   128→    loadDashboard();
+   129→    const handler = () => loadDashboard();
+   130→    window.addEventListener("refresh-resource", handler);
+   131→    return () => window.removeEventListener("refresh-resource", handler);
+   132→  }, [loadDashboard]);
+   133→
+   134→  if (loading) {
+   135→    return (
+   136→      <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   137→        <div className="spinner" />
+   138→        <p className="muted" style={{ marginTop: "12px" }}>Chargement du tableau de bord...</p>
+   139→      </div>
+   140→    );
+   141→  }
+   142→
+   143→  if (error) {
+   144→    return <p style={{ color: "crimson" }}>{error}</p>;
+   145→  }
+   146→
+   147→  const cards = [
+   148→    { label: "Rapports en brouillon", value: dashboard?.draft_reports ?? 0, color: "#6b7280" },
+   149→    { label: "Rapports soumis", value: dashboard?.submitted_reports ?? 0, color: "#2563eb" },
+   150→    { label: "Rapports validés", value: dashboard?.validated_reports ?? 0, color: "#047857" },
+   151→    { label: "Alertes actives", value: dashboard?.active_alerts ?? 0, color: "#b91c1c" },
+   152→  ];
+   153→
+   154→  return (
+   155→    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "16px" }}>
+   156→      {cards.map((card) => (
+   157→        <div className="card" key={card.label} style={{ textAlign: "center" }}>
+   158→          <div style={{ fontSize: "32px", fontWeight: 700, color: card.color }}>{card.value}</div>
+   159→          <div className="muted" style={{ marginTop: "8px", fontSize: "14px" }}>{card.label}</div>
+   160→        </div>
+   161→      ))}
+   162→    </div>
+   163→  );
+   164→}
+   165→
+   166→/* ─── Reports Tab ──────────────────────────────────────────── */
+   167→
+   168→function ReportsTab({ lookups }: { lookups: LookupData }) {
+   169→  const [reports, setReports] = useState<Row[]>([]);
+   170→  const [loading, setLoading] = useState(true);
+   171→  const [error, setError] = useState("");
+   172→  const [showForm, setShowForm] = useState(false);
+   173→  const [submitting, setSubmitting] = useState(false);
+   174→
+   175→  // Form state
+   176→  const [reportType, setReportType] = useState("MONTHLY");
+   177→  const [periodStart, setPeriodStart] = useState("");
+   178→  const [periodEnd, setPeriodEnd] = useState("");
+   179→  const [totalAdmissions, setTotalAdmissions] = useState("");
+   180→  const [totalDischarges, setTotalDischarges] = useState("");
+   181→  const [totalDeaths, setTotalDeaths] = useState("");
+   182→  const [totalBirths, setTotalBirths] = useState("");
+   183→  const [totalSurgeries, setTotalSurgeries] = useState("");
+   184→  const [totalEmergencyVisits, setTotalEmergencyVisits] = useState("");
+   185→  const [bedOccupancyRate, setBedOccupancyRate] = useState("");
+   186→  const [averageStayDays, setAverageStayDays] = useState("");
+   187→  const [notes, setNotes] = useState("");
+   188→
+   189→  const options = buildOptions(lookups);
+   190→  const facilityId = firstValue(options.facilities);
+   191→
+   192→  const loadReports = useCallback(async () => {
+   193→    setLoading(true);
+   194→    setError("");
+   195→    try {
+   196→      const payload = await apiRequest<any>("/reporting/national-reports?page_size=1000");
+   197→      setReports(Array.isArray(payload.data) ? payload.data : []);
+   198→    } catch {
+   199→      setError("Impossible de charger les rapports.");
+   200→    } finally {
+   201→      setLoading(false);
+   202→    }
+   203→  }, []);
+   204→
+   205→  useEffect(() => {
+   206→    loadReports();
+   207→    const handler = () => loadReports();
+   208→    window.addEventListener("refresh-resource", handler);
+   209→    return () => window.removeEventListener("refresh-resource", handler);
+   210→  }, [loadReports]);
+   211→
+   212→  async function handleSubmit(e: React.FormEvent) {
+   213→    e.preventDefault();
+   214→    if (!periodStart) return;
+   215→    setSubmitting(true);
+   216→    try {
+   217→      await apiRequest("/reporting/national-reports", {
+   218→        method: "POST",
+   219→        body: JSON.stringify({
+   220→          report_type: reportType,
+   221→          period_start: periodStart,
+   222→          period_end: periodEnd || undefined,
+   223→          facility_id: facilityId || undefined,
+   224→          total_admissions: totalAdmissions.trim() || undefined,
+   225→          total_discharges: totalDischarges.trim() || undefined,
+   226→          total_deaths: totalDeaths.trim() || undefined,
+   227→          total_births: totalBirths.trim() || undefined,
+   228→          total_surgeries: totalSurgeries.trim() || undefined,
+   229→          total_emergency_visits: totalEmergencyVisits.trim() || undefined,
+   230→          bed_occupancy_rate: bedOccupancyRate.trim() || undefined,
+   231→          average_stay_days: averageStayDays.trim() || undefined,
+   232→          notes: notes.trim() || undefined,
+   233→        }),
+   234→      });
+   235→      setReportType("MONTHLY");
+   236→      setPeriodStart("");
+   237→      setPeriodEnd("");
+   238→      setTotalAdmissions("");
+   239→      setTotalDischarges("");
+   240→      setTotalDeaths("");
+   241→      setTotalBirths("");
+   242→      setTotalSurgeries("");
+   243→      setTotalEmergencyVisits("");
+   244→      setBedOccupancyRate("");
+   245→      setAverageStayDays("");
+   246→      setNotes("");
+   247→      setShowForm(false);
+   248→      loadReports();
+   249→      showToast("Rapport créé avec succès.", "success");
+   250→    } catch {
+   251→      showToast("Erreur lors de la création du rapport.", "error");
+   252→    } finally {
+   253→      setSubmitting(false);
+   254→    }
+   255→  }
+   256→
+   257→  async function handleSubmitReport(reportId: string) {
+   258→    try {
+   259→      await apiRequest(`/reporting/national-reports/${reportId}/submit`, { method: "POST" });
+   260→      loadReports();
+   261→      showToast("Rapport soumis.", "success");
+   262→    } catch {
+   263→      showToast("Erreur lors de la soumission.", "error");
+   264→    }
+   265→  }
+   266→
+   267→  async function handleValidate(reportId: string) {
+   268→    try {
+   269→      await apiRequest(`/reporting/national-reports/${reportId}/validate`, { method: "POST" });
+   270→      loadReports();
+   271→      showToast("Rapport validé.", "success");
+   272→    } catch {
+   273→      showToast("Erreur lors de la validation.", "error");
+   274→    }
+   275→  }
+   276→
+   277→  async function handleReject(reportId: string) {
+   278→    try {
+   279→      await apiRequest(`/reporting/national-reports/${reportId}/reject`, { method: "POST" });
+   280→      loadReports();
+   281→      showToast("Rapport rejeté.", "success");
+   282→    } catch {
+   283→      showToast("Erreur lors du rejet.", "error");
+   284→    }
+   285→  }
+   286→
+   287→  return (
+   288→    <>
+   289→      <div className="section-header">
+   290→        <h2 style={{ margin: 0 }}>Rapports nationaux</h2>
+   291→        <button className="primary-button" onClick={() => setShowForm(!showForm)}>
+   292→          {showForm ? "Annuler" : "Nouveau rapport"}
+   293→        </button>
+   294→      </div>
+   295→
+   296→      {showForm && (
+   297→        <div className="card form-card">
+   298→          <h3>Nouveau rapport national</h3>
+   299→          <form onSubmit={handleSubmit} className="form-grid">
+   300→            <label className="form-control">
+   301→              Type de rapport
+   302→              <select value={reportType} onChange={(e) => setReportType(e.target.value)}>
+   303→                {REPORT_TYPE_OPTIONS.map((t) => (
+   304→                  <option key={t.value} value={t.value}>{t.label}</option>
+   305→                ))}
+   306→              </select>
+   307→            </label>
+   308→            <label className="form-control">
+   309→              Début de période
+   310→              <input
+   311→                type="date"
+   312→                value={periodStart}
+   313→                onChange={(e) => setPeriodStart(e.target.value)}
+   314→                required
+   315→              />
+   316→            </label>
+   317→            <label className="form-control">
+   318→              Fin de période
+   319→              <input
+   320→                type="date"
+   321→                value={periodEnd}
+   322→                onChange={(e) => setPeriodEnd(e.target.value)}
+   323→              />
+   324→            </label>
+   325→            <label className="form-control">
+   326→              Total admissions
+   327→              <input
+   328→                type="number"
+   329→                value={totalAdmissions}
+   330→                onChange={(e) => setTotalAdmissions(e.target.value)}
+   331→                placeholder="0"
+   332→              />
+   333→            </label>
+   334→            <label className="form-control">
+   335→              Total sorties
+   336→              <input
+   337→                type="number"
+   338→                value={totalDischarges}
+   339→                onChange={(e) => setTotalDischarges(e.target.value)}
+   340→                placeholder="0"
+   341→              />
+   342→            </label>
+   343→            <label className="form-control">
+   344→              Total décès
+   345→              <input
+   346→                type="number"
+   347→                value={totalDeaths}
+   348→                onChange={(e) => setTotalDeaths(e.target.value)}
+   349→                placeholder="0"
+   350→              />
+   351→            </label>
+   352→            <label className="form-control">
+   353→              Total naissances
+   354→              <input
+   355→                type="number"
+   356→                value={totalBirths}
+   357→                onChange={(e) => setTotalBirths(e.target.value)}
+   358→                placeholder="0"
+   359→              />
+   360→            </label>
+   361→            <label className="form-control">
+   362→              Total chirurgies
+   363→              <input
+   364→                type="number"
+   365→                value={totalSurgeries}
+   366→                onChange={(e) => setTotalSurgeries(e.target.value)}
+   367→                placeholder="0"
+   368→              />
+   369→            </label>
+   370→            <label className="form-control">
+   371→              Total urgences
+   372→              <input
+   373→                type="number"
+   374→                value={totalEmergencyVisits}
+   375→                onChange={(e) => setTotalEmergencyVisits(e.target.value)}
+   376→                placeholder="0"
+   377→              />
+   378→            </label>
+   379→            <label className="form-control">
+   380→              Taux d'occupation (%)
+   381→              <input
+   382→                type="text"
+   383→                value={bedOccupancyRate}
+   384→                onChange={(e) => setBedOccupancyRate(e.target.value)}
+   385→                placeholder="0.00"
+   386→              />
+   387→            </label>
+   388→            <label className="form-control">
+   389→              Durée moyenne séjour (j)
+   390→              <input
+   391→                type="text"
+   392→                value={averageStayDays}
+   393→                onChange={(e) => setAverageStayDays(e.target.value)}
+   394→                placeholder="0.0"
+   395→              />
+   396→            </label>
+   397→            <label className="form-control" style={{ gridColumn: "1 / -1" }}>
+   398→              Notes
+   399→              <textarea
+   400→                value={notes}
+   401→                onChange={(e) => setNotes(e.target.value)}
+   402→                placeholder="Notes complémentaires..."
+   403→                rows={2}
+   404→              />
+   405→            </label>
+   406→            <div className="form-actions">
+   407→              <button className="primary-button" type="submit" disabled={submitting}>
+   408→                {submitting ? "Création..." : "Créer le rapport"}
+   409→              </button>
+   410→            </div>
+   411→          </form>
+   412→        </div>
+   413→      )}
+   414→
+   415→      {loading ? (
+   416→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   417→          <div className="spinner" />
+   418→        </div>
+   419→      ) : error ? (
+   420→        <p style={{ color: "crimson" }}>{error}</p>
+   421→      ) : reports.length === 0 ? (
+   422→        <div className="card">
+   423→          <p className="muted">Aucun rapport trouvé.</p>
+   424→        </div>
+   425→      ) : (
+   426→        <div className="card">
+   427→          <div className="table-wrapper">
+   428→            <table className="table">
+   429→              <thead>
+   430→                <tr>
+   431→                  <th>Période</th>
+   432→                  <th>Type</th>
+   433→                  <th>Établissement</th>
+   434→                  <th>Statut</th>
+   435→                  <th>Actions</th>
+   436→                </tr>
+   437→              </thead>
+   438→              <tbody>
+   439→                {reports.map((report) => (
+   440→                  <tr key={report.id}>
+   441→                    <td style={{ whiteSpace: "nowrap" }}>
+   442→                      {report.period_start ? new Date(report.period_start).toLocaleDateString("fr-FR") : "—"}
+   443→                      {report.period_end ? ` — ${new Date(report.period_end).toLocaleDateString("fr-FR")}` : ""}
+   444→                    </td>
+   445→                    <td>{REPORT_TYPE_LABEL[report.report_type] || report.report_type || "—"}</td>
+   446→                    <td>{report.facility_id || "—"}</td>
+   447→                    <td>
+   448→                      <span className={`badge ${REPORT_STATUS_BADGE[report.status] || "badge-gray"}`}>
+   449→                        {REPORT_STATUS_LABEL[report.status] || report.status}
+   450→                      </span>
+   451→                    </td>
+   452→                    <td>
+   453→                      {report.status === "DRAFT" && (
+   454→                        <button
+   455→                          className="secondary-button"
+   456→                          style={{ padding: "6px 14px", fontSize: "13px" }}
+   457→                          onClick={() => handleSubmitReport(report.id)}
+   458→                        >
+   459→                          Soumettre
+   460→                        </button>
+   461→                      )}
+   462→                      {report.status === "SUBMITTED" && (
+   463→                        <>
+   464→                          <button
+   465→                            className="secondary-button"
+   466→                            style={{ padding: "6px 14px", fontSize: "13px" }}
+   467→                            onClick={() => handleValidate(report.id)}
+   468→                          >
+   469→                            Valider
+   470→                          </button>
+   471→                          <button
+   472→                            className="secondary-button"
+   473→                            style={{ padding: "6px 14px", fontSize: "13px", marginLeft: "4px", color: "crimson" }}
+   474→                            onClick={() => handleReject(report.id)}
+   475→                          >
+   476→                            Rejeter
+   477→                          </button>
+   478→                        </>
+   479→                      )}
+   480→                    </td>
+   481→                  </tr>
+   482→                ))}
+   483→              </tbody>
+   484→            </table>
+   485→          </div>
+   486→        </div>
+   487→      )}
+   488→    </>
+   489→  );
+   490→}
+   491→
+   492→/* ─── Alerts Tab ──────────────────────────────────────────── */
+   493→
+   494→function AlertsTab({ lookups }: { lookups: LookupData }) {
+   495→  const t = useT();
+   496→  const [alerts, setAlerts] = useState<Row[]>([]);
+   497→  const [loading, setLoading] = useState(true);
+   498→  const [error, setError] = useState("");
+   499→  const [showForm, setShowForm] = useState(false);
+   500→  const [submitting, setSubmitting] = useState(false);
+   501→
+   502→  // Form state
+   503→  const [diseaseName, setDiseaseName] = useState("");
+   504→  const [caseCount, setCaseCount] = useState("");
+   505→  const [alertLevel, setAlertLevel] = useState("WATCH");
+   506→  const [region, setRegion] = useState("");
+   507→  const [description, setDescription] = useState("");
+   508→  const [measuresTaken, setMeasuresTaken] = useState("");
+   509→
+   510→  const loadAlerts = useCallback(async () => {
+   511→    setLoading(true);
+   512→    setError("");
+   513→    try {
+   514→      const payload = await apiRequest<any>("/reporting/epidemic-alerts?page_size=1000");
+   515→      setAlerts(Array.isArray(payload.data) ? payload.data : []);
+   516→    } catch {
+   517→      setError("Impossible de charger les alertes épidémiques.");
+   518→    } finally {
+   519→      setLoading(false);
+   520→    }
+   521→  }, []);
+   522→
+   523→  useEffect(() => {
+   524→    loadAlerts();
+   525→    const handler = () => loadAlerts();
+   526→    window.addEventListener("refresh-resource", handler);
+   527→    return () => window.removeEventListener("refresh-resource", handler);
+   528→  }, [loadAlerts]);
+   529→
+   530→  async function handleSubmit(e: React.FormEvent) {
+   531→    e.preventDefault();
+   532→    if (!diseaseName) return;
+   533→    setSubmitting(true);
+   534→    try {
+   535→      await apiRequest("/reporting/epidemic-alerts", {
+   536→        method: "POST",
+   537→        body: JSON.stringify({
+   538→          disease_name: diseaseName.trim(),
+   539→          case_count: caseCount.trim() || undefined,
+   540→          alert_level: alertLevel,
+   541→          region: region.trim() || undefined,
+   542→          description: description.trim() || undefined,
+   543→          measures_taken: measuresTaken.trim() || undefined,
+   544→        }),
+   545→      });
+   546→      setDiseaseName("");
+   547→      setCaseCount("");
+   548→      setAlertLevel("WATCH");
+   549→      setRegion("");
+   550→      setDescription("");
+   551→      setMeasuresTaken("");
+   552→      setShowForm(false);
+   553→      loadAlerts();
+   554→      showToast("Alerte épidémique créée avec succès.", "success");
+   555→    } catch {
+   556→      showToast("Erreur lors de la création de l'alerte.", "error");
+   557→    } finally {
+   558→      setSubmitting(false);
+   559→    }
+   560→  }
+   561→
+   562→  async function handleClose(alertId: string) {
+   563→    try {
+   564→      await apiRequest(`/reporting/epidemic-alerts/${alertId}/close`, { method: "POST" });
+   565→      loadAlerts();
+   566→      showToast("Alerte clôturée.", "success");
+   567→    } catch {
+   568→      showToast("Erreur lors de la clôture.", "error");
+   569→    }
+   570→  }
+   571→
+   572→  const ALERT_STATUS_LABEL: Record<string, string> = {
+   573→    ACTIVE: t("status.active"),
+   574→    CLOSED: "Clôturée",
+   575→  };
+   576→
+   577→  const ALERT_STATUS_BADGE: Record<string, string> = {
+   578→    ACTIVE: "badge-red",
+   579→    CLOSED: "badge-green",
+   580→  };
+   581→
+   582→  return (
+   583→    <>
+   584→      <div className="section-header">
+   585→        <h2 style={{ margin: 0 }}>Alertes épidémiques</h2>
+   586→        <button className="primary-button" onClick={() => setShowForm(!showForm)}>
+   587→          {showForm ? "Annuler" : "Nouvelle alerte"}
+   588→        </button>
+   589→      </div>
+   590→
+   591→      {showForm && (
+   592→        <div className="card form-card">
+   593→          <h3>Nouvelle alerte épidémique</h3>
+   594→          <form onSubmit={handleSubmit} className="form-grid">
+   595→            <label className="form-control">
+   596→              Maladie
+   597→              <input
+   598→                type="text"
+   599→                value={diseaseName}
+   600→                onChange={(e) => setDiseaseName(e.target.value)}
+   601→                placeholder="Nom de la maladie"
+   602→                required
+   603→              />
+   604→            </label>
+   605→            <label className="form-control">
+   606→              Nombre de cas
+   607→              <input
+   608→                type="number"
+   609→                value={caseCount}
+   610→                onChange={(e) => setCaseCount(e.target.value)}
+   611→                placeholder="0"
+   612→              />
+   613→            </label>
+   614→            <label className="form-control">
+   615→              Niveau d'alerte
+   616→              <select value={alertLevel} onChange={(e) => setAlertLevel(e.target.value)}>
+   617→                {ALERT_LEVEL_OPTIONS.map((l) => (
+   618→                  <option key={l.value} value={l.value}>{l.label}</option>
+   619→                ))}
+   620→              </select>
+   621→            </label>
+   622→            <label className="form-control">
+   623→              Région
+   624→              <input
+   625→                type="text"
+   626→                value={region}
+   627→                onChange={(e) => setRegion(e.target.value)}
+   628→                placeholder="Région concernée"
+   629→              />
+   630→            </label>
+   631→            <label className="form-control" style={{ gridColumn: "1 / -1" }}>
+   632→              Description
+   633→              <textarea
+   634→                value={description}
+   635→                onChange={(e) => setDescription(e.target.value)}
+   636→                placeholder="Description de la situation..."
+   637→                rows={2}
+   638→              />
+   639→            </label>
+   640→            <label className="form-control" style={{ gridColumn: "1 / -1" }}>
+   641→              Mesures prises
+   642→              <textarea
+   643→                value={measuresTaken}
+   644→                onChange={(e) => setMeasuresTaken(e.target.value)}
+   645→                placeholder="Mesures déjà prises..."
+   646→                rows={2}
+   647→              />
+   648→            </label>
+   649→            <div className="form-actions">
+   650→              <button className="primary-button" type="submit" disabled={submitting}>
+   651→                {submitting ? "Création..." : "Créer l'alerte"}
+   652→              </button>
+   653→            </div>
+   654→          </form>
+   655→        </div>
+   656→      )}
+   657→
+   658→      {loading ? (
+   659→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   660→          <div className="spinner" />
+   661→        </div>
+   662→      ) : error ? (
+   663→        <p style={{ color: "crimson" }}>{error}</p>
+   664→      ) : alerts.length === 0 ? (
+   665→        <div className="card">
+   666→          <p className="muted">Aucune alerte épidémique trouvée.</p>
+   667→        </div>
+   668→      ) : (
+   669→        <div className="card">
+   670→          <div className="table-wrapper">
+   671→            <table className="table">
+   672→              <thead>
+   673→                <tr>
+   674→                  <th>Maladie</th>
+   675→                  <th>Cas</th>
+   676→                  <th>Niveau</th>
+   677→                  <th>Région</th>
+   678→                  <th>Statut</th>
+   679→                  <th>Actions</th>
+   680→                </tr>
+   681→              </thead>
+   682→              <tbody>
+   683→                {alerts.map((alert) => (
+   684→                  <tr key={alert.id}>
+   685→                    <td style={{ fontWeight: 600 }}>{alert.disease_name || "—"}</td>
+   686→                    <td>{alert.case_count ?? "—"}</td>
+   687→                    <td>
+   688→                      <span className={`badge ${ALERT_LEVEL_BADGE[alert.alert_level] || "badge-gray"}`}>
+   689→                        {ALERT_LEVEL_LABEL[alert.alert_level] || alert.alert_level || "—"}
+   690→                      </span>
+   691→                    </td>
+   692→                    <td>{alert.region || "—"}</td>
+   693→                    <td>
+   694→                      <span className={`badge ${ALERT_STATUS_BADGE[alert.status] || "badge-gray"}`}>
+   695→                        {ALERT_STATUS_LABEL[alert.status] || alert.status}
+   696→                      </span>
+   697→                    </td>
+   698→                    <td>
+   699→                      {alert.status === "ACTIVE" && (
+   700→                        <button
+   701→                          className="secondary-button"
+   702→                          style={{ padding: "6px 14px", fontSize: "13px" }}
+   703→                          onClick={() => handleClose(alert.id)}
+   704→                        >
+   705→                          Clôturer
+   706→                        </button>
+   707→                      )}
+   708→                    </td>
+   709→                  </tr>
+   710→                ))}
+   711→              </tbody>
+   712→            </table>
+   713→          </div>
+   714→        </div>
+   715→      )}
+   716→    </>
+   717→  );
+   718→}
+   719→
+   720→/* ─── Statistics Tab ──────────────────────────────────────────── */
+   721→
+   722→function StatisticsTab({ lookups }: { lookups: LookupData }) {
+   723→  const [stats, setStats] = useState<Row[]>([]);
+   724→  const [loading, setLoading] = useState(true);
+   725→  const [error, setError] = useState("");
+   726→  const [showForm, setShowForm] = useState(false);
+   727→  const [submitting, setSubmitting] = useState(false);
+   728→
+   729→  // Form state
+   730→  const [category, setCategory] = useState("");
+   731→  const [metricName, setMetricName] = useState("");
+   732→  const [metricValue, setMetricValue] = useState("");
+   733→  const [periodStart, setPeriodStart] = useState("");
+   734→  const [periodEnd, setPeriodEnd] = useState("");
+   735→  const [unit, setUnit] = useState("");
+   736→  const [source, setSource] = useState("SNIS");
+   737→
+   738→  const loadStats = useCallback(async () => {
+   739→    setLoading(true);
+   740→    setError("");
+   741→    try {
+   742→      const payload = await apiRequest<any>("/reporting/statistics?page_size=1000");
+   743→      setStats(Array.isArray(payload.data) ? payload.data : []);
+   744→    } catch {
+   745→      setError("Impossible de charger les statistiques.");
+   746→    } finally {
+   747→      setLoading(false);
+   748→    }
+   749→  }, []);
+   750→
+   751→  useEffect(() => {
+   752→    loadStats();
+   753→    const handler = () => loadStats();
+   754→    window.addEventListener("refresh-resource", handler);
+   755→    return () => window.removeEventListener("refresh-resource", handler);
+   756→  }, [loadStats]);
+   757→
+   758→  async function handleSubmit(e: React.FormEvent) {
+   759→    e.preventDefault();
+   760→    if (!category || !metricName || !metricValue) return;
+   761→    setSubmitting(true);
+   762→    try {
+   763→      await apiRequest("/reporting/statistics", {
+   764→        method: "POST",
+   765→        body: JSON.stringify({
+   766→          category: category.trim(),
+   767→          metric_name: metricName.trim(),
+   768→          metric_value: metricValue.trim(),
+   769→          period_start: periodStart || undefined,
+   770→          period_end: periodEnd || undefined,
+   771→          unit: unit.trim() || undefined,
+   772→          source,
+   773→        }),
+   774→      });
+   775→      setCategory("");
+   776→      setMetricName("");
+   777→      setMetricValue("");
+   778→      setPeriodStart("");
+   779→      setPeriodEnd("");
+   780→      setUnit("");
+   781→      setSource("SNIS");
+   782→      setShowForm(false);
+   783→      loadStats();
+   784→      showToast("Statistique créée avec succès.", "success");
+   785→    } catch {
+   786→      showToast("Erreur lors de la création de la statistique.", "error");
+   787→    } finally {
+   788→      setSubmitting(false);
+   789→    }
+   790→  }
+   791→
+   792→  return (
+   793→    <>
+   794→      <div className="section-header">
+   795→        <h2 style={{ margin: 0 }}>Statistiques SNIS</h2>
+   796→        <button className="primary-button" onClick={() => setShowForm(!showForm)}>
+   797→          {showForm ? "Annuler" : "Nouvelle statistique"}
+   798→        </button>
+   799→      </div>
+   800→
+   801→      {showForm && (
+   802→        <div className="card form-card">
+   803→          <h3>Nouvelle statistique</h3>
+   804→          <form onSubmit={handleSubmit} className="form-grid">
+   805→            <label className="form-control">
+   806→              Catégorie
+   807→              <input
+   808→                type="text"
+   809→                value={category}
+   810→                onChange={(e) => setCategory(e.target.value)}
+   811→                placeholder="Catégorie"
+   812→                required
+   813→              />
+   814→            </label>
+   815→            <label className="form-control">
+   816→              Métrique
+   817→              <input
+   818→                type="text"
+   819→                value={metricName}
+   820→                onChange={(e) => setMetricName(e.target.value)}
+   821→                placeholder="Nom de la métrique"
+   822→                required
+   823→              />
+   824→            </label>
+   825→            <label className="form-control">
+   826→              Valeur
+   827→              <input
+   828→                type="text"
+   829→                value={metricValue}
+   830→                onChange={(e) => setMetricValue(e.target.value)}
+   831→                placeholder="Valeur"
+   832→                required
+   833→              />
+   834→            </label>
+   835→            <label className="form-control">
+   836→              Début de période
+   837→              <input
+   838→                type="date"
+   839→                value={periodStart}
+   840→                onChange={(e) => setPeriodStart(e.target.value)}
+   841→              />
+   842→            </label>
+   843→            <label className="form-control">
+   844→              Fin de période
+   845→              <input
+   846→                type="date"
+   847→                value={periodEnd}
+   848→                onChange={(e) => setPeriodEnd(e.target.value)}
+   849→              />
+   850→            </label>
+   851→            <label className="form-control">
+   852→              Unité
+   853→              <input
+   854→                type="text"
+   855→                value={unit}
+   856→                onChange={(e) => setUnit(e.target.value)}
+   857→                placeholder="Unité"
+   858→              />
+   859→            </label>
+   860→            <label className="form-control">
+   861→              Source
+   862→              <select value={source} onChange={(e) => setSource(e.target.value)}>
+   863→                {STAT_SOURCE_OPTIONS.map((s) => (
+   864→                  <option key={s.value} value={s.value}>{s.label}</option>
+   865→                ))}
+   866→              </select>
+   867→            </label>
+   868→            <div className="form-actions">
+   869→              <button className="primary-button" type="submit" disabled={submitting}>
+   870→                {submitting ? "Création..." : "Créer la statistique"}
+   871→              </button>
+   872→            </div>
+   873→          </form>
+   874→        </div>
+   875→      )}
+   876→
+   877→      {loading ? (
+   878→        <div className="card" style={{ textAlign: "center", padding: "32px" }}>
+   879→          <div className="spinner" />
+   880→        </div>
+   881→      ) : error ? (
+   882→        <p style={{ color: "crimson" }}>{error}</p>
+   883→      ) : stats.length === 0 ? (
+   884→        <div className="card">
+   885→          <p className="muted">Aucune statistique trouvée.</p>
+   886→        </div>
+   887→      ) : (
+   888→        <div className="card">
+   889→          <div className="table-wrapper">
+   890→            <table className="table">
+   891→              <thead>
+   892→                <tr>
+   893→                  <th>Catégorie</th>
+   894→                  <th>Métrique</th>
+   895→                  <th>Valeur</th>
+   896→                  <th>Période</th>
+   897→                  <th>Source</th>
+   898→                </tr>
+   899→              </thead>
+   900→              <tbody>
+   901→                {stats.map((stat) => (
+   902→                  <tr key={stat.id}>
+   903→                    <td style={{ fontWeight: 600 }}>{stat.category || "—"}</td>
+   904→                    <td>{stat.metric_name || "—"}</td>
+   905→                    <td>{stat.metric_value ?? "—"}{stat.unit ? ` ${stat.unit}` : ""}</td>
+   906→                    <td style={{ whiteSpace: "nowrap" }}>
+   907→                      {stat.period_start ? new Date(stat.period_start).toLocaleDateString("fr-FR") : "—"}
+   908→                      {stat.period_end ? ` — ${new Date(stat.period_end).toLocaleDateString("fr-FR")}` : ""}
+   909→                    </td>
+   910→                    <td>
+   911→                      <span className="badge badge-blue">
+   912→                        {STAT_SOURCE_LABEL[stat.source] || stat.source || "—"}
+   913→                      </span>
+   914→                    </td>
+   915→                  </tr>
+   916→                ))}
+   917→              </tbody>
+   918→            </table>
+   919→          </div>
+   920→        </div>
+   921→      )}
+   922→    </>
+   923→  );
+   924→}
+   925→
