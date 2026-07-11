@@ -1,0 +1,421 @@
+2026-07-11T05:15:28.293235455Z ==> Downloading cache...
+2026-07-11T05:15:28.327663508Z ==> Cloning from https://github.com/skaba89/guineecare-hospital-suite
+2026-07-11T05:15:29.147320929Z ==> Checking out commit d7ed4359b1bd2334658e6a60eb9d7b1ed3e80bc8 in branch main
+2026-07-11T05:15:30.030650402Z ==> Downloaded 80MB in 1s. Extraction took 0s.
+2026-07-11T05:15:31.354334892Z ==> Using Python version 3.12.0 via environment variable PYTHON_VERSION
+2026-07-11T05:15:31.354342632Z ==> Docs on specifying a Python version: https://render.com/docs/python-version
+2026-07-11T05:15:31.354508026Z ==> Installing Python version 3.12.0...
+2026-07-11T05:15:44.606979393Z ==> Using Poetry version 2.1.3 (default)
+2026-07-11T05:15:44.64983977Z ==> Docs on specifying a Poetry version: https://render.com/docs/poetry-version
+2026-07-11T05:15:44.71616468Z ==> Running build command 'pip install -r requirements.txt && cd ../frontend && npm ci && npm run build && cp -r dist ../backend/static'...
+2026-07-11T05:15:45.276962542Z Collecting fastapi==0.115.6 (from -r requirements.txt (line 1))
+2026-07-11T05:15:45.277213987Z   Obtaining dependency information for fastapi==0.115.6 from https://files.pythonhosted.org/packages/52/b3/7e4df40e585df024fac2f80d1a2d579c854ac37109675db2b0cc22c0bb9e/fastapi-0.115.6-py3-none-any.whl.metadata
+2026-07-11T05:15:45.278431434Z   Using cached fastapi-0.115.6-py3-none-any.whl.metadata (27 kB)
+2026-07-11T05:15:45.326361582Z Collecting uvicorn[standard]==0.34.0 (from -r requirements.txt (line 2))
+2026-07-11T05:15:45.326581467Z   Obtaining dependency information for uvicorn[standard]==0.34.0 from https://files.pythonhosted.org/packages/61/14/33a3a1352cfa71812a3a21e8c9bfb83f60b0011f5e36f2b1399d51928209/uvicorn-0.34.0-py3-none-any.whl.metadata
+2026-07-11T05:15:45.327604749Z   Using cached uvicorn-0.34.0-py3-none-any.whl.metadata (6.5 kB)
+2026-07-11T05:15:45.580068719Z Collecting pydantic==2.10.4 (from -r requirements.txt (line 3))
+2026-07-11T05:15:45.580257924Z   Obtaining dependency information for pydantic==2.10.4 from https://files.pythonhosted.org/packages/f3/26/3e1bbe954fde7ee22a6e7d31582c642aad9e84ffe4b5fb61e63b87cd326f/pydantic-2.10.4-py3-none-any.whl.metadata
+2026-07-11T05:15:45.581411949Z   Using cached pydantic-2.10.4-py3-none-any.whl.metadata (29 kB)
+2026-07-11T05:15:45.608088542Z Collecting email-validator==2.2.0 (from -r requirements.txt (line 4))
+2026-07-11T05:15:45.608344847Z   Obtaining dependency information for email-validator==2.2.0 from https://files.pythonhosted.org/packages/d7/ee/bf0adb559ad3c786f12bcbc9296b3f5675f529199bef03e2df281fa1fadb/email_validator-2.2.0-py3-none-any.whl.metadata
+2026-07-11T05:15:45.609648226Z   Using cached email_validator-2.2.0-py3-none-any.whl.metadata (25 kB)
+2026-07-11T05:15:46.243358732Z Collecting sqlalchemy==2.0.36 (from -r requirements.txt (line 5))
+2026-07-11T05:15:46.243624468Z   Obtaining dependency information for sqlalchemy==2.0.36 from https://files.pythonhosted.org/packages/8a/ab/81d4514527c068670cb1d7ab62a81a185df53a7c379bd2a5636e83d09ede/SQLAlchemy-2.0.36-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata
+2026-07-11T05:15:46.245242213Z   Using cached SQLAlchemy-2.0.36-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (9.7 kB)
+2026-07-11T05:15:46.306550284Z Collecting alembic==1.14.0 (from -r requirements.txt (line 6))
+2026-07-11T05:15:46.306788309Z   Obtaining dependency information for alembic==1.14.0 from https://files.pythonhosted.org/packages/cb/06/8b505aea3d77021b18dcbd8133aa1418f1a1e37e432a465b14c46b2c0eaa/alembic-1.14.0-py3-none-any.whl.metadata
+2026-07-11T05:15:46.308086337Z   Using cached alembic-1.14.0-py3-none-any.whl.metadata (7.4 kB)
+2026-07-11T05:15:46.451610195Z Collecting psycopg2-binary==2.9.10 (from -r requirements.txt (line 7))
+2026-07-11T05:15:46.45184312Z   Obtaining dependency information for psycopg2-binary==2.9.10 from https://files.pythonhosted.org/packages/10/db/d09da68c6a0cdab41566b74e0a6068a425f077169bed0946559b7348ebe9/psycopg2_binary-2.9.10-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata
+2026-07-11T05:15:46.453045876Z   Using cached psycopg2_binary-2.9.10-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (4.9 kB)
+2026-07-11T05:15:46.473875352Z Collecting python-jose[cryptography]==3.4.0 (from -r requirements.txt (line 8))
+2026-07-11T05:15:46.474067476Z   Obtaining dependency information for python-jose[cryptography]==3.4.0 from https://files.pythonhosted.org/packages/63/b0/2586ea6b6fd57a994ece0b56418cbe93fff0efb85e2c9eb6b0caf24a4e37/python_jose-3.4.0-py2.py3-none-any.whl.metadata
+2026-07-11T05:15:46.475045897Z   Using cached python_jose-3.4.0-py2.py3-none-any.whl.metadata (5.5 kB)
+2026-07-11T05:15:46.492497369Z Collecting passlib[bcrypt]==1.7.4 (from -r requirements.txt (line 9))
+2026-07-11T05:15:46.492687573Z   Obtaining dependency information for passlib[bcrypt]==1.7.4 from https://files.pythonhosted.org/packages/3b/a4/ab6b7589382ca3df236e03faa71deac88cae040af60c071a78d254a62172/passlib-1.7.4-py2.py3-none-any.whl.metadata
+2026-07-11T05:15:46.493669035Z   Using cached passlib-1.7.4-py2.py3-none-any.whl.metadata (1.7 kB)
+2026-07-11T05:15:46.595300577Z Collecting bcrypt==4.0.0 (from -r requirements.txt (line 10))
+2026-07-11T05:15:46.595501031Z   Obtaining dependency information for bcrypt==4.0.0 from https://files.pythonhosted.org/packages/95/d1/cdfcf698433b03af76df3f1ee15c840b1f6e54dcdd5a390a6d581d512ec4/bcrypt-4.0.0-cp36-abi3-manylinux_2_28_x86_64.whl.metadata
+2026-07-11T05:15:46.596631526Z   Using cached bcrypt-4.0.0-cp36-abi3-manylinux_2_28_x86_64.whl.metadata (8.7 kB)
+2026-07-11T05:15:46.620330334Z Collecting python-multipart==0.0.20 (from -r requirements.txt (line 11))
+2026-07-11T05:15:46.620535698Z   Obtaining dependency information for python-multipart==0.0.20 from https://files.pythonhosted.org/packages/45/58/38b5afbc1a800eeea951b9285d3912613f2603bdf897a4ab0f4bd7f405fc/python_multipart-0.0.20-py3-none-any.whl.metadata
+2026-07-11T05:15:46.62151442Z   Using cached python_multipart-0.0.20-py3-none-any.whl.metadata (1.8 kB)
+2026-07-11T05:15:46.640050255Z Collecting slowapi==0.1.9 (from -r requirements.txt (line 12))
+2026-07-11T05:15:46.64026305Z   Obtaining dependency information for slowapi==0.1.9 from https://files.pythonhosted.org/packages/2b/bb/f71c4b7d7e7eb3fc1e8c0458a8979b912f40b58002b9fbf37729b8cb464b/slowapi-0.1.9-py3-none-any.whl.metadata
+2026-07-11T05:15:46.641234281Z   Using cached slowapi-0.1.9-py3-none-any.whl.metadata (3.0 kB)
+2026-07-11T05:15:46.710183478Z Collecting pytest==8.3.4 (from -r requirements.txt (line 13))
+2026-07-11T05:15:46.710391123Z   Obtaining dependency information for pytest==8.3.4 from https://files.pythonhosted.org/packages/11/92/76a1c94d3afee238333bc0a42b82935dd8f9cf8ce9e336ff87ee14d9e1cf/pytest-8.3.4-py3-none-any.whl.metadata
+2026-07-11T05:15:46.711411625Z   Using cached pytest-8.3.4-py3-none-any.whl.metadata (7.5 kB)
+2026-07-11T05:15:46.745404759Z Collecting httpx==0.28.1 (from -r requirements.txt (line 14))
+2026-07-11T05:15:46.745636624Z   Obtaining dependency information for httpx==0.28.1 from https://files.pythonhosted.org/packages/2a/39/e50c7c3a983047577ee07d2a9e53faf5a69493943ec3f6a384bdc792deb2/httpx-0.28.1-py3-none-any.whl.metadata
+2026-07-11T05:15:46.746621705Z   Using cached httpx-0.28.1-py3-none-any.whl.metadata (7.1 kB)
+2026-07-11T05:15:46.994401133Z Collecting reportlab==4.2.5 (from -r requirements.txt (line 15))
+2026-07-11T05:15:46.994582547Z   Obtaining dependency information for reportlab==4.2.5 from https://files.pythonhosted.org/packages/73/12/6444906db1bc65d3a8118afb089d53c7eeca0726164f51eb3599de1d0665/reportlab-4.2.5-py3-none-any.whl.metadata
+2026-07-11T05:15:46.995744142Z   Using cached reportlab-4.2.5-py3-none-any.whl.metadata (1.5 kB)
+2026-07-11T05:15:47.023690193Z Collecting openpyxl==3.1.5 (from -r requirements.txt (line 16))
+2026-07-11T05:15:47.023908778Z   Obtaining dependency information for openpyxl==3.1.5 from https://files.pythonhosted.org/packages/c0/da/977ded879c29cbd04de313843e76868e6e13408a94ed6b987245dc7c8506/openpyxl-3.1.5-py2.py3-none-any.whl.metadata
+2026-07-11T05:15:47.024881009Z   Using cached openpyxl-3.1.5-py2.py3-none-any.whl.metadata (2.5 kB)
+2026-07-11T05:15:47.066922168Z Collecting requests==2.32.3 (from -r requirements.txt (line 17))
+2026-07-11T05:15:47.067103722Z   Obtaining dependency information for requests==2.32.3 from https://files.pythonhosted.org/packages/f9/9b/335f9764261e915ed497fcdeb11df5dfd6f7bf257d4a6a2a686d80da4d54/requests-2.32.3-py3-none-any.whl.metadata
+2026-07-11T05:15:47.068092174Z   Using cached requests-2.32.3-py3-none-any.whl.metadata (4.6 kB)
+2026-07-11T05:15:47.08665933Z Collecting pyotp==2.9.0 (from -r requirements.txt (line 18))
+2026-07-11T05:15:47.086875025Z   Obtaining dependency information for pyotp==2.9.0 from https://files.pythonhosted.org/packages/c3/c0/c33c8792c3e50193ef55adb95c1c3c2786fe281123291c2dbf0eaab95a6f/pyotp-2.9.0-py3-none-any.whl.metadata
+2026-07-11T05:15:47.087846376Z   Using cached pyotp-2.9.0-py3-none-any.whl.metadata (9.8 kB)
+2026-07-11T05:15:47.108735863Z Collecting qrcode==7.4.2 (from -r requirements.txt (line 19))
+2026-07-11T05:15:47.108948307Z   Obtaining dependency information for qrcode==7.4.2 from https://files.pythonhosted.org/packages/24/79/aaf0c1c7214f2632badb2771d770b1500d3d7cbdf2590ae62e721ec50584/qrcode-7.4.2-py3-none-any.whl.metadata
+2026-07-11T05:15:47.109913628Z   Using cached qrcode-7.4.2-py3-none-any.whl.metadata (17 kB)
+2026-07-11T05:15:47.180004551Z Collecting starlette<0.42.0,>=0.40.0 (from fastapi==0.115.6->-r requirements.txt (line 1))
+2026-07-11T05:15:47.180188095Z   Obtaining dependency information for starlette<0.42.0,>=0.40.0 from https://files.pythonhosted.org/packages/96/00/2b325970b3060c7cecebab6d295afe763365822b1306a12eeab198f74323/starlette-0.41.3-py3-none-any.whl.metadata
+2026-07-11T05:15:47.181196077Z   Using cached starlette-0.41.3-py3-none-any.whl.metadata (6.0 kB)
+2026-07-11T05:15:47.220292672Z Collecting typing-extensions>=4.8.0 (from fastapi==0.115.6->-r requirements.txt (line 1))
+2026-07-11T05:15:47.220506516Z   Obtaining dependency information for typing-extensions>=4.8.0 from https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl.metadata
+2026-07-11T05:15:47.221466047Z   Using cached typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+2026-07-11T05:15:47.267600646Z Collecting click>=7.0 (from uvicorn[standard]==0.34.0->-r requirements.txt (line 2))
+2026-07-11T05:15:47.267810021Z   Obtaining dependency information for click>=7.0 from https://files.pythonhosted.org/packages/fb/e2/79c688af8b210d232694e31e59da9f6ec747bae31c3f5946e4e9b98860d5/click-8.4.2-py3-none-any.whl.metadata
+2026-07-11T05:15:47.269061198Z   Using cached click-8.4.2-py3-none-any.whl.metadata (2.6 kB)
+2026-07-11T05:15:47.286905538Z Collecting h11>=0.8 (from uvicorn[standard]==0.34.0->-r requirements.txt (line 2))
+2026-07-11T05:15:47.287078402Z   Obtaining dependency information for h11>=0.8 from https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl.metadata
+2026-07-11T05:15:47.288052313Z   Using cached h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+2026-07-11T05:15:47.350871887Z Collecting httptools>=0.6.3 (from uvicorn[standard]==0.34.0->-r requirements.txt (line 2))
+2026-07-11T05:15:47.351068581Z   Obtaining dependency information for httptools>=0.6.3 from https://files.pythonhosted.org/packages/e3/a6/febbb8b8db0f58b38e44ad6cb946e6a255ae49b55f2e8543408fb7501ccd/httptools-0.8.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata
+2026-07-11T05:15:47.352048422Z   Using cached httptools-0.8.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (3.5 kB)
+2026-07-11T05:15:47.378218484Z Collecting python-dotenv>=0.13 (from uvicorn[standard]==0.34.0->-r requirements.txt (line 2))
+2026-07-11T05:15:47.378400119Z   Obtaining dependency information for python-dotenv>=0.13 from https://files.pythonhosted.org/packages/0b/d7/1959b9648791274998a9c3526f6d0ec8fd2233e4d4acce81bbae76b44b2a/python_dotenv-1.2.2-py3-none-any.whl.metadata
+2026-07-11T05:15:47.37939389Z   Using cached python_dotenv-1.2.2-py3-none-any.whl.metadata (27 kB)
+2026-07-11T05:15:47.454685876Z Collecting pyyaml>=5.1 (from uvicorn[standard]==0.34.0->-r requirements.txt (line 2))
+2026-07-11T05:15:47.454904601Z   Obtaining dependency information for pyyaml>=5.1 from https://files.pythonhosted.org/packages/8b/9d/b3589d3877982d4f2329302ef98a8026e7f4443c765c46cfecc8858c6b4b/pyyaml-6.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata
+2026-07-11T05:15:47.455897113Z   Using cached pyyaml-6.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.4 kB)
+2026-07-11T05:15:47.535041713Z Collecting uvloop!=0.15.0,!=0.15.1,>=0.14.0 (from uvicorn[standard]==0.34.0->-r requirements.txt (line 2))
+2026-07-11T05:15:47.535287119Z   Obtaining dependency information for uvloop!=0.15.0,!=0.15.1,>=0.14.0 from https://files.pythonhosted.org/packages/5f/6f/e62b4dfc7ad6518e7eff2516f680d02a0f6eb62c0c212e152ca708a0085e/uvloop-0.22.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata
+2026-07-11T05:15:47.536385513Z   Using cached uvloop-0.22.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (4.9 kB)
+2026-07-11T05:15:47.740405474Z Collecting watchfiles>=0.13 (from uvicorn[standard]==0.34.0->-r requirements.txt (line 2))
+2026-07-11T05:15:47.740616738Z   Obtaining dependency information for watchfiles>=0.13 from https://files.pythonhosted.org/packages/22/24/ed72f68cbc1333ca9b9f2200aa048bb6658ae41709bc1caad4310f4bdffd/watchfiles-1.2.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata
+2026-07-11T05:15:47.741781964Z   Using cached watchfiles-1.2.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (4.9 kB)
+2026-07-11T05:15:47.941209624Z Collecting websockets>=10.4 (from uvicorn[standard]==0.34.0->-r requirements.txt (line 2))
+2026-07-11T05:15:47.941380518Z   Obtaining dependency information for websockets>=10.4 from https://files.pythonhosted.org/packages/9d/62/79b1c8f0cee0da648b4899e1c5b0dbd3aa59846985136a54854db6827ab4/websockets-16.1-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata
+2026-07-11T05:15:47.942469052Z   Using cached websockets-16.1-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (6.8 kB)
+2026-07-11T05:15:47.9670921Z Collecting annotated-types>=0.6.0 (from pydantic==2.10.4->-r requirements.txt (line 3))
+2026-07-11T05:15:47.967274604Z   Obtaining dependency information for annotated-types>=0.6.0 from https://files.pythonhosted.org/packages/78/b6/6307fbef88d9b5ee7421e68d78a9f162e0da4900bc5f5793f6d3d0e34fb8/annotated_types-0.7.0-py3-none-any.whl.metadata
+2026-07-11T05:15:47.968236355Z   Using cached annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+2026-07-11T05:15:49.573246718Z Collecting pydantic-core==2.27.2 (from pydantic==2.10.4->-r requirements.txt (line 3))
+2026-07-11T05:15:49.573423852Z   Obtaining dependency information for pydantic-core==2.27.2 from https://files.pythonhosted.org/packages/8d/f0/49129b27c43396581a635d8710dae54a791b17dfc50c70164866bbf865e3/pydantic_core-2.27.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata
+2026-07-11T05:15:49.574618428Z   Using cached pydantic_core-2.27.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.6 kB)
+2026-07-11T05:15:49.604307397Z Collecting dnspython>=2.0.0 (from email-validator==2.2.0->-r requirements.txt (line 4))
+2026-07-11T05:15:49.604485561Z   Obtaining dependency information for dnspython>=2.0.0 from https://files.pythonhosted.org/packages/ba/5a/18ad964b0086c6e62e2e7500f7edc89e3faa45033c71c1893d34eed2b2de/dnspython-2.8.0-py3-none-any.whl.metadata
+2026-07-11T05:15:49.605493823Z   Using cached dnspython-2.8.0-py3-none-any.whl.metadata (5.7 kB)
+2026-07-11T05:15:49.630556261Z Collecting idna>=2.0.0 (from email-validator==2.2.0->-r requirements.txt (line 4))
+2026-07-11T05:15:49.630770195Z   Obtaining dependency information for idna>=2.0.0 from https://files.pythonhosted.org/packages/1e/5e/d4e9f1a599fb8e573b7b87160658329fbf28d19eac2718f51fc3def3aa5a/idna-3.18-py3-none-any.whl.metadata
+2026-07-11T05:15:49.631708956Z   Using cached idna-3.18-py3-none-any.whl.metadata (6.1 kB)
+2026-07-11T05:15:49.969535913Z Collecting greenlet!=0.4.17 (from sqlalchemy==2.0.36->-r requirements.txt (line 5))
+2026-07-11T05:15:49.969748977Z   Obtaining dependency information for greenlet!=0.4.17 from https://files.pythonhosted.org/packages/37/87/b4d095775a3fb1bcafbb483fc206b27ebb785724c83051447737085dc54e/greenlet-3.5.3-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl.metadata
+2026-07-11T05:15:49.970972414Z   Using cached greenlet-3.5.3-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl.metadata (3.8 kB)
+2026-07-11T05:15:50.013210267Z Collecting Mako (from alembic==1.14.0->-r requirements.txt (line 6))
+2026-07-11T05:15:50.013395992Z   Obtaining dependency information for Mako from https://files.pythonhosted.org/packages/bc/b1/a0ec7a5a9db730a08daef1fdfb8090435b82465abbf758a596f0ea88727e/mako-1.3.12-py3-none-any.whl.metadata
+2026-07-11T05:15:50.014363423Z   Using cached mako-1.3.12-py3-none-any.whl.metadata (2.9 kB)
+2026-07-11T05:15:50.050987443Z Collecting ecdsa!=0.15 (from python-jose[cryptography]==3.4.0->-r requirements.txt (line 8))
+2026-07-11T05:15:50.051163257Z   Obtaining dependency information for ecdsa!=0.15 from https://files.pythonhosted.org/packages/51/79/119091c98e2bf49e24ed9f3ae69f816d715d2904aefa6a2baa039a2ba0b0/ecdsa-0.19.2-py2.py3-none-any.whl.metadata
+2026-07-11T05:15:50.052147839Z   Using cached ecdsa-0.19.2-py2.py3-none-any.whl.metadata (29 kB)
+2026-07-11T05:15:50.076876429Z Collecting rsa!=4.1.1,!=4.4,<5.0,>=4.0 (from python-jose[cryptography]==3.4.0->-r requirements.txt (line 8))
+2026-07-11T05:15:50.077068724Z   Obtaining dependency information for rsa!=4.1.1,!=4.4,<5.0,>=4.0 from https://files.pythonhosted.org/packages/64/8d/0133e4eb4beed9e425d9a98ed6e081a55d195481b7632472be1af08d2f6b/rsa-4.9.1-py3-none-any.whl.metadata
+2026-07-11T05:15:50.078050485Z   Using cached rsa-4.9.1-py3-none-any.whl.metadata (5.6 kB)
+2026-07-11T05:15:50.11075355Z Collecting pyasn1<0.5.0,>=0.4.1 (from python-jose[cryptography]==3.4.0->-r requirements.txt (line 8))
+2026-07-11T05:15:50.110968925Z   Obtaining dependency information for pyasn1<0.5.0,>=0.4.1 from https://files.pythonhosted.org/packages/62/1e/a94a8d635fa3ce4cfc7f506003548d0a2447ae76fd5ca53932970fe3053f/pyasn1-0.4.8-py2.py3-none-any.whl.metadata
+2026-07-11T05:15:50.111962707Z   Using cached pyasn1-0.4.8-py2.py3-none-any.whl.metadata (1.5 kB)
+2026-07-11T05:15:50.607779767Z Collecting cryptography>=3.4.0 (from python-jose[cryptography]==3.4.0->-r requirements.txt (line 8))
+2026-07-11T05:15:50.607964371Z   Obtaining dependency information for cryptography>=3.4.0 from https://files.pythonhosted.org/packages/a9/3c/f3ad17eecc1a57b0ba236dc01f90e783c51f4a2f35f64777cc4f47a184b2/cryptography-49.0.0-cp311-abi3-manylinux_2_34_x86_64.whl.metadata
+2026-07-11T05:15:50.609154307Z   Using cached cryptography-49.0.0-cp311-abi3-manylinux_2_34_x86_64.whl.metadata (4.3 kB)
+2026-07-11T05:15:50.667216487Z Collecting limits>=2.3 (from slowapi==0.1.9->-r requirements.txt (line 12))
+2026-07-11T05:15:50.667401711Z   Obtaining dependency information for limits>=2.3 from https://files.pythonhosted.org/packages/b9/98/cb5ca20618d205a09d5bec7591fbc4130369c7e6308d9a676a28ff3ab22c/limits-5.8.0-py3-none-any.whl.metadata
+2026-07-11T05:15:50.668390842Z   Using cached limits-5.8.0-py3-none-any.whl.metadata (10 kB)
+2026-07-11T05:15:50.695215939Z Collecting iniconfig (from pytest==8.3.4->-r requirements.txt (line 13))
+2026-07-11T05:15:50.695398953Z   Obtaining dependency information for iniconfig from https://files.pythonhosted.org/packages/cb/b1/3846dd7f199d53cb17f49cba7e651e9ce294d8497c8c150530ed11865bb8/iniconfig-2.3.0-py3-none-any.whl.metadata
+2026-07-11T05:15:50.696410235Z   Using cached iniconfig-2.3.0-py3-none-any.whl.metadata (2.5 kB)
+2026-07-11T05:15:50.727439053Z Collecting packaging (from pytest==8.3.4->-r requirements.txt (line 13))
+2026-07-11T05:15:50.727616957Z   Obtaining dependency information for packaging from https://files.pythonhosted.org/packages/df/b2/87e62e8c3e2f4b32e5fe99e0b86d576da1312593b39f47d8ceef365e95ed/packaging-26.2-py3-none-any.whl.metadata
+2026-07-11T05:15:50.72863899Z   Using cached packaging-26.2-py3-none-any.whl.metadata (3.5 kB)
+2026-07-11T05:15:50.75195706Z Collecting pluggy<2,>=1.5 (from pytest==8.3.4->-r requirements.txt (line 13))
+2026-07-11T05:15:50.752146184Z   Obtaining dependency information for pluggy<2,>=1.5 from https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl.metadata
+2026-07-11T05:15:50.753121345Z   Using cached pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+2026-07-11T05:15:50.796690878Z Collecting anyio (from httpx==0.28.1->-r requirements.txt (line 14))
+2026-07-11T05:15:50.796916753Z   Obtaining dependency information for anyio from https://files.pythonhosted.org/packages/b0/7b/90df4a0a816d98d6ea26f559d87836d494a2cf1fcf063be67df50a7bcc30/anyio-4.14.1-py3-none-any.whl.metadata
+2026-07-11T05:15:50.798044867Z   Using cached anyio-4.14.1-py3-none-any.whl.metadata (4.6 kB)
+2026-07-11T05:15:50.829688149Z Collecting certifi (from httpx==0.28.1->-r requirements.txt (line 14))
+2026-07-11T05:15:50.829888944Z   Obtaining dependency information for certifi from https://files.pythonhosted.org/packages/ef/2f/c5464532e965badff2f4c4c1a3a83f5697f0d7c407ed0cda44aaa99bb451/certifi-2026.6.17-py3-none-any.whl.metadata
+2026-07-11T05:15:50.830996018Z   Using cached certifi-2026.6.17-py3-none-any.whl.metadata (2.5 kB)
+2026-07-11T05:15:50.862758942Z Collecting httpcore==1.* (from httpx==0.28.1->-r requirements.txt (line 14))
+2026-07-11T05:15:50.862961867Z   Obtaining dependency information for httpcore==1.* from https://files.pythonhosted.org/packages/7e/f5/f66802a942d491edb555dd61e3a9961140fd64c90bce1eafd741609d334d/httpcore-1.0.9-py3-none-any.whl.metadata
+2026-07-11T05:15:50.863958238Z   Using cached httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+2026-07-11T05:15:51.238474587Z Collecting pillow>=9.0.0 (from reportlab==4.2.5->-r requirements.txt (line 15))
+2026-07-11T05:15:51.238639041Z   Obtaining dependency information for pillow>=9.0.0 from https://files.pythonhosted.org/packages/84/21/a35af28dcc61f37ed850a2d64c65c701321dfbf25085e469d5559360cbbf/pillow-12.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata
+2026-07-11T05:15:51.241096755Z   Using cached pillow-12.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (9.1 kB)
+2026-07-11T05:15:51.311488003Z Collecting chardet (from reportlab==4.2.5->-r requirements.txt (line 15))
+2026-07-11T05:15:51.311657867Z   Obtaining dependency information for chardet from https://files.pythonhosted.org/packages/e5/59/a32a241d861cf180853a11c8e5a67641cb1b2af13c3a5ccce83ec07e2c9f/chardet-7.4.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata
+2026-07-11T05:15:51.312953946Z   Using cached chardet-7.4.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (9.4 kB)
+2026-07-11T05:15:51.33143471Z Collecting et-xmlfile (from openpyxl==3.1.5->-r requirements.txt (line 16))
+2026-07-11T05:15:51.331638314Z   Obtaining dependency information for et-xmlfile from https://files.pythonhosted.org/packages/c1/8b/5fe2cc11fee489817272089c4203e679c63b570a5aaeb18d852ae3cbba6a/et_xmlfile-2.0.0-py3-none-any.whl.metadata
+2026-07-11T05:15:51.332668306Z   Using cached et_xmlfile-2.0.0-py3-none-any.whl.metadata (2.7 kB)
+2026-07-11T05:15:51.573162955Z Collecting charset-normalizer<4,>=2 (from requests==2.32.3->-r requirements.txt (line 17))
+2026-07-11T05:15:51.57338472Z   Obtaining dependency information for charset-normalizer<4,>=2 from https://files.pythonhosted.org/packages/01/c4/4fa4c8b3097a11f3c5f09a35b72ed6855fb1d332469504962ab7bafcc702/charset_normalizer-3.4.9-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata
+2026-07-11T05:15:51.574649887Z   Using cached charset_normalizer-3.4.9-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (41 kB)
+2026-07-11T05:15:51.632084103Z Collecting urllib3<3,>=1.21.1 (from requests==2.32.3->-r requirements.txt (line 17))
+2026-07-11T05:15:51.632298588Z   Obtaining dependency information for urllib3<3,>=1.21.1 from https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl.metadata
+2026-07-11T05:15:51.633343311Z   Using cached urllib3-2.7.0-py3-none-any.whl.metadata (6.9 kB)
+2026-07-11T05:15:51.670650687Z Collecting pypng (from qrcode==7.4.2->-r requirements.txt (line 19))
+2026-07-11T05:15:51.670891262Z   Obtaining dependency information for pypng from https://files.pythonhosted.org/packages/3e/b9/3766cc361d93edb2ce81e2e1f87dd98f314d7d513877a342d31b30741680/pypng-0.20220715.0-py3-none-any.whl.metadata
+2026-07-11T05:15:51.671907644Z   Using cached pypng-0.20220715.0-py3-none-any.whl.metadata (13 kB)
+2026-07-11T05:15:52.028905049Z Collecting cffi>=2.0.0 (from cryptography>=3.4.0->python-jose[cryptography]==3.4.0->-r requirements.txt (line 8))
+2026-07-11T05:15:52.029119884Z   Obtaining dependency information for cffi>=2.0.0 from https://files.pythonhosted.org/packages/62/f2/c9522a81c32132799a1972c39f5c5f8b4c8b9f00488a23feaa6c06f07741/cffi-2.1.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata
+2026-07-11T05:15:52.030425533Z   Using cached cffi-2.1.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (2.5 kB)
+2026-07-11T05:15:52.074470456Z Collecting six>=1.9.0 (from ecdsa!=0.15->python-jose[cryptography]==3.4.0->-r requirements.txt (line 8))
+2026-07-11T05:15:52.074641409Z   Obtaining dependency information for six>=1.9.0 from https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl.metadata
+2026-07-11T05:15:52.075696723Z   Using cached six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+2026-07-11T05:15:52.134088689Z Collecting deprecated>=1.2 (from limits>=2.3->slowapi==0.1.9->-r requirements.txt (line 12))
+2026-07-11T05:15:52.134248793Z   Obtaining dependency information for deprecated>=1.2 from https://files.pythonhosted.org/packages/84/d0/205d54408c08b13550c733c4b85429e7ead111c7f0014309637425520a9a/deprecated-1.3.1-py2.py3-none-any.whl.metadata
+2026-07-11T05:15:52.135314146Z   Using cached deprecated-1.3.1-py2.py3-none-any.whl.metadata (5.9 kB)
+2026-07-11T05:15:52.404205035Z Collecting MarkupSafe>=0.9.2 (from Mako->alembic==1.14.0->-r requirements.txt (line 6))
+2026-07-11T05:15:52.40441364Z   Obtaining dependency information for MarkupSafe>=0.9.2 from https://files.pythonhosted.org/packages/3c/2e/8d0c2ab90a8c1d9a24f0399058ab8519a3279d1bd4289511d74e909f060e/markupsafe-3.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata
+2026-07-11T05:15:52.405645377Z   Using cached markupsafe-3.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.7 kB)
+2026-07-11T05:15:52.466558818Z Collecting pycparser (from cffi>=2.0.0->cryptography>=3.4.0->python-jose[cryptography]==3.4.0->-r requirements.txt (line 8))
+2026-07-11T05:15:52.466805834Z   Obtaining dependency information for pycparser from https://files.pythonhosted.org/packages/0c/c3/44f3fbbfa403ea2a7c779186dc20772604442dde72947e7d01069cbe98e3/pycparser-3.0-py3-none-any.whl.metadata
+2026-07-11T05:15:52.467875747Z   Using cached pycparser-3.0-py3-none-any.whl.metadata (8.2 kB)
+2026-07-11T05:15:53.088692841Z Collecting wrapt<3,>=1.10 (from deprecated>=1.2->limits>=2.3->slowapi==0.1.9->-r requirements.txt (line 12))
+2026-07-11T05:15:53.088893846Z   Obtaining dependency information for wrapt<3,>=1.10 from https://files.pythonhosted.org/packages/5f/b3/7e6e9fcf4fe7e1b69a49fe6cc5a44e8224bab6283c5233c97e132f14908e/wrapt-2.2.2-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata
+2026-07-11T05:15:53.090139793Z   Using cached wrapt-2.2.2-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (7.4 kB)
+2026-07-11T05:15:53.131079298Z Using cached fastapi-0.115.6-py3-none-any.whl (94 kB)
+2026-07-11T05:15:53.132367296Z Using cached pydantic-2.10.4-py3-none-any.whl (431 kB)
+2026-07-11T05:15:53.133952011Z Using cached email_validator-2.2.0-py3-none-any.whl (33 kB)
+2026-07-11T05:15:53.140625287Z Using cached SQLAlchemy-2.0.36-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (3.2 MB)
+2026-07-11T05:15:53.146203299Z Using cached alembic-1.14.0-py3-none-any.whl (233 kB)
+2026-07-11T05:15:53.148421827Z Using cached psycopg2_binary-2.9.10-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (3.0 MB)
+2026-07-11T05:15:53.153669312Z Using cached bcrypt-4.0.0-cp36-abi3-manylinux_2_28_x86_64.whl (594 kB)
+2026-07-11T05:15:53.155655065Z Using cached python_multipart-0.0.20-py3-none-any.whl (24 kB)
+2026-07-11T05:15:53.156645357Z Using cached slowapi-0.1.9-py3-none-any.whl (14 kB)
+2026-07-11T05:15:53.157678269Z Using cached pytest-8.3.4-py3-none-any.whl (343 kB)
+2026-07-11T05:15:53.159143312Z Using cached httpx-0.28.1-py3-none-any.whl (73 kB)
+2026-07-11T05:15:53.160862419Z Using cached reportlab-4.2.5-py3-none-any.whl (1.9 MB)
+2026-07-11T05:15:53.164509039Z Using cached openpyxl-3.1.5-py2.py3-none-any.whl (250 kB)
+2026-07-11T05:15:53.165839888Z Using cached requests-2.32.3-py3-none-any.whl (64 kB)
+2026-07-11T05:15:53.166893471Z Using cached pyotp-2.9.0-py3-none-any.whl (13 kB)
+2026-07-11T05:15:53.167855772Z Using cached qrcode-7.4.2-py3-none-any.whl (46 kB)
+2026-07-11T05:15:53.168951686Z Using cached httpcore-1.0.9-py3-none-any.whl (78 kB)
+2026-07-11T05:15:53.170799707Z Using cached pydantic_core-2.27.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.0 MB)
+2026-07-11T05:15:53.174446006Z Using cached annotated_types-0.7.0-py3-none-any.whl (13 kB)
+2026-07-11T05:15:53.175492549Z Using cached certifi-2026.6.17-py3-none-any.whl (133 kB)
+2026-07-11T05:15:53.176711886Z Using cached charset_normalizer-3.4.9-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (224 kB)
+2026-07-11T05:15:53.178008604Z Using cached click-8.4.2-py3-none-any.whl (119 kB)
+2026-07-11T05:15:53.186043Z Using cached cryptography-49.0.0-cp311-abi3-manylinux_2_34_x86_64.whl (4.7 MB)
+2026-07-11T05:15:53.195171869Z Using cached dnspython-2.8.0-py3-none-any.whl (331 kB)
+2026-07-11T05:15:53.19659209Z Using cached ecdsa-0.19.2-py2.py3-none-any.whl (150 kB)
+2026-07-11T05:15:53.198002801Z Using cached greenlet-3.5.3-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (614 kB)
+2026-07-11T05:15:53.1997892Z Using cached h11-0.16.0-py3-none-any.whl (37 kB)
+2026-07-11T05:15:53.201000847Z Using cached httptools-0.8.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (523 kB)
+2026-07-11T05:15:53.202633972Z Using cached idna-3.18-py3-none-any.whl (65 kB)
+2026-07-11T05:15:53.203707456Z Using cached limits-5.8.0-py3-none-any.whl (60 kB)
+2026-07-11T05:15:53.20478311Z Using cached packaging-26.2-py3-none-any.whl (100 kB)
+2026-07-11T05:15:53.223757314Z Using cached pillow-12.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (6.9 MB)
+2026-07-11T05:15:53.236706277Z Using cached pluggy-1.6.0-py3-none-any.whl (20 kB)
+2026-07-11T05:15:53.23775078Z Using cached pyasn1-0.4.8-py2.py3-none-any.whl (77 kB)
+2026-07-11T05:15:53.238875265Z Using cached python_dotenv-1.2.2-py3-none-any.whl (22 kB)
+2026-07-11T05:15:53.240263485Z Using cached pyyaml-6.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (807 kB)
+2026-07-11T05:15:53.24228619Z Using cached rsa-4.9.1-py3-none-any.whl (34 kB)
+2026-07-11T05:15:53.243313362Z Using cached starlette-0.41.3-py3-none-any.whl (73 kB)
+2026-07-11T05:15:53.244405636Z Using cached anyio-4.14.1-py3-none-any.whl (124 kB)
+2026-07-11T05:15:53.24553579Z Using cached typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+2026-07-11T05:15:53.246578743Z Using cached urllib3-2.7.0-py3-none-any.whl (131 kB)
+2026-07-11T05:15:53.258798791Z Using cached uvloop-0.22.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (4.4 MB)
+2026-07-11T05:15:53.26789549Z Using cached watchfiles-1.2.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (456 kB)
+2026-07-11T05:15:53.269545915Z Using cached websockets-16.1-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (187 kB)
+2026-07-11T05:15:53.271142021Z Using cached chardet-7.4.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (888 kB)
+2026-07-11T05:15:53.273288957Z Using cached et_xmlfile-2.0.0-py3-none-any.whl (18 kB)
+2026-07-11T05:15:53.274297059Z Using cached iniconfig-2.3.0-py3-none-any.whl (7.5 kB)
+2026-07-11T05:15:53.275312761Z Using cached mako-1.3.12-py3-none-any.whl (78 kB)
+2026-07-11T05:15:53.276556989Z Using cached passlib-1.7.4-py2.py3-none-any.whl (525 kB)
+2026-07-11T05:15:53.278221015Z Using cached pypng-0.20220715.0-py3-none-any.whl (58 kB)
+2026-07-11T05:15:53.279297589Z Using cached python_jose-3.4.0-py2.py3-none-any.whl (34 kB)
+2026-07-11T05:15:53.280349382Z Using cached uvicorn-0.34.0-py3-none-any.whl (62 kB)
+2026-07-11T05:15:53.281473506Z Using cached cffi-2.1.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (221 kB)
+2026-07-11T05:15:53.282756244Z Using cached deprecated-1.3.1-py2.py3-none-any.whl (11 kB)
+2026-07-11T05:15:53.283781147Z Using cached markupsafe-3.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (22 kB)
+2026-07-11T05:15:53.284752748Z Using cached six-1.17.0-py2.py3-none-any.whl (11 kB)
+2026-07-11T05:15:53.28576444Z Using cached wrapt-2.2.2-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (169 kB)
+2026-07-11T05:15:53.286962956Z Using cached pycparser-3.0-py3-none-any.whl (48 kB)
+2026-07-11T05:15:53.602631188Z Installing collected packages: pypng, pyasn1, passlib, wrapt, websockets, uvloop, urllib3, typing-extensions, six, rsa, pyyaml, python-multipart, python-dotenv, pyotp, pycparser, psycopg2-binary, pluggy, pillow, packaging, MarkupSafe, iniconfig, idna, httptools, h11, greenlet, et-xmlfile, dnspython, click, charset-normalizer, chardet, certifi, bcrypt, annotated-types, uvicorn, sqlalchemy, requests, reportlab, qrcode, pytest, pydantic-core, openpyxl, Mako, httpcore, email-validator, ecdsa, deprecated, cffi, anyio, watchfiles, starlette, python-jose, pydantic, limits, httpx, cryptography, alembic, slowapi, fastapi
+2026-07-11T05:15:59.816391999Z Successfully installed Mako-1.3.12 MarkupSafe-3.0.3 alembic-1.14.0 annotated-types-0.7.0 anyio-4.14.1 bcrypt-4.0.0 certifi-2026.6.17 cffi-2.1.0 chardet-7.4.3 charset-normalizer-3.4.9 click-8.4.2 cryptography-49.0.0 deprecated-1.3.1 dnspython-2.8.0 ecdsa-0.19.2 email-validator-2.2.0 et-xmlfile-2.0.0 fastapi-0.115.6 greenlet-3.5.3 h11-0.16.0 httpcore-1.0.9 httptools-0.8.0 httpx-0.28.1 idna-3.18 iniconfig-2.3.0 limits-5.8.0 openpyxl-3.1.5 packaging-26.2 passlib-1.7.4 pillow-12.3.0 pluggy-1.6.0 psycopg2-binary-2.9.10 pyasn1-0.4.8 pycparser-3.0 pydantic-2.10.4 pydantic-core-2.27.2 pyotp-2.9.0 pypng-0.20220715.0 pytest-8.3.4 python-dotenv-1.2.2 python-jose-3.4.0 python-multipart-0.0.20 pyyaml-6.0.3 qrcode-7.4.2 reportlab-4.2.5 requests-2.32.3 rsa-4.9.1 six-1.17.0 slowapi-0.1.9 sqlalchemy-2.0.36 starlette-0.41.3 typing-extensions-4.16.0 urllib3-2.7.0 uvicorn-0.34.0 uvloop-0.22.1 watchfiles-1.2.0 websockets-16.1 wrapt-2.2.2
+2026-07-11T05:15:59.89139361Z 
+2026-07-11T05:15:59.89142376Z [notice] A new release of pip is available: 23.2.1 -> 26.1.2
+2026-07-11T05:15:59.89142725Z [notice] To update, run: pip install --upgrade pip
+2026-07-11T05:16:00.849678272Z ==> Using Node.js version 24.14.1 (default)
+2026-07-11T05:16:00.849689662Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2026-07-11T05:16:04.601908924Z 
+2026-07-11T05:16:04.601932094Z added 72 packages, and audited 73 packages in 4s
+2026-07-11T05:16:04.601943944Z 
+2026-07-11T05:16:04.602024476Z 12 packages are looking for funding
+2026-07-11T05:16:04.602104658Z   run `npm fund` for details
+2026-07-11T05:16:04.602923996Z 
+2026-07-11T05:16:04.602931816Z found 0 vulnerabilities
+2026-07-11T05:16:04.80480994Z 
+2026-07-11T05:16:04.80482362Z > guineecare-frontend@0.1.0 build
+2026-07-11T05:16:04.80483867Z > vite build
+2026-07-11T05:16:04.804841321Z 
+2026-07-11T05:16:05.015633589Z vite v8.0.16 building client environment for production...
+2026-07-11T05:16:05.535632639Z 
+transforming...✓ 2365 modules transformed.
+2026-07-11T05:16:05.627056208Z rendering chunks...
+2026-07-11T05:16:05.72823309Z computing gzip size...
+2026-07-11T05:16:05.737290498Z dist/index.html                                     1.12 kB │ gzip:  0.54 kB
+2026-07-11T05:16:05.737300298Z dist/assets/index-_JzYkgHa.css                     30.08 kB │ gzip:  6.06 kB
+2026-07-11T05:16:05.737303178Z dist/assets/chevron-left-DXePizrv.js                0.11 kB │ gzip:  0.13 kB
+2026-07-11T05:16:05.737305769Z dist/assets/plus-CjZQ082d.js                        0.14 kB │ gzip:  0.14 kB
+2026-07-11T05:16:05.737308099Z dist/assets/clock-DkBIJVF4.js                       0.15 kB │ gzip:  0.15 kB
+2026-07-11T05:16:05.737310659Z dist/assets/trending-up-D3lACu79.js                 0.16 kB │ gzip:  0.16 kB
+2026-07-11T05:16:05.737313069Z dist/assets/circle-check-Bi7l-sax.js                0.16 kB │ gzip:  0.16 kB
+2026-07-11T05:16:05.737315419Z dist/assets/user-CvZolhlo.js                        0.18 kB │ gzip:  0.17 kB
+2026-07-11T05:16:05.737317889Z dist/assets/mail-C1dcBAI8.js                        0.20 kB │ gzip:  0.19 kB
+2026-07-11T05:16:05.737320279Z dist/assets/circle-alert-syIaYx84.js                0.23 kB │ gzip:  0.18 kB
+2026-07-11T05:16:05.737322609Z dist/assets/eye--nUHGGpR.js                         0.24 kB │ gzip:  0.19 kB
+2026-07-11T05:16:05.737324919Z dist/assets/funnel-BavVN62G.js                      0.24 kB │ gzip:  0.20 kB
+2026-07-11T05:16:05.737327239Z dist/assets/test-tube-diagonal-BCVyCcD_.js          0.25 kB │ gzip:  0.20 kB
+2026-07-11T05:16:05.737329589Z dist/assets/triangle-alert-D42Q2ebi.js              0.25 kB │ gzip:  0.20 kB
+2026-07-11T05:16:05.737331899Z dist/assets/inbox-Md_rVQka.js                       0.27 kB │ gzip:  0.22 kB
+2026-07-11T05:16:05.737334229Z dist/assets/refresh-cw-BtLojZU0.js                  0.31 kB │ gzip:  0.21 kB
+2026-07-11T05:16:05.737336739Z dist/assets/trash-2-Dk4d5Qn9.js                     0.31 kB │ gzip:  0.20 kB
+2026-07-11T05:16:05.737339089Z dist/assets/stethoscope-D00vI2sf.js                 0.33 kB │ gzip:  0.22 kB
+2026-07-11T05:16:05.737341749Z dist/assets/options-D9sQdZv_.js                     0.97 kB │ gzip:  0.42 kB
+2026-07-11T05:16:05.737344099Z dist/assets/PdfButton-D6H8im1s.js                   1.24 kB │ gzip:  0.81 kB
+2026-07-11T05:16:05.73734649Z dist/assets/Pagination-BDz0QtS4.js                  2.89 kB │ gzip:  1.36 kB
+2026-07-11T05:16:05.737348859Z dist/assets/DepartmentsPage-BbYiF5R1.js             6.11 kB │ gzip:  2.13 kB
+2026-07-11T05:16:05.737351239Z dist/assets/LeaveManagementPage-DzmN_f0s.js         6.57 kB │ gzip:  2.13 kB
+2026-07-11T05:16:05.7373536Z dist/assets/FacilitiesPage-DTVcAcyO.js              7.13 kB │ gzip:  2.37 kB
+2026-07-11T05:16:05.73735602Z dist/assets/UsersPage-CZ_PJ4cF.js                   8.29 kB │ gzip:  2.70 kB
+2026-07-11T05:16:05.7373584Z dist/assets/HospitalizationPage-D9q5K7Tm.js         8.71 kB │ gzip:  2.89 kB
+2026-07-11T05:16:05.73736079Z dist/assets/NotificationsPage-C_X8cI_p.js           9.38 kB │ gzip:  3.11 kB
+2026-07-11T05:16:05.73736313Z dist/assets/RbacPage-BJNw1qHS.js                    9.38 kB │ gzip:  2.75 kB
+2026-07-11T05:16:05.73736551Z dist/assets/NationalPilotagePage-DIpsB1wG.js        9.45 kB │ gzip:  3.08 kB
+2026-07-11T05:16:05.73736792Z dist/assets/AuditPage-CdVZfPoO.js                   9.79 kB │ gzip:  2.83 kB
+2026-07-11T05:16:05.73737025Z dist/assets/jsx-runtime-CofVU7nL.js                10.21 kB │ gzip:  3.87 kB
+2026-07-11T05:16:05.73738103Z dist/assets/PatientsPage-DgNKETb5.js               10.55 kB │ gzip:  3.64 kB
+2026-07-11T05:16:05.73738354Z dist/assets/ImagingPage-DSDaRVlM.js                12.48 kB │ gzip:  3.18 kB
+2026-07-11T05:16:05.73738591Z dist/assets/MaternityPage-DbTl39BN.js              15.74 kB │ gzip:  3.67 kB
+2026-07-11T05:16:05.737391911Z dist/assets/DashboardPage-WgNtKC3W.js              16.23 kB │ gzip:  5.11 kB
+2026-07-11T05:16:05.73739448Z dist/assets/PieChart-m1R7slKn.js                   16.54 kB │ gzip:  5.23 kB
+2026-07-11T05:16:05.73739686Z dist/assets/EmergencyTriagePage-CEFFNOZ_.js        17.10 kB │ gzip:  5.15 kB
+2026-07-11T05:16:05.737399251Z dist/assets/SurgeryPage-oMzHDw2Q.js                17.75 kB │ gzip:  4.14 kB
+2026-07-11T05:16:05.737401651Z dist/assets/SmsAdminPage-D49OmUi8.js               17.93 kB │ gzip:  4.28 kB
+2026-07-11T05:16:05.737404081Z dist/assets/ActivityPage-CfCTSq6G.js               18.34 kB │ gzip:  4.83 kB
+2026-07-11T05:16:05.737406511Z dist/assets/ReportingPage-DCXPwsgc.js              18.72 kB │ gzip:  4.00 kB
+2026-07-11T05:16:05.737408891Z dist/assets/PersonnelPlanningPage-nyzrKaGn.js      19.81 kB │ gzip:  4.73 kB
+2026-07-11T05:16:05.737411251Z dist/assets/EmergencyOrientationPage-0S-xe8fF.js   20.31 kB │ gzip:  5.03 kB
+2026-07-11T05:16:05.737413661Z dist/assets/PatientDetailPage-cNyLhDga.js          20.56 kB │ gzip:  4.26 kB
+2026-07-11T05:16:05.737416061Z dist/assets/EmergencyPage-D_ilpa6-.js              22.37 kB │ gzip:  5.95 kB
+2026-07-11T05:16:05.737418431Z dist/assets/PersonnelPage-j7CnrBbf.js              25.01 kB │ gzip:  5.09 kB
+2026-07-11T05:16:05.737420821Z dist/assets/AdmissionsPage-C-cm33Ki.js             25.21 kB │ gzip:  6.13 kB
+2026-07-11T05:16:05.737423181Z dist/assets/PharmacyPage-BA7rVJUB.js               26.93 kB │ gzip:  6.44 kB
+2026-07-11T05:16:05.737425531Z dist/assets/LabPage-VbRAsAeo.js                    32.97 kB │ gzip:  8.48 kB
+2026-07-11T05:16:05.737427861Z dist/assets/QualityPage-dFlPSW2d.js                35.63 kB │ gzip:  7.49 kB
+2026-07-11T05:16:05.737430201Z dist/assets/FinancePage-DXwkEHXs.js                41.56 kB │ gzip: 10.85 kB
+2026-07-11T05:16:05.737444152Z dist/assets/BarChart-pqIFXhu9.js                   46.61 kB │ gzip: 12.73 kB
+2026-07-11T05:16:05.737446762Z dist/assets/index-7M7OUHq2.js                     268.72 kB │ gzip: 85.32 kB
+2026-07-11T05:16:05.737451192Z dist/assets/CategoricalChart-D35rRsXx.js          296.57 kB │ gzip: 90.60 kB
+2026-07-11T05:16:05.737453532Z 
+2026-07-11T05:16:05.738545356Z ✓ built in 722ms
+2026-07-11T05:16:12.491351704Z ==> Uploading build...
+2026-07-11T05:16:19.545144686Z ==> Uploaded in 3.8s. Compression took 3.3s
+2026-07-11T05:16:19.615534915Z ==> Build successful 🎉
+2026-07-11T05:16:24.844517068Z ==> Deploying...
+2026-07-11T05:16:25.042008834Z ==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+2026-07-11T05:16:48.802682636Z ==> Running 'bash render_start.sh'
+2026-07-11T05:16:48.810421343Z === GuinéeCare Render Start ===
+2026-07-11T05:17:00.511939884Z >>> Detected 66 existing tables
+2026-07-11T05:17:00.511970155Z >>> DB already has tables — creating missing tables via create_all...
+2026-07-11T05:17:16.266857399Z >>> Missing tables created (checkfirst=True)
+2026-07-11T05:17:17.109492374Z >>> Adding missing columns via migration_helper...
+2026-07-11T05:17:30.709205352Z ==> No open ports detected, continuing to scan...
+2026-07-11T05:17:31.031738842Z ==> Docs on specifying a port: https://render.com/docs/web-services#port-binding
+2026-07-11T05:17:36.377221764Z   ✅ All columns already exist — nothing to do
+2026-07-11T05:17:36.377262205Z   ✅ Modified patients.blood_type → VARCHAR(20)
+2026-07-11T05:17:36.377268505Z   ✅ 1 column types modified
+2026-07-11T05:17:36.377274965Z   ✅ All nullable migrations already applied
+2026-07-11T05:17:37.201651492Z >>> Stamping alembic head...
+2026-07-11T05:17:44.307992326Z >>> Alembic stamped OK
+2026-07-11T05:17:44.308027946Z >>> Seeding RBAC...
+2026-07-11T05:18:05.880642325Z Traceback (most recent call last):
+2026-07-11T05:18:05.880669025Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 2118, in _exec_insertmany_context
+2026-07-11T05:18:05.881130034Z     dialect.do_execute(
+2026-07-11T05:18:05.881145835Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 941, in do_execute
+2026-07-11T05:18:05.88144693Z     cursor.execute(statement, parameters)
+2026-07-11T05:18:05.882419849Z psycopg2.errors.ForeignKeyViolation: insert or update on table "role_permissions" violates foreign key constraint "role_permissions_permission_code_fkey"
+2026-07-11T05:18:05.882433719Z DETAIL:  Key (permission_code)=(hospitalization.write) is not present in table "permissions".
+2026-07-11T05:18:05.882438019Z 
+2026-07-11T05:18:05.882442359Z 
+2026-07-11T05:18:05.882447339Z The above exception was the direct cause of the following exception:
+2026-07-11T05:18:05.882451239Z 
+2026-07-11T05:18:05.882458789Z Traceback (most recent call last):
+2026-07-11T05:18:05.8824634Z   File "<string>", line 5, in <module>
+2026-07-11T05:18:05.8824677Z   File "/opt/render/project/src/backend/app/modules/rbac/seed.py", line 226, in seed_rbac
+2026-07-11T05:18:05.88247234Z     db.commit()
+2026-07-11T05:18:05.88247739Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2028, in commit
+2026-07-11T05:18:05.88248303Z     trans.commit(_to_root=True)
+2026-07-11T05:18:05.88248721Z   File "<string>", line 2, in commit
+2026-07-11T05:18:05.88249156Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+2026-07-11T05:18:05.88249603Z     ret_value = fn(self, *arg, **kw)
+2026-07-11T05:18:05.88250029Z                 ^^^^^^^^^^^^^^^^^^^^
+2026-07-11T05:18:05.88250493Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 1313, in commit
+2026-07-11T05:18:05.882716994Z     self._prepare_impl()
+2026-07-11T05:18:05.882726045Z   File "<string>", line 2, in _prepare_impl
+2026-07-11T05:18:05.882730605Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/orm/state_changes.py", line 139, in _go
+2026-07-11T05:18:05.882853677Z     ret_value = fn(self, *arg, **kw)
+2026-07-11T05:18:05.882876627Z                 ^^^^^^^^^^^^^^^^^^^^
+2026-07-11T05:18:05.882945439Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 1288, in _prepare_impl
+2026-07-11T05:18:05.883202994Z     self.session.flush()
+2026-07-11T05:18:05.883223404Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 4352, in flush
+2026-07-11T05:18:05.883935088Z     self._flush(objects)
+2026-07-11T05:18:05.883945638Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 4487, in _flush
+2026-07-11T05:18:05.885870374Z     with util.safe_reraise():
+2026-07-11T05:18:05.885885875Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py", line 146, in __exit__
+2026-07-11T05:18:05.885889355Z     raise exc_value.with_traceback(exc_tb)
+2026-07-11T05:18:05.885892645Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 4448, in _flush
+2026-07-11T05:18:05.885895485Z     flush_context.execute()
+2026-07-11T05:18:05.885898165Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py", line 466, in execute
+2026-07-11T05:18:05.885907055Z     rec.execute(self)
+2026-07-11T05:18:05.886078338Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/orm/unitofwork.py", line 642, in execute
+2026-07-11T05:18:05.886214171Z     util.preloaded.orm_persistence.save_obj(
+2026-07-11T05:18:05.886219921Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py", line 93, in save_obj
+2026-07-11T05:18:05.886345823Z     _emit_insert_statements(
+2026-07-11T05:18:05.886353614Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/orm/persistence.py", line 1143, in _emit_insert_statements
+2026-07-11T05:18:05.886594698Z     result = connection.execute(
+2026-07-11T05:18:05.886615959Z              ^^^^^^^^^^^^^^^^^^^
+2026-07-11T05:18:05.886623489Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1418, in execute
+2026-07-11T05:18:05.887033327Z     return meth(
+2026-07-11T05:18:05.887039487Z            ^^^^^
+2026-07-11T05:18:05.887044247Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/sql/elements.py", line 515, in _execute_on_connection
+2026-07-11T05:18:05.887256551Z     return connection._execute_clauseelement(
+2026-07-11T05:18:05.887263201Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-07-11T05:18:05.887267011Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1640, in _execute_clauseelement
+2026-07-11T05:18:05.887548806Z     ret = self._execute_context(
+2026-07-11T05:18:05.887555026Z           ^^^^^^^^^^^^^^^^^^^^^^
+2026-07-11T05:18:05.887558597Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1844, in _execute_context
+2026-07-11T05:18:05.887896163Z     return self._exec_insertmany_context(dialect, context)
+2026-07-11T05:18:05.887918444Z            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-07-11T05:18:05.887922273Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 2126, in _exec_insertmany_context
+2026-07-11T05:18:05.888256Z     self._handle_dbapi_exception(
+2026-07-11T05:18:05.88826089Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 2355, in _handle_dbapi_exception
+2026-07-11T05:18:05.888660227Z     raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+2026-07-11T05:18:05.888670248Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 2118, in _exec_insertmany_context
+2026-07-11T05:18:05.889053115Z     dialect.do_execute(
+2026-07-11T05:18:05.889058615Z   File "/opt/render/project/src/.venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 941, in do_execute
+2026-07-11T05:18:05.88929649Z     cursor.execute(statement, parameters)
+2026-07-11T05:18:05.889530864Z sqlalchemy.exc.IntegrityError: (psycopg2.errors.ForeignKeyViolation) insert or update on table "role_permissions" violates foreign key constraint "role_permissions_permission_code_fkey"
+2026-07-11T05:18:05.889535984Z DETAIL:  Key (permission_code)=(hospitalization.write) is not present in table "permissions".
+2026-07-11T05:18:05.889538784Z 
+2026-07-11T05:18:05.889543854Z [SQL: INSERT INTO role_permissions (id, role_code, permission_code, created_at) VALUES (%(id__0)s, %(role_code__0)s, %(permission_code__0)s, %(created_at__0)s), (%(id__1)s, %(role_code__1)s, %(permission_code__1)s, %(created_at__1)s), (%(id__2)s, %(role_co ... 2965 characters truncated ... s, %(created_at__40)s), (%(id__41)s, %(role_code__41)s, %(permission_code__41)s, %(created_at__41)s)]
+2026-07-11T05:18:05.889560285Z [parameters: {'permission_code__0': 'facility.read', 'role_code__0': 'ADMIN', 'id__0': '7d198029-0e58-4bdb-ab2a-88e20993cef0', 'created_at__0': datetime.datetime(2026, 7, 11, 5, 18, 5, 690927, tzinfo=datetime.timezone.utc), 'permission_code__1': 'department.read', 'role_code__1': 'ADMIN', 'id__1': '525186ee-d97f-46d6-b715-26a00f6df072', 'created_at__1': datetime.datetime(2026, 7, 11, 5, 18, 5, 690941, tzinfo=datetime.timezone.utc), 'permission_code__2': 'department.manage', 'role_code__2': 'ADMIN', 'id__2': '1a22b5f9-2b05-41bb-b897-90781193465b', 'created_at__2': datetime.datetime(2026, 7, 11, 5, 18, 5, 690947, tzinfo=datetime.timezone.utc), 'permission_code__3': 'patient.read', 'role_code__3': 'ADMIN', 'id__3': '51b9b0b8-5c78-405b-a949-bba1f54d44cc', 'created_at__3': datetime.datetime(2026, 7, 11, 5, 18, 5, 690953, tzinfo=datetime.timezone.utc), 'permission_code__4': 'patient.create', 'role_code__4': 'ADMIN', 'id__4': 'b0147d5d-e75a-4ea4-bdeb-c2e4acae92e0', 'created_at__4': datetime.datetime(2026, 7, 11, 5, 18, 5, 690959, tzinfo=datetime.timezone.utc), 'permission_code__5': 'admission.read', 'role_code__5': 'ADMIN', 'id__5': '7cfe5b14-1754-47a3-99e4-5f36c70e481b', 'created_at__5': datetime.datetime(2026, 7, 11, 5, 18, 5, 690964, tzinfo=datetime.timezone.utc), 'permission_code__6': 'admission.create', 'role_code__6': 'ADMIN', 'id__6': '65fdb3d5-3bc1-4b83-b4b3-78b67d66e453', 'created_at__6': datetime.datetime(2026, 7, 11, 5, 18, 5, 690969, tzinfo=datetime.timezone.utc), 'permission_code__7': 'emergency.read', 'role_code__7': 'ADMIN', 'id__7': '5e6776ea-12de-44bb-aeba-7f7f17a536e1', 'created_at__7': datetime.datetime(2026, 7, 11, 5, 18, 5, 690974, tzinfo=datetime.timezone.utc), 'permission_code__8': 'emergency.create', 'role_code__8': 'ADMIN', 'id__8': 'e12d4750-39f7-4571-8fe2-d5acbf697339', 'created_at__8': datetime.datetime(2026, 7, 11, 5, 18, 5, 690978, tzinfo=datetime.timezone.utc), 'permission_code__9': 'emergency.triage', 'role_code__9': 'ADMIN', 'id__9': '04070341-5993-47eb-a34c-30be95ac7c15', 'created_at__9': datetime.datetime(2026, 7, 11, 5, 18, 5, 690983, tzinfo=datetime.timezone.utc), 'permission_code__10': 'emergency.orient', 'role_code__10': 'ADMIN', 'id__10': 'b6191c6e-b1ec-43c5-8973-177c58f6686d', 'created_at__10': datetime.datetime(2026, 7, 11, 5, 18, 5, 690987, tzinfo=datetime.timezone.utc), 'permission_code__11': 'emergency.care', 'role_code__11': 'ADMIN', 'id__11': '5941ea9d-a087-43b8-8ce0-54b771d63671', 'created_at__11': datetime.datetime(2026, 7, 11, 5, 18, 5, 690992, tzinfo=datetime.timezone.utc), 'permission_code__12': 'emergency.discharge', 'role_code__12': 'ADMIN' ... 68 parameters truncated ... 'id__29': '6b6eb151-0d6d-4b6d-af6c-09cf14abd7b6', 'created_at__29': datetime.datetime(2026, 7, 11, 5, 18, 5, 691078, tzinfo=datetime.timezone.utc), 'permission_code__30': 'billing.pay', 'role_code__30': 'ADMIN', 'id__30': 'e843faaa-0d03-47b8-b0dc-0d93e8c8092a', 'created_at__30': datetime.datetime(2026, 7, 11, 5, 18, 5, 691082, tzinfo=datetime.timezone.utc), 'permission_code__31': 'personnel.read', 'role_code__31': 'ADMIN', 'id__31': '45dc44af-cb6a-4eca-a250-b5877a3b6963', 'created_at__31': datetime.datetime(2026, 7, 11, 5, 18, 5, 691086, tzinfo=datetime.timezone.utc), 'permission_code__32': 'personnel.manage', 'role_code__32': 'ADMIN', 'id__32': '09be5f3a-b637-44e2-979b-7502c1c3c306', 'created_at__32': datetime.datetime(2026, 7, 11, 5, 18, 5, 691090, tzinfo=datetime.timezone.utc), 'permission_code__33': 'personnel.planning', 'role_code__33': 'ADMIN', 'id__33': 'f3c769fb-8448-4063-b2f1-3e89a09098ab', 'created_at__33': datetime.datetime(2026, 7, 11, 5, 18, 5, 691094, tzinfo=datetime.timezone.utc), 'permission_code__34': 'quality.read', 'role_code__34': 'ADMIN', 'id__34': 'fc2c5e6f-6b53-4e44-9e33-f21915fe9850', 'created_at__34': datetime.datetime(2026, 7, 11, 5, 18, 5, 691099, tzinfo=datetime.timezone.utc), 'permission_code__35': 'quality.manage', 'role_code__35': 'ADMIN', 'id__35': '6c280413-68b1-4860-85c2-ad7182310fc9', 'created_at__35': datetime.datetime(2026, 7, 11, 5, 18, 5, 691103, tzinfo=datetime.timezone.utc), 'permission_code__36': 'quality.dashboard', 'role_code__36': 'ADMIN', 'id__36': '22f35927-273c-47ce-9a1e-564bb9c3b4a0', 'created_at__36': datetime.datetime(2026, 7, 11, 5, 18, 5, 691107, tzinfo=datetime.timezone.utc), 'permission_code__37': 'reporting.read', 'role_code__37': 'ADMIN', 'id__37': 'b2af15a4-b9fe-447d-8cf5-aec94bff3794', 'created_at__37': datetime.datetime(2026, 7, 11, 5, 18, 5, 691111, tzinfo=datetime.timezone.utc), 'permission_code__38': 'notification.manage', 'role_code__38': 'ADMIN', 'id__38': 'fbafb928-8e41-45b9-8d4d-5a222eebb294', 'created_at__38': datetime.datetime(2026, 7, 11, 5, 18, 5, 691115, tzinfo=datetime.timezone.utc), 'permission_code__39': 'activity.read', 'role_code__39': 'ADMIN', 'id__39': '2bbae5f4-5206-4dba-b41d-90f2b1030067', 'created_at__39': datetime.datetime(2026, 7, 11, 5, 18, 5, 691120, tzinfo=datetime.timezone.utc), 'permission_code__40': 'audit.read', 'role_code__40': 'ADMIN', 'id__40': '0488da82-e20f-4907-a330-4be32d9da75a', 'created_at__40': datetime.datetime(2026, 7, 11, 5, 18, 5, 691124, tzinfo=datetime.timezone.utc), 'permission_code__41': 'fhir.read', 'role_code__41': 'ADMIN', 'id__41': '41b2b9d9-4b7d-4e90-8944-a0d3d36af45a', 'created_at__41': datetime.datetime(2026, 7, 11, 5, 18, 5, 691128, tzinfo=datetime.timezone.utc)}]
+2026-07-11T05:18:05.889576075Z (Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-07-11T05:18:09.240165215Z ==> Exited with status 1
+2026-07-11T05:18:09.267137448Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
+2026-07-11T05:18:12.762744638Z ==> Running 'bash render_start.sh'
+2026-07-11T05:18:12.771531096Z === GuinéeCare Render Start ===
+2026-07-11T05:18:25.968694006Z >>> Detected 66 existing tables
+2026-07-11T05:18:25.969130884Z >>> DB already has tables — creating missing tables via create_all...
+2026-07-11T05:18:33.476176356Z ==> No open ports detected, continuing to scan...
+2026-07-11T05:18:33.858358578Z ==> Docs on specifying a port: https://render.com/docs/web-services#port-binding
