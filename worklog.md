@@ -124,3 +124,32 @@ Stage Summary:
 - Script validation post-déploiement (bash, 10 checks)
 - README mis à jour avec nouveautés v2.9.2
 - Le projet est DÉPLOIABLE en production v2.9.2 dès maintenant
+
+---
+Task ID: V293-FINAL
+Agent: main
+Task: Finalisation v2.9.3 — UI Tasks Admin + ICD11Search + InfinitePatientsList + tests étendus + guide utilisateur
+
+Work Log:
+- frontend/src/pages/TasksAdminPage.tsx — page UI complète (statut infrastructure, 5 tâches, historique, RBAC)
+- frontend/src/components/ICD11Search.tsx — composant autocomplétion ICD-11 (debounce, keyboard nav, dropdown)
+- frontend/src/pages/InfinitePatientsList.tsx — vue scroll infini opt-in avec Sentinel
+- frontend/src/pages/PatientsPage.tsx — toggle vue paginée/infinie (persistance localStorage)
+- frontend/src/pages/PatientDetailPage.tsx — ICD11Search intégré au formulaire Diagnostic
+- frontend/src/layout/Sidebar.tsx — entrée "Tâches planifiées" + icône Settings
+- frontend/src/layout/AppLayout.tsx — page title /tasks-admin
+- frontend/src/components/ProtectedRoute.tsx — flag canSeeTasksAdmin
+- frontend/src/i18n/index.tsx — clés nav.tasks_admin (FR + EN)
+- backend/app/tasks/routes.py — validation type retention_days/max_age_hours (int cast safe)
+- backend/tests/test_v292_tasks_routes_extended.py — 18 nouveaux tests (RBAC strict, audit log, cohérence, erreurs, ADMIN role)
+- docs/formation/GUIDE_UTILISATEUR_v2.9.2.md — guide utilisateur complet (mode sombre, tâches, ICD-11, scroll infini, FAQ)
+- Version bumpée 2.9.2 → 2.9.3 + openapi régénéré
+- README badge v2.9.3 + description mise à jour
+
+Stage Summary:
+- 3 nouvelles pages/composants frontend branchés dans l'UI (TasksAdmin, ICD11Search, InfinitePatientsList)
+- 18 nouveaux tests backend (RBAC strict, audit log, cohérence, gestion erreurs)
+- 1 guide utilisateur complet (~250 lignes)
+- TypeScript compile OK, Vite build OK (741ms)
+- 82 tests backend passent (38 v2.9.2 + 18 v2.9.3 + 26 non-régression)
+- Le projet v2.9.3 est COMPLÈTEMENT PRÊT pour déploiement national flagship
