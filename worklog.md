@@ -101,3 +101,26 @@ Stage Summary:
 - Build frontend OK (tsc + Vite)
 - Reste à traiter : Render Starter plan (hors scope) + formalisation administrative
 - Le projet est désormais OPERATIONNELLEMENT PRÊT pour un déploiement national flagship
+
+---
+Task ID: V292-SUITE
+Agent: main
+Task: Prochaines étapes — render.yaml + docker-compose + tests + runbook + script validation + README + archive
+
+Work Log:
+- render.yaml : étendu avec 4 services (web + redis + worker + beat), variables REDIS_URL/AUDIT_LOG_RETENTION_DAYS/DHIS2_* 
+- docker-compose.prod.yml : ajouté celery-worker + celery-beat avec security_opt/cap_drop/limits, branché sur redis existant
+- frontend/tests/e2e/v292-dark-mode.spec.ts : 12 tests Playwright (toggle, persistance, lisibilité, ICD-11 API)
+- docs/deploiement/RUNBOOK_MISE_A_JOUR_v2.9.2.md : 9 sections (pré-requis, 5 phases, rollback, troubleshooting, KPIs)
+- scripts/validate_v292.sh : script bash 10 checks (health, version, login, Redis, Celery, ICD-11, insurance, DHIS2, metrics)
+- README.md : badge v2.9.2, version actuelle, section "Nouveautés v2.9.2" complète (35 lignes)
+- worklog : mise à jour finale
+
+Stage Summary:
+- Configuration production Render complète (4 services) — prête à déployer
+- Configuration production Docker Compose complète (8 services) — prête à déployer
+- 12 nouveaux tests E2E Playwright (mode sombre + ICD-11)
+- Runbook mise à jour v2.9.2 (9 sections, ~300 lignes)
+- Script validation post-déploiement (bash, 10 checks)
+- README mis à jour avec nouveautés v2.9.2
+- Le projet est DÉPLOIABLE en production v2.9.2 dès maintenant
