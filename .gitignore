@@ -1,2 +1,40 @@
-skills/
+# Archives and downloads
+download/
+*.zip
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.db
+dev_guineecare.db
+test_guineecare.db
+test_app.db
+
+# Node
 node_modules/
+dist/
+
+# Environment
+.env
+.env.production
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+*.tmp
+
+# Upload
+upload/
+tool-results/
+skills/
+worklog.md
