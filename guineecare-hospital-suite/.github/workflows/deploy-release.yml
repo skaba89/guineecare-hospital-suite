@@ -1,0 +1,200 @@
+name: deploy-release
+
+# Build and push Docker images to GitHub Container Registry (GHCR) when a
+# v* tag is pushed. Images are then pulled by the CHU Donka server via
+# `docker compose pull` during the deploy.sh script.
+#
+# Image tags:
+#   ghcr.io/skaba89/guineecare-backend:v1.0.0
+#   ghcr.io/skaba89/guineecare-backend:latest    (only on stable v* tags)
+#   ghcr.io/skaba89/guineecare-frontend:v1.0.0
+#   ghcr.io/skaba89/guineecare-frontend:latest
+#
+# v2.3.0 — Phase 8 : la CI exécute les tests backend + build frontend
+# AVANT de pousser les images GHCR. Un tag v* sur un commit cassé ne
+# déclenchera pas de release.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (e.g. v1.0.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  # ─── Test gate : les tests doivent passer avant tout build Docker ───
+  test-backend:
+    name: Backend tests (gate)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install backend deps
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+      - name: Run pytest
+        working-directory: backend
+        env:
+          AUTH_SECRET: ci-test-secret-key-2026
+          DATABASE_URL: sqlite:///./test_ci.db
+          ENVIRONMENT: test
+        run: |
+          rm -f test_ci.db
+          python -m pytest --tb=short -q --ignore=tests/e2e_test.py
+
+  test-frontend:
+    name: Frontend build (gate)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install + build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npx tsc --noEmit
+          npm run build
+
+  build-and-push:
+    name: Build & push Docker images
+    needs: [test-backend, test-frontend]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - image: guineecare-backend
+            context: ./backend
+            dockerfile: ./backend/Dockerfile
+          - image: guineecare-frontend
+            context: ./frontend
+            dockerfile: ./frontend/Dockerfile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Resolve tag name
+        id: tag
+        run: |
+          if [[ -n "${{ inputs.tag }}" ]]; then
+            echo "name=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}
+          tags: |
+            type=raw,value=${{ steps.tag.outputs.name }}
+            type=raw,value=latest,enable=${{ startsWith(steps.tag.outputs.name, 'v1.') || startsWith(steps.tag.outputs.name, 'v2.') }}
+
+      - name: Build & push ${{ matrix.image }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VITE_API_BASE_URL=https://chu-donka.guineecare.gn/api/v1
+
+      - name: Print image digests
+        run: |
+          echo "### ${{ matrix.image }} built" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Tags:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  release-notes:
+    name: Publish GitHub Release
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract tag
+        id: tag
+        run: echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Read CHANGELOG entry
+        id: changelog
+        run: |
+          # Extract the section for this version from CHANGELOG.md
+          VERSION="${{ steps.tag.outputs.name }}"
+          VERSION_BRACKET="[${VERSION#v}]"
+          # Try both [1.0.0] and [v1.0.0] formats
+          python3 - <<'PY'
+          import re, sys
+          tag = "${{ steps.tag.outputs.name }}"
+          v = tag.lstrip("v")
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+          # Match: ## [1.0.0] — ... until next ## [
+          m = re.search(rf"## \[{re.escape(v)}\][^\n]*\n(.*?)(?=\n## \[|\Z)", text, re.DOTALL)
+          if m:
+              body = m.group(1).strip()
+          else:
+              body = "(Pas d'entrée CHANGELOG trouvée pour cette version.)"
+          with open("/tmp/release_notes.md", "w", encoding="utf-8") as f:
+              f.write(body)
+          PY
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          name: Release ${{ steps.tag.outputs.name }}
+          body_path: /tmp/release_notes.md
+          draft: false
+          prerelease: ${{ contains(steps.tag.outputs.name, '-rc') || contains(steps.tag.outputs.name, '-beta') }}
+          generate_release_notes: false

@@ -1,0 +1,30 @@
+{
+  "name": "guineecare-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 5173 --strictPort",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "date-fns": "^4.4.0",
+    "lucide-react": "^1.18.0",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-router-dom": "latest",
+    "recharts": "^3.8.1",
+    "typescript": "latest",
+    "vite": "latest"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.0",
+    "@types/react": "latest",
+    "@types/react-dom": "latest"
+  }
+}

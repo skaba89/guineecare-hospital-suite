@@ -1,0 +1,155 @@
+from datetime import datetime
+from app.core.datetime import utcnow
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from app.core.pagination import PaginationParams, paginate
+from app.core.tenant import tenant_query, enforce_facility_access
+from app.db.session import get_db
+from app.modules.activity.service import record_activity
+from app.modules.audit.service import audit_log
+from app.modules.rbac.dependencies import require_permission
+from app.modules.realtime import publish_kpi_update
+from app.modules.users.models import User
+from app.modules.admissions.models import Admission
+from app.modules.admissions.schemas import AdmissionCreate
+
+router = APIRouter(prefix="/admissions", tags=["admissions"])
+
+
+@router.get("")
+def list_admissions(
+    pagination: PaginationParams = Depends(),
+    status: str | None = None,
+    patient_id: str | None = None,
+    department_id: str | None = None,
+    admission_type: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("admission.read")),
+):
+    """Liste paginée des admissions avec filtres serveur.
+
+    Filtres : `status`, `patient_id`, `department_id`, `admission_type`,
+    `date_from`/`date_to` (sur admitted_at), `search`.
+    """
+    query = tenant_query(db, Admission, current_user).order_by(Admission.admitted_at.desc())
+    if pagination.search:
+        query = query.filter(Admission.admission_type.ilike(f"%{pagination.search}%"))
+    if status:
+        query = query.filter(Admission.status == status.upper())
+    if patient_id:
+        query = query.filter(Admission.patient_id == patient_id)
+    if department_id:
+        query = query.filter(Admission.department_id == department_id)
+    if admission_type:
+        query = query.filter(Admission.admission_type == admission_type.upper())
+    if date_from:
+        try:
+            query = query.filter(Admission.admitted_at >= datetime.fromisoformat(date_from))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            query = query.filter(Admission.admitted_at <= datetime.fromisoformat(date_to))
+        except ValueError:
+            pass
+    return paginate(query, pagination)
+
+
+@router.post("")
+def create_admission(
+    payload: AdmissionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("admission.create")),
+):
+    data = payload.model_dump(exclude_none=True)
+    # Nettoyer les champs vides
+    for key in list(data.keys()):
+        if data[key] == "":
+            del data[key]
+    if not data.get("facility_id"):
+        if current_user.facility_id:
+            data["facility_id"] = current_user.facility_id
+        else:
+            from app.modules.facilities.models import Facility
+            first_fac = db.query(Facility).first()
+            if not first_fac:
+                raise HTTPException(status_code=400, detail="Aucun établissement trouvé.")
+            data["facility_id"] = first_fac.id
+    enforce_facility_access(current_user, data.get("facility_id"))
+    row = Admission(**data)
+    db.add(row)
+    db.flush()
+    record_activity(
+        db=db,
+        actor_id=current_user.id,
+        action_name="admission.created",
+        entity_type="admission",
+        entity_id=row.id,
+        level="IMPORTANT",
+    )
+    db.commit()
+    db.refresh(row)
+    # v2.8.0 — Audit log pour traçabilité médico-légale
+    audit_log(
+        db=db,
+        action="admission.create",
+        user=current_user,
+        resource_type="admission",
+        resource_id=str(row.id),
+        request=None,  # pas de Request dans cette fonction
+        status_code=200,
+    )
+    # v1.3.0 — push realtime KPI update so the dashboard live-counts admissions
+    publish_kpi_update(
+        facility_id=row.facility_id,
+        kpi="admissions.today.count",
+        value=1,
+        delta=1,
+        extra={"admission_id": row.id, "admission_type": row.admission_type},
+    )
+    return {"data": row, "message": "admission created"}
+
+
+@router.post("/{admission_id}/close")
+def close_admission(
+    admission_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("admission.close")),
+):
+    row = db.query(Admission).filter(Admission.id == admission_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Admission not found")
+    enforce_facility_access(current_user, row.facility_id)
+    # v2.8.2 — P1 fix : vérifier si déjà CLOSED (évite d'écraser closed_at)
+    if row.status == "CLOSED":
+        raise HTTPException(
+            status_code=409,
+            detail="Cette admission est déjà clôturée",
+        )
+    row.status = "CLOSED"
+    row.closed_at = utcnow()
+    record_activity(
+        db=db,
+        actor_id=current_user.id,
+        action_name="admission.closed",
+        entity_type="admission",
+        entity_id=row.id,
+        level="IMPORTANT",
+    )
+    db.commit()
+    db.refresh(row)
+    # v2.8.0 — Audit log pour traçabilité médico-légale
+    audit_log(
+        db=db,
+        action="admission.close",
+        user=current_user,
+        resource_type="admission",
+        resource_id=str(row.id),
+        request=None,  # pas de Request dans cette fonction
+        status_code=200,
+    )
+    return {"data": row, "message": "admission closed"}

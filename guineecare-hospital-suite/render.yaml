@@ -1,0 +1,173 @@
+# Render Blueprint — GuinéeCare Hospital Suite (Render + Neon + Redis)
+#
+# v2.9.2 — Déploiement production avec Redis + Celery worker
+#
+# Architecture :
+#   - Render web service : backend FastAPI + frontend statique (1 service, 1 URL)
+#   - Render Redis : cache partagé + broker Celery (plan Free 25MB ou Standard $10/mois)
+#   - Render background worker : Celery worker + beat (plan Starter $7/mois ou Standard $25/mois)
+#   - Neon : PostgreSQL serverless (gratuit, permanent, 0.5 GB)
+#
+# ⚠️ Ce blueprint active les fonctionnalités v2.9.2 :
+#   - Rate limit partagé multi-instance (Redis)
+#   - Tâches planifiées (Celery beat) : pruning audit log, backup auto, push DHIS2
+#
+# Usage :
+# 1. Créez une DB sur https://neon.tech (gratuit, GitHub login)
+# 2. Copiez l'URL de connexion Neon (Pooled connection)
+# 3. Sur https://render.com → New → Blueprint → sélectionnez ce repo
+# 4. Configurez DATABASE_URL et AUTH_SECRET dans le dashboard Render
+# 5. ⚠️ Une fois le service créé, mettez CORS_ORIGINS à l'URL Render réelle
+# 6. (Optionnel) Pour le push DHIS2 réel, configurez DHIS2_URL/USERNAME/PASSWORD
+#
+# Coûts indicatifs (Render) :
+#   - Web service Starter : $7/mois (recommandé pour éviter cold starts)
+#   - Redis Standard : $10/mois (ou Free 25MB pour démo)
+#   - Background worker Starter : $7/mois
+#   - Total production recommandé : ~$24/mois
+
+services:
+  # ── Backend FastAPI + Frontend statique ───────────────────────────
+  - type: web
+    name: guineecare
+    runtime: python
+    region: frankfurt
+    # v2.9.2 — Starter recommandé pour prod ($7/mois, pas de cold start)
+    # Pour démo gratuite, mettre "free" (mais 15min d'inactivité → cold start)
+    plan: starter
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt && cd ../frontend && npm ci && npm run build && cp -r dist ../backend/static
+    startCommand: bash render_start.sh
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: AUTH_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SEED_DEMO_DATA
+        value: "true"
+      - key: CORS_ORIGINS
+        # v2.8.0 — Sécurité : restreindre à l'URL Render réelle.
+        value: '["https://guineecare.onrender.com"]'
+      - key: LOG_LEVEL
+        value: INFO
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      # v2.9.2 — Redis pour rate limit partagé
+      # REDIS_URL est automatiquement injecté par Render depuis le service Redis ci-dessous
+      - key: REDIS_URL
+        from: guineecare-redis
+      # v2.9.2 — Celery broker (utilise le même Redis)
+      - key: CELERY_BROKER_URL
+        from: guineecare-redis
+      - key: CELERY_RESULT_BACKEND
+        from: guineecare-redis
+      # v2.9.2 — Rétention audit log RGPD (défaut 365 jours)
+      - key: AUDIT_LOG_RETENTION_DAYS
+        value: "365"
+      # v2.9.2 — Rétention backups (défaut 30 jours)
+      - key: BACKUP_RETENTION_DAYS
+        value: "30"
+      # v2.9.2 — Proxies de confiance (Render load balancer)
+      - key: TRUSTED_PROXIES
+        value: "0.0.0.0/0"
+      # v2.9.2 — Push DHIS2 (optionnel — laisser vide pour dry-run)
+      - key: DHIS2_URL
+        sync: false
+      - key: DHIS2_USERNAME
+        sync: false
+      - key: DHIS2_PASSWORD
+        sync: false
+      # v2.9.2 — Métriques Prometheus (token requis en prod)
+      - key: METRICS_TOKEN
+        sync: false
+      # v2.9.2 — Bootstrap token (création premier super-admin)
+      - key: BOOTSTRAP_TOKEN
+        sync: false
+
+  # ── Redis — Cache partagé + Celery broker ─────────────────────────
+  - type: redis
+    name: guineecare-redis
+    region: frankfurt
+    # v2.9.2 — Plan standard pour production ($10/mois, 50 connexions, persistance)
+    # Pour démo gratuite, mettre "free" (25MB, 24h d'inactivité)
+    plan: starter
+    ipAllowList: # Sécurité : n'autoriser que le service backend Render
+      - source: 0.0.0.0/0
+        description: Render services (auto-IP)
+    maxmemoryPolicy: allkeys-lru # Éviction LRU quand Redis plein
+
+  # ── Celery worker — Tâches asynchrones ────────────────────────────
+  - type: worker
+    name: guineecare-worker
+    runtime: python
+    region: frankfurt
+    plan: starter # $7/mois
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # v2.9.2 — Worker Celery (consomme la file Redis)
+    # -c 2 = 2 workers concurrents (suffisant pour le pilote)
+    # --max-tasks-per-child=100 = recycle le worker après 100 tâches (évite fuites mémoire)
+    startCommand: celery -A app.tasks.celery_app worker --loglevel=info -c 2 --max-tasks-per-child=100
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        sync: false  # Même DB que le web service
+      - key: AUTH_SECRET
+        sync: false
+      - key: REDIS_URL
+        from: guineecare-redis
+      - key: CELERY_BROKER_URL
+        from: guineecare-redis
+      - key: CELERY_RESULT_BACKEND
+        from: guineecare-redis
+      - key: AUDIT_LOG_RETENTION_DAYS
+        value: "365"
+      - key: BACKUP_RETENTION_DAYS
+        value: "30"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      # Le worker a aussi besoin des credentials DHIS2 pour le push mensuel
+      - key: DHIS2_URL
+        sync: false
+      - key: DHIS2_USERNAME
+        sync: false
+      - key: DHIS2_PASSWORD
+        sync: false
+
+  # ── Celery beat — Planificateur de tâches ─────────────────────────
+  # Séparé du worker pour éviter les doublons en cas de scale-out
+  - type: worker
+    name: guineecare-beat
+    runtime: python
+    region: frankfurt
+    plan: starter # $7/mois
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # v2.9.2 — Beat scheduler (déclenche les tâches cron)
+    startCommand: celery -A app.tasks.celery_app beat --loglevel=info
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: AUTH_SECRET
+        sync: false
+      - key: REDIS_URL
+        from: guineecare-redis
+      - key: CELERY_BROKER_URL
+        from: guineecare-redis
+      - key: CELERY_RESULT_BACKEND
+        from: guineecare-redis
+      - key: LOG_LEVEL
+        value: INFO
+      - key: PYTHON_VERSION
+        value: "3.12.0"
