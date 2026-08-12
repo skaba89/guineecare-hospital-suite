@@ -12,14 +12,18 @@ from __future__ import annotations
 import os
 from types import SimpleNamespace
 
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import sessionmaker
 
+from app.core.security import create_access_token
 from app.core.tenant import bind_tenant_context
 from app.db.session import SessionLocal
+from app.modules.auth.dependencies import get_current_user
 from app.modules.facilities.models import Facility
 from app.modules.patients.models import Patient
+from app.modules.users.models import User
 
 
 FACILITY_A = "00000000-0000-0000-0000-00000000a001"
@@ -27,6 +31,8 @@ FACILITY_B = "00000000-0000-0000-0000-00000000b001"
 PATIENT_A = "00000000-0000-0000-0000-00000000a101"
 PATIENT_B = "00000000-0000-0000-0000-00000000b101"
 PATIENT_BAD = "00000000-0000-0000-0000-00000000b199"
+USER_A = "00000000-0000-0000-0000-00000000a201"
+USER_EMAIL = "rls-ci-user@guineecare.test"
 PREFIX = "RLS-CI-"
 
 
@@ -45,9 +51,11 @@ def _seed(admin_url: str) -> None:
     AdminSession = sessionmaker(bind=engine)
     db = AdminSession()
     try:
+        # Delete children/users before facilities so the fixture is idempotent.
         db.query(Patient).filter(Patient.patient_number.like(f"{PREFIX}%")).delete(
             synchronize_session=False
         )
+        db.query(User).filter(User.email == USER_EMAIL).delete(synchronize_session=False)
         db.query(Facility).filter(Facility.id.in_([FACILITY_A, FACILITY_B])).delete(
             synchronize_session=False
         )
@@ -58,6 +66,19 @@ def _seed(admin_url: str) -> None:
                 Facility(id=FACILITY_A, code="RLS-A", name="RLS Facility A"),
                 Facility(id=FACILITY_B, code="RLS-B", name="RLS Facility B"),
             ]
+        )
+        db.flush()
+        db.add(
+            User(
+                id=USER_A,
+                facility_id=FACILITY_A,
+                email=USER_EMAIL,
+                password_hash="not-used-by-rls-test",
+                first_name="RLS",
+                last_name="User",
+                role="DOCTOR",
+                is_active=True,
+            )
         )
         db.add_all(
             [
@@ -91,6 +112,7 @@ def _cleanup(admin_url: str) -> None:
         db.query(Patient).filter(Patient.patient_number.like(f"{PREFIX}%")).delete(
             synchronize_session=False
         )
+        db.query(User).filter(User.email == USER_EMAIL).delete(synchronize_session=False)
         db.query(Facility).filter(Facility.id.in_([FACILITY_A, FACILITY_B])).delete(
             synchronize_session=False
         )
@@ -112,6 +134,33 @@ def _assert_application_role_is_safe(db) -> None:
     ).one()
     assert row.rolsuper is False, "Application role must not be SUPERUSER"
     assert row.rolbypassrls is False, "Application role must not have BYPASSRLS"
+
+
+def _assert_authenticated_context_uses_database_identity() -> None:
+    """A signed but stale/misleading JWT cannot select another tenant/role."""
+    db = SessionLocal()
+    try:
+        # Deliberately mint claims that disagree with the database row. The
+        # signed token says Facility B + SUPER_ADMIN, while USER_A is a DOCTOR
+        # assigned to Facility A in the authoritative users table.
+        misleading_token = create_access_token(
+            subject=USER_A,
+            facility_id=FACILITY_B,
+            role="SUPER_ADMIN",
+        )
+        credentials = HTTPAuthorizationCredentials(
+            scheme="Bearer",
+            credentials=misleading_token,
+        )
+
+        current_user = get_current_user(credentials=credentials, db=db)
+        assert current_user.facility_id == FACILITY_A
+        assert current_user.role == "DOCTOR"
+        assert _patient_numbers(db) == {f"{PREFIX}A"}, (
+            "RLS followed JWT tenant/role claims instead of the database identity"
+        )
+    finally:
+        db.close()
 
 
 def _assert_all_required_facility_tables_are_forced(admin_url: str) -> None:
@@ -194,6 +243,7 @@ def main() -> None:
         finally:
             db.close()
 
+        _assert_authenticated_context_uses_database_identity()
         _assert_all_required_facility_tables_are_forced(admin_url)
         print("PASS: PostgreSQL RLS is fail-closed and tenant isolation is enforced")
     finally:
