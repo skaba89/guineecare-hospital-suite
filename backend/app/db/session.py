@@ -1,8 +1,9 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.config import settings
+from app.core.tenant import apply_tenant_context_after_begin, clear_tenant_context
 
 # v2.8.9 — Optimisation connection pool pour Neon PostgreSQL
 # Neon serverless a des latences variables (cold start ~800ms).
@@ -26,10 +27,18 @@ if settings.database_url.startswith("sqlite"):
 engine = create_engine(settings.database_url, **engine_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# PostgreSQL set_config(..., true) is transaction-local. Routes frequently call
+# db.commit(), so the trusted tenant context must be reinstalled every time the
+# Session opens a new database transaction. The listener is harmless on SQLite.
+event.listen(SessionLocal.class_, "after_begin", apply_tenant_context_after_begin)
+
 
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
+        # Session objects are normally short-lived, but explicitly clearing the
+        # in-memory context makes accidental Session reuse fail closed as well.
+        clear_tenant_context(db)
         db.close()
