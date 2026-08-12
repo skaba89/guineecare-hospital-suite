@@ -31,7 +31,7 @@ def upgrade():
         sa.Column("severity", sa.String(30), nullable=False),
         sa.Column("status", sa.String(30), nullable=False, server_default="OPEN"),
         sa.Column("affected_patients_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("notified_authority", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column("notified_authority", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("notified_at", sa.DateTime(), nullable=True),
         sa.Column("authority_name", sa.String(255), nullable=True),
         sa.Column("resolution_notes", sa.Text(), nullable=True),
