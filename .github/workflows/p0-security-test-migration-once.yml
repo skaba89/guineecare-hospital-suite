@@ -1,0 +1,40 @@
+name: p0-security-test-migration-once
+
+on:
+  push:
+    branches:
+      - agent/p0-security-dependency-baseline
+    paths:
+      - .github/workflows/p0-security-test-migration-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout security branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/p0-security-dependency-baseline
+
+      - name: Migrate remaining test import to PyJWT
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('backend/tests/test_security_v09.py')
+          text = path.read_text(encoding='utf-8')
+          old = 'from jose import jwt'
+          if old not in text:
+              raise SystemExit('Legacy jose import not found; refusing unrelated edit')
+          path.write_text(text.replace(old, 'import jwt', 1), encoding='utf-8')
+          PY
+
+      - name: Commit migration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/tests/test_security_v09.py
+          git commit -m "test: migrate security suite to PyJWT"
+          git push origin HEAD:agent/p0-security-dependency-baseline
