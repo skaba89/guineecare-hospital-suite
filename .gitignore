@@ -21,6 +21,12 @@ dist/
 .env.production
 .env.local
 
+# Secrets / TLS / database backups
+*.pem
+*.key
+tls/
+*.dump
+
 # IDE
 .vscode/
 .idea/
