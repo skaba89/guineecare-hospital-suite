@@ -10,7 +10,17 @@ conftest forces SQLite. It is executed by the dedicated GitHub Actions RLS job.
 from __future__ import annotations
 
 import os
+import sys
+from pathlib import Path
 from types import SimpleNamespace
+
+# When Python executes `backend/scripts/test_postgres_rls.py` directly it puts
+# `backend/scripts` (not `backend`) on sys.path. Add the backend project root so
+# imports such as `app.core.security` behave exactly like the application and
+# Alembic commands executed from the backend working directory.
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import create_engine, text
