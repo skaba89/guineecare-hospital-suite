@@ -396,7 +396,7 @@ def logout(
         try:
             from app.core.security import decode_access_token
             from app.modules.auth.jti import revoke_jti
-            from jose import JWTError
+            import jwt
 
             token_payload = decode_access_token(payload.access_token)
             token_jti = token_payload.get("jti")
@@ -414,7 +414,7 @@ def logout(
                 reason="logout",
                 expires_at=expires_at,
             )
-        except JWTError:
+        except jwt.InvalidTokenError:
             # Token might be expired or invalid — nothing to revoke.
             pass
         except Exception as e:
