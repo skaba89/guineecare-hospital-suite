@@ -23,6 +23,9 @@ def _parse_trusted_proxies(raw: str) -> list[str]:
 
 class Settings(BaseModel):
     app_name: str = os.environ.get("APP_NAME", "GuineeCare Hospital Suite")
+    # Guinea-first deployment default. Other countries can switch profiles
+    # without changing shared clinical code.
+    country_code: str = os.environ.get("COUNTRY_CODE", "GN").strip().upper() or "GN"
     environment: str = os.environ.get("ENVIRONMENT", "local")
     api_prefix: str = os.environ.get("API_PREFIX", "/api/v1")
     database_url: str = os.environ.get("DATABASE_URL", "postgresql://guineecare:guineecare@localhost:5432/guineecare")
