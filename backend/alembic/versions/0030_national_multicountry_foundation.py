@@ -19,6 +19,24 @@ depends_on = None
 
 
 def upgrade():
+    bind = op.get_bind()
+
+    # Alembic creates `alembic_version.version_num` as VARCHAR(32) by default.
+    # This national revision identifier is intentionally descriptive and is
+    # longer than 32 characters. PostgreSQL enforces VARCHAR length strictly,
+    # so widen the control-plane column before Alembic records this revision.
+    # We intentionally do not shrink it in downgrade: while downgrading from
+    # this revision the long identifier is still stored in alembic_version,
+    # and future revision names may also legitimately exceed 32 characters.
+    if bind.dialect.name == "postgresql":
+        op.alter_column(
+            "alembic_version",
+            "version_num",
+            existing_type=sa.String(length=32),
+            type_=sa.String(length=64),
+            existing_nullable=False,
+        )
+
     op.add_column(
         "facilities",
         sa.Column("country_code", sa.String(2), nullable=False, server_default="GN"),
