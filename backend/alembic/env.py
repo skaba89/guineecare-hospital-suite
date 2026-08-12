@@ -2,7 +2,7 @@ from logging.config import fileConfig
 import os
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, pool, text
 
 from app.db.base import Base
 
@@ -60,6 +60,20 @@ def run_migrations_online():
         )
 
         with context.begin_transaction():
+            # Starting with revision 0031, FORCE ROW LEVEL SECURITY also
+            # applies policies to ordinary table owners. Alembic is a trusted
+            # control-plane process and must be able to perform national
+            # backfills/repairs in future migrations. Give the migration
+            # transaction an explicit national context rather than relying on
+            # SUPERUSER/BYPASSRLS. A runtime application role should not own
+            # the schema and therefore still cannot use Alembic for DDL.
+            if connection.dialect.name == "postgresql":
+                connection.execute(
+                    text("SELECT set_config('app.is_super_admin', 'true', true)")
+                )
+                connection.execute(
+                    text("SELECT set_config('app.current_facility_id', '', true)")
+                )
             context.run_migrations()
 
 
