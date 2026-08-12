@@ -24,7 +24,7 @@ def upgrade():
         sa.Column("totp_secret", sa.String(64), nullable=False),
         sa.Column("backup_codes_hash", sa.Text(), nullable=True),
         sa.Column("backup_codes_used", sa.Text(), nullable=True),
-        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("enabled_at", sa.DateTime(), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
