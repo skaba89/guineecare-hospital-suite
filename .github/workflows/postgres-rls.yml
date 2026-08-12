@@ -1,0 +1,111 @@
+name: postgres-rls
+
+on:
+  pull_request:
+    paths:
+      - 'backend/app/core/tenant.py'
+      - 'backend/app/db/session.py'
+      - 'backend/app/modules/auth/dependencies.py'
+      - 'backend/alembic/versions/**'
+      - 'backend/scripts/test_postgres_rls.py'
+      - 'backend/tests/test_rls_context.py'
+      - '.github/workflows/postgres-rls.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'backend/app/core/tenant.py'
+      - 'backend/app/db/session.py'
+      - 'backend/app/modules/auth/dependencies.py'
+      - 'backend/alembic/versions/**'
+      - 'backend/scripts/test_postgres_rls.py'
+      - 'backend/tests/test_rls_context.py'
+      - '.github/workflows/postgres-rls.yml'
+
+jobs:
+  postgres-rls:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: guineecare_rls
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d guineecare_rls"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      AUTH_SECRET: rls-ci-secret-key
+      ENVIRONMENT: test
+      CORS_ORIGINS: '["*"]'
+      RLS_ADMIN_DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/guineecare_rls
+      DATABASE_URL: postgresql+psycopg2://guineecare_app:guineecare_app_ci@localhost:5432/guineecare_rls
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Apply Alembic migrations as database owner
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ env.RLS_ADMIN_DATABASE_URL }}
+        run: alembic upgrade head
+
+      - name: Create restricted application database role
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d guineecare_rls -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'guineecare_app') THEN
+              CREATE ROLE guineecare_app
+                LOGIN
+                PASSWORD 'guineecare_app_ci'
+                NOSUPERUSER
+                NOCREATEDB
+                NOCREATEROLE
+                NOINHERIT
+                NOBYPASSRLS;
+            END IF;
+          END
+          $$;
+
+          GRANT CONNECT ON DATABASE guineecare_rls TO guineecare_app;
+          GRANT USAGE ON SCHEMA public TO guineecare_app;
+          GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO guineecare_app;
+          GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO guineecare_app;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public
+            GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO guineecare_app;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public
+            GRANT USAGE, SELECT ON SEQUENCES TO guineecare_app;
+          SQL
+
+      - name: Run SQLite tenant-context unit tests
+        working-directory: backend
+        env:
+          DATABASE_URL: sqlite:///./test_guineecare.db
+        run: pytest -q --tb=short tests/test_rls_context.py
+
+      - name: Run real PostgreSQL RLS isolation tests
+        working-directory: backend
+        run: python scripts/test_postgres_rls.py
