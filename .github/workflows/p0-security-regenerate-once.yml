@@ -62,4 +62,7 @@ jobs:
             exit 0
           fi
           git commit -m "chore: refresh security dependency artifacts"
+          git pull --rebase origin agent/p0-security-dependency-baseline
           git push origin HEAD:agent/p0-security-dependency-baseline
+
+# rerun after PyJWT compatibility migration
