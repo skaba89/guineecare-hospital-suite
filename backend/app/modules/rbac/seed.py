@@ -203,6 +203,8 @@ ROLE_PERMISSION_MAP = {
         "reporting.read",
         "notification.manage",
         "activity.read",
+        "feedback.read",
+        "feedback.resolve",
         "audit.read",
         "fhir.read",
     ],
