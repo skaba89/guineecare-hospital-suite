@@ -4,7 +4,7 @@ import secrets
 from uuid import uuid4
 from app.core.datetime import utcnow
 
-from jose import jwt
+import jwt
 from passlib.context import CryptContext
 
 from app.core.config import settings
@@ -34,9 +34,13 @@ def create_access_token(
 ) -> str:
     """Create a signed JWT access token.
 
-    SECURITY (A07 — v0.9.0): every token now includes a unique `jti` (JWT ID)
+    SECURITY (A07 — v0.9.0): every token includes a unique `jti` (JWT ID)
     so that it can be revoked before its natural expiry via the `revoked_jtis`
     blacklist table. If `jti` is not provided, a random UUID is generated.
+
+    PyJWT is used instead of python-jose to avoid installing the unused native
+    crypto fallback dependencies (ecdsa/rsa/pyasn1) when the cryptography
+    backend is already the intended production backend.
     """
     expire = utcnow() + (expires_delta or timedelta(minutes=settings.token_expire_minutes))
     payload: dict = {

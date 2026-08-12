@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from jose import jwt
+import jwt
 
 from app.core.config import Settings, is_ip_trusted, settings
 from app.core.datetime import utcnow

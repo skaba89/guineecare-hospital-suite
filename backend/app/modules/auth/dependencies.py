@@ -1,6 +1,6 @@
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+import jwt
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -29,7 +29,7 @@ def get_current_user(
         token_role = payload.get("role")
         token_jti = payload.get("jti")
         token_iat = payload.get("iat")  # issued-at (unix timestamp)
-    except JWTError:
+    except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Jeton d'authentification invalide")
 
     if not user_id:
