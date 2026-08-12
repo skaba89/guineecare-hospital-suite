@@ -5,7 +5,7 @@ Revises: 0019_rh_v2
 Create Date: 2026-06-22
 
 Ajoute 5 champs médicaux à la table `patients` :
-- `blood_type` (String(10), NOT NULL, default 'NON_RENSEIGNE')
+- `blood_type` (String(20), NOT NULL, default 'NON_RENSEIGNE')
 - `allergies` (Text, NOT NULL, default 'Non renseigné')
 - `medical_history` (Text, NOT NULL, default 'Non renseigné')
 - `current_medication` (Text, NOT NULL, default 'Non renseigné')
@@ -30,12 +30,15 @@ depends_on = None
 
 
 def upgrade():
-    # blood_type
+    # blood_type — String(20) matches the ORM model and accommodates the
+    # sentinel NON_RENSEIGNE (13 chars). The former String(10) made a fresh
+    # PostgreSQL migration invalid because its own server default was longer
+    # than the column.
     op.add_column(
         "patients",
         sa.Column(
             "blood_type",
-            sa.String(10),
+            sa.String(20),
             nullable=False,
             server_default="NON_RENSEIGNE",
         ),

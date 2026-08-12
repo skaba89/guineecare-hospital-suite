@@ -4,6 +4,7 @@ import jwt
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.tenant import bind_tenant_context
 from app.db.session import get_db
 from app.modules.auth.jti import is_jti_revoked
 from app.modules.users.models import User
@@ -40,6 +41,10 @@ def get_current_user(
     if is_jti_revoked(db, token_jti):
         raise HTTPException(status_code=401, detail="Jeton révoqué")
 
+    # Identity/control-plane tables are intentionally outside the first RLS
+    # policy set so authentication can resolve the user before tenant context
+    # exists. Once this trusted DB row is loaded, all protected business data
+    # is scoped using the CURRENT database values below, not request input.
     user = db.query(User).filter(User.id == user_id).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="Utilisateur inactif ou inconnu")
@@ -51,8 +56,6 @@ def get_current_user(
     # en invalidant rétroactivement les tokens déjà émis.
     last_disabled_at = getattr(user, "last_disabled_at", None)
     if last_disabled_at is not None and token_iat is not None:
-        # token_iat est en secondes unix ; last_disabled_at est un datetime.
-        # Si le token a été émis AVANT la dernière désactivation → refuser.
         from datetime import datetime, timezone
         try:
             iat_dt = datetime.fromtimestamp(int(token_iat), tz=timezone.utc)
@@ -65,10 +68,14 @@ def get_current_user(
                     detail="Session expirée — veuillez vous reconnecter",
                 )
         except (ValueError, TypeError):
-            # iat malformé — refuser par sécurité
             raise HTTPException(status_code=401, detail="Jeton d'authentification invalide")
 
-    # Attach JWT claims to the user object for downstream use
+    # Bind the authoritative facility/role from the database to PostgreSQL RLS.
+    # A stale JWT claim therefore cannot move a user to another tenant.
+    bind_tenant_context(db, user)
+
+    # Attach JWT claims to the user object for downstream compatibility. These
+    # claims are informational; RLS authorization uses the database row above.
     user._token_facility_id = token_facility_id
     user._token_role = token_role
     user._token_jti = token_jti

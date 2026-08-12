@@ -55,7 +55,9 @@ def upgrade():
         sa.Column("days_of_week", sa.String(32), nullable=True),
         sa.Column("required_staff_count", sa.Integer(), nullable=False, server_default="1"),
         sa.Column("required_profession", sa.String(100), nullable=True),
-        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        # PostgreSQL rejects integer DEFAULT 1 for BOOLEAN; sa.true() compiles
+        # to the correct native literal while remaining compatible with SQLite.
+        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column("description", sa.Text(), nullable=True),
     )
     op.create_index("ix_shifts_facility_id", "shifts", ["facility_id"])

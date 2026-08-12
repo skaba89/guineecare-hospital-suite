@@ -35,7 +35,10 @@ def upgrade():
         sa.Column("id", sa.String(36), primary_key=True),
         sa.Column("code", sa.String(32), unique=True, nullable=False),
         sa.Column("name", sa.String(128), nullable=False),
-        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        # Use a SQL boolean literal so fresh migrations work on PostgreSQL as
+        # well as SQLite. PostgreSQL does not accept integer DEFAULT 1 for a
+        # BOOLEAN column.
+        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column("api_url", sa.String(512), nullable=True),
         sa.Column("api_key_encrypted", sa.Text(), nullable=True),
         sa.Column("api_secret_encrypted", sa.Text(), nullable=True),
@@ -91,7 +94,7 @@ def upgrade():
         sa.Column("channels", sa.String(64), nullable=False, server_default="in_app"),
         sa.Column("min_priority", sa.String(16), nullable=False, server_default="normal"),
         sa.Column("preferred_provider_id", sa.String(36), sa.ForeignKey("sms_providers.id"), nullable=True),
-        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column("description", sa.Text(), nullable=True),
     )
     op.create_index("ix_sms_routing_rules_facility_id", "sms_routing_rules", ["facility_id"])
