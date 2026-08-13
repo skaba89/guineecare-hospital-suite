@@ -1,0 +1,311 @@
+name: p0-rls-nullable-build-once
+
+on:
+  push:
+    branches:
+      - agent/p0-rls-nullable-policies
+    paths:
+      - .github/workflows/p0-rls-nullable-build-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/p0-rls-nullable-policies
+
+      - name: Extend trusted RLS context
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('backend/app/core/tenant.py')
+          s = p.read_text()
+          replacements = [
+            ("- app.current_facility_id: facility UUID for a facility-scoped user\n- app.is_super_admin: explicit cross-tenant flag (\"true\" / \"false\")",
+             "- app.current_facility_id: facility UUID for a facility-scoped user\n- app.current_user_id: authenticated user UUID\n- app.current_role: authoritative role loaded from the users table\n- app.is_super_admin: explicit cross-tenant flag (\"true\" / \"false\")"),
+            ("_RLS_SUPER_ADMIN_INFO_KEY = \"guineecare_rls_is_super_admin\"\n",
+             "_RLS_SUPER_ADMIN_INFO_KEY = \"guineecare_rls_is_super_admin\"\n_RLS_USER_INFO_KEY = \"guineecare_rls_user_id\"\n_RLS_ROLE_INFO_KEY = \"guineecare_rls_role\"\n"),
+            ("    facility_id: str | None,\n    is_super_admin: bool,\n) -> None:",
+             "    facility_id: str | None,\n    is_super_admin: bool,\n    user_id: str | None = None,\n    role: str | None = None,\n) -> None:"),
+            ("    connection.execute(\n        text(\"SELECT set_config('app.is_super_admin', :is_super_admin, true)\"),\n        {\"is_super_admin\": \"true\" if is_super_admin else \"false\"},\n    )\n",
+             "    connection.execute(\n        text(\"SELECT set_config('app.is_super_admin', :is_super_admin, true)\"),\n        {\"is_super_admin\": \"true\" if is_super_admin else \"false\"},\n    )\n    connection.execute(\n        text(\"SELECT set_config('app.current_user_id', :user_id, true)\"),\n        {\"user_id\": str(user_id) if user_id else \"\"},\n    )\n    connection.execute(\n        text(\"SELECT set_config('app.current_role', :role, true)\"),\n        {\"role\": str(role) if role else \"\"},\n    )\n"),
+            ("        session.info.get(_RLS_FACILITY_INFO_KEY),\n        bool(session.info.get(_RLS_SUPER_ADMIN_INFO_KEY, False)),\n    )",
+             "        session.info.get(_RLS_FACILITY_INFO_KEY),\n        bool(session.info.get(_RLS_SUPER_ADMIN_INFO_KEY, False)),\n        session.info.get(_RLS_USER_INFO_KEY),\n        session.info.get(_RLS_ROLE_INFO_KEY),\n    )"),
+            ("    is_super_admin = current_user.role in CROSS_TENANT_ROLES\n    facility_id = None if is_super_admin else current_user.facility_id\n\n    db.info[_RLS_FACILITY_INFO_KEY] = facility_id\n    db.info[_RLS_SUPER_ADMIN_INFO_KEY] = is_super_admin\n",
+             "    role = current_user.role\n    is_super_admin = role in CROSS_TENANT_ROLES\n    facility_id = None if is_super_admin else current_user.facility_id\n    user_id = getattr(current_user, 'id', None)\n\n    db.info[_RLS_FACILITY_INFO_KEY] = facility_id\n    db.info[_RLS_SUPER_ADMIN_INFO_KEY] = is_super_admin\n    db.info[_RLS_USER_INFO_KEY] = user_id\n    db.info[_RLS_ROLE_INFO_KEY] = role\n"),
+            ("        _apply_postgres_rls_context(db.connection(), facility_id, is_super_admin)\n",
+             "        _apply_postgres_rls_context(\n            db.connection(), facility_id, is_super_admin, user_id, role\n        )\n"),
+            ("    db.info.pop(_RLS_FACILITY_INFO_KEY, None)\n    db.info.pop(_RLS_SUPER_ADMIN_INFO_KEY, None)\n",
+             "    db.info.pop(_RLS_FACILITY_INFO_KEY, None)\n    db.info.pop(_RLS_SUPER_ADMIN_INFO_KEY, None)\n    db.info.pop(_RLS_USER_INFO_KEY, None)\n    db.info.pop(_RLS_ROLE_INFO_KEY, None)\n"),
+          ]
+          for old, new in replacements:
+              if old not in s:
+                  raise SystemExit(f'Expected tenant.py fragment not found: {old[:80]!r}')
+              s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+
+      - name: Create nullable RLS migration
+        run: |
+          cat > backend/alembic/versions/0032_nullable_facility_rls.py <<'PY'
+          """business-specific RLS for nullable facility_id tables
+
+          Revision ID: 0032_nullable_facility_rls
+          Revises: 0031_postgres_rls_fail_closed
+          Create Date: 2026-08-13
+          """
+          from alembic import op
+          import sqlalchemy as sa
+
+          revision = "0032_nullable_facility_rls"
+          down_revision = "0031_postgres_rls_fail_closed"
+          branch_labels = None
+          depends_on = None
+
+          POLICY_TABLES = {"data_breaches", "notifications", "user_feedback"}
+          CONTROL_PLANE_EXEMPTIONS = {"users", "refresh_tokens", "audit_logs"}
+
+          def _q(bind, name):
+              return bind.dialect.identifier_preparer.quote(name)
+
+          def _nullable_facility_tables(bind):
+              return {
+                  row[0]
+                  for row in bind.execute(sa.text("""
+                      SELECT table_name
+                      FROM information_schema.columns
+                      WHERE table_schema = current_schema()
+                        AND column_name = 'facility_id'
+                        AND is_nullable = 'YES'
+                  """)).fetchall()
+              }
+
+          def _enable(bind, table):
+              t = _q(bind, table)
+              op.execute(sa.text(f"ALTER TABLE {t} ENABLE ROW LEVEL SECURITY"))
+              op.execute(sa.text(f"ALTER TABLE {t} FORCE ROW LEVEL SECURITY"))
+
+          def _drop_all(bind, table):
+              t = _q(bind, table)
+              rows = bind.execute(sa.text("""
+                  SELECT policyname FROM pg_policies
+                  WHERE schemaname = current_schema() AND tablename = :table
+              """), {"table": table}).fetchall()
+              for row in rows:
+                  op.execute(sa.text(f"DROP POLICY IF EXISTS {_q(bind, row[0])} ON {t}"))
+
+          def _create(bind, table, name, command, using=None, check=None):
+              t = _q(bind, table)
+              p = _q(bind, name)
+              sql = f"CREATE POLICY {p} ON {t} FOR {command} TO PUBLIC"
+              if using:
+                  sql += f" USING ({using})"
+              if check:
+                  sql += f" WITH CHECK ({check})"
+              op.execute(sa.text(sql))
+
+          def upgrade():
+              bind = op.get_bind()
+              if bind.dialect.name != "postgresql":
+                  return
+
+              nullable = _nullable_facility_tables(bind)
+              unknown = nullable - POLICY_TABLES - CONTROL_PLANE_EXEMPTIONS
+              if unknown:
+                  raise RuntimeError(
+                      "Nullable facility_id tables require explicit RLS classification: "
+                      + ", ".join(sorted(unknown))
+                  )
+
+              super_admin = "COALESCE(current_setting('app.is_super_admin', true), 'false') = 'true'"
+              facility = "facility_id::text = NULLIF(current_setting('app.current_facility_id', true), '')"
+              user = "user_id::text = NULLIF(current_setting('app.current_user_id', true), '')"
+              recipient = "recipient_id::text = NULLIF(current_setting('app.current_user_id', true), '')"
+              role_admin = "current_setting('app.current_role', true) = 'ADMIN'"
+              sender = "sender_id::text = NULLIF(current_setting('app.current_user_id', true), '')"
+              has_user = "NULLIF(current_setting('app.current_user_id', true), '') IS NOT NULL"
+
+              if "data_breaches" in nullable:
+                  _enable(bind, "data_breaches")
+                  _drop_all(bind, "data_breaches")
+                  expr = f"{super_admin} OR ({facility} AND facility_id IS NOT NULL)"
+                  _create(bind, "data_breaches", "guineecare_breach_scope", "ALL", expr, expr)
+
+              if "user_feedback" in nullable:
+                  _enable(bind, "user_feedback")
+                  _drop_all(bind, "user_feedback")
+                  read_expr = f"{super_admin} OR {user} OR ({role_admin} AND {facility})"
+                  admin_expr = f"{super_admin} OR ({role_admin} AND {facility})"
+                  insert_expr = f"{super_admin} OR ({user} AND {facility})"
+                  _create(bind, "user_feedback", "guineecare_feedback_select", "SELECT", read_expr)
+                  _create(bind, "user_feedback", "guineecare_feedback_insert", "INSERT", check=insert_expr)
+                  _create(bind, "user_feedback", "guineecare_feedback_update", "UPDATE", admin_expr, admin_expr)
+                  _create(bind, "user_feedback", "guineecare_feedback_delete", "DELETE", admin_expr)
+
+              if "notifications" in nullable:
+                  _enable(bind, "notifications")
+                  _drop_all(bind, "notifications")
+                  own = f"{super_admin} OR {recipient}"
+                  insert_expr = (
+                      f"{super_admin} OR ("
+                      f"{has_user} AND (sender_id IS NULL OR {sender}) AND ("
+                      f"({facility} AND facility_id IS NOT NULL) OR "
+                      f"(facility_id IS NULL AND {recipient})"
+                      f"))"
+                  )
+                  _create(bind, "notifications", "guineecare_notification_select", "SELECT", own)
+                  _create(bind, "notifications", "guineecare_notification_insert", "INSERT", check=insert_expr)
+                  _create(bind, "notifications", "guineecare_notification_update", "UPDATE", own, own)
+                  _create(bind, "notifications", "guineecare_notification_delete", "DELETE", own)
+
+          def downgrade():
+              bind = op.get_bind()
+              if bind.dialect.name != "postgresql":
+                  return
+              for table in POLICY_TABLES:
+                  if table not in _nullable_facility_tables(bind):
+                      continue
+                  _drop_all(bind, table)
+                  t = _q(bind, table)
+                  op.execute(sa.text(f"ALTER TABLE {t} NO FORCE ROW LEVEL SECURITY"))
+                  op.execute(sa.text(f"ALTER TABLE {t} DISABLE ROW LEVEL SECURITY"))
+          PY
+
+      - name: Add phase-2 PostgreSQL tests
+        run: |
+          cat > backend/scripts/test_postgres_rls_nullable.py <<'PY'
+          """PostgreSQL integration tests for nullable facility_id RLS policies."""
+          from __future__ import annotations
+          import os, sys
+          from pathlib import Path
+          from types import SimpleNamespace
+          BACKEND_ROOT = Path(__file__).resolve().parents[1]
+          sys.path.insert(0, str(BACKEND_ROOT)) if str(BACKEND_ROOT) not in sys.path else None
+
+          from sqlalchemy import create_engine, text
+          from sqlalchemy.exc import DBAPIError
+          from sqlalchemy.orm import sessionmaker
+          from app.core.tenant import bind_tenant_context
+          from app.db.session import SessionLocal
+          from app.modules.auth.models import DataBreach
+          from app.modules.facilities.models import Facility
+          from app.modules.notifications.models import Notification
+          from app.modules.user_profile.models import UserFeedback
+          from app.modules.users.models import User
+
+          A='10000000-0000-0000-0000-000000000001'; B='20000000-0000-0000-0000-000000000001'
+          UA='10000000-0000-0000-0000-000000000101'; AA='10000000-0000-0000-0000-000000000102'; UB='20000000-0000-0000-0000-000000000101'
+          FA='10000000-0000-0000-0000-000000000201'; FB='20000000-0000-0000-0000-000000000201'
+          NA='10000000-0000-0000-0000-000000000301'; NB='20000000-0000-0000-0000-000000000301'
+          BA='10000000-0000-0000-0000-000000000401'; BB='20000000-0000-0000-0000-000000000401'; BN='90000000-0000-0000-0000-000000000401'
+
+          def seed(url):
+              e=create_engine(url); S=sessionmaker(bind=e); d=S()
+              try:
+                  for model, ids in [(Notification,[NA,NB]),(UserFeedback,[FA,FB]),(DataBreach,[BA,BB,BN])]:
+                      d.query(model).filter(model.id.in_(ids)).delete(synchronize_session=False)
+                  d.query(User).filter(User.id.in_([UA,AA,UB])).delete(synchronize_session=False)
+                  d.query(Facility).filter(Facility.id.in_([A,B])).delete(synchronize_session=False); d.commit()
+                  d.add_all([Facility(id=A,code='RLS2-A',name='RLS2 A'),Facility(id=B,code='RLS2-B',name='RLS2 B')]); d.flush()
+                  d.add_all([
+                      User(id=UA,facility_id=A,email='rls2-a@test',password_hash='x',first_name='A',last_name='Doctor',role='DOCTOR',is_active=True),
+                      User(id=AA,facility_id=A,email='rls2-admin@test',password_hash='x',first_name='A',last_name='Admin',role='ADMIN',is_active=True),
+                      User(id=UB,facility_id=B,email='rls2-b@test',password_hash='x',first_name='B',last_name='Doctor',role='DOCTOR',is_active=True),
+                  ]); d.flush()
+                  d.add_all([
+                      UserFeedback(id=FA,user_id=UA,facility_id=A,category='bug',message='A feedback'),
+                      UserFeedback(id=FB,user_id=UB,facility_id=B,category='bug',message='B feedback'),
+                      Notification(id=NA,recipient_id=UA,facility_id=A,category='system',title='A notice'),
+                      Notification(id=NB,recipient_id=UB,facility_id=B,category='system',title='B notice'),
+                      DataBreach(id=BA,facility_id=A,reported_by=AA,title='A breach',description='A',severity='HIGH'),
+                      DataBreach(id=BB,facility_id=B,reported_by=UB,title='B breach',description='B',severity='HIGH'),
+                      DataBreach(id=BN,facility_id=None,reported_by=None,title='National breach',description='N',severity='CRITICAL'),
+                  ]); d.commit()
+              finally: d.close(); e.dispose()
+
+          def ids(db, model): return {r.id for r in db.query(model).all()}
+
+          def assert_blocked(fn):
+              blocked=False
+              try: fn()
+              except DBAPIError: blocked=True
+              assert blocked
+
+          def main():
+              admin=os.environ['RLS_ADMIN_DATABASE_URL']; seed(admin)
+              d=SessionLocal()
+              try:
+                  # No trusted identity: nullable protected data is fail-closed.
+                  assert ids(d, UserFeedback)==set(); assert ids(d, Notification)==set(); assert ids(d, DataBreach)==set()
+
+                  bind_tenant_context(d,SimpleNamespace(id=UA,role='DOCTOR',facility_id=A))
+                  assert ids(d,UserFeedback)=={FA}
+                  assert ids(d,Notification)=={NA}
+                  assert ids(d,DataBreach)=={BA}
+
+                  # Doctor cannot update feedback even when it is their own.
+                  f=d.query(UserFeedback).filter(UserFeedback.id==FA).one(); f.status='resolved'
+                  assert_blocked(d.commit); d.rollback()
+
+                  bind_tenant_context(d,SimpleNamespace(id=AA,role='ADMIN',facility_id=A))
+                  assert ids(d,UserFeedback)=={FA}
+                  f=d.query(UserFeedback).filter(UserFeedback.id==FA).one(); f.status='resolved'; d.commit()
+                  assert ids(d,Notification)==set(), 'facility admin must not read another user notification'
+                  assert ids(d,DataBreach)=={BA}
+
+                  bind_tenant_context(d,SimpleNamespace(id='90000000-0000-0000-0000-000000000999',role='SUPER_ADMIN',facility_id=None))
+                  assert ids(d,UserFeedback)=={FA,FB}
+                  assert ids(d,Notification)=={NA,NB}
+                  assert ids(d,DataBreach)=={BA,BB,BN}
+
+                  # RLS identity includes trusted database user/role values.
+                  row=d.execute(text("SELECT current_setting('app.current_role', true), current_setting('app.current_user_id', true)" )).one()
+                  assert row[0]=='SUPER_ADMIN' and row[1]
+              finally: d.close()
+              print('PASS: nullable facility_id RLS policies enforce user, facility and national scopes')
+
+          if __name__=='__main__': main()
+          PY
+
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('.github/workflows/postgres-rls.yml'); s=p.read_text()
+          s=s.replace("      - 'backend/scripts/test_postgres_rls.py'\n", "      - 'backend/scripts/test_postgres_rls.py'\n      - 'backend/scripts/test_postgres_rls_nullable.py'\n", 2)
+          s=s.replace("      - name: Run real PostgreSQL RLS isolation tests\n        working-directory: backend\n        run: python scripts/test_postgres_rls.py\n",
+                      "      - name: Run real PostgreSQL RLS isolation tests\n        working-directory: backend\n        run: |\n          python scripts/test_postgres_rls.py\n          python scripts/test_postgres_rls_nullable.py\n")
+          p.write_text(s)
+          PY
+
+      - name: Document nullable policy classification
+        run: |
+          cat > docs/security/POSTGRES_RLS_NULLABLE.md <<'MD'
+          # PostgreSQL RLS — `facility_id` nullable
+
+          `NULL` is never interpreted as "globally visible" by default.
+
+          ## Protected tables
+
+          - `data_breaches`: facility rows are visible only in that facility; `facility_id=NULL` is national and SUPER_ADMIN-only.
+          - `user_feedback`: users can read their own feedback; ADMIN can triage feedback in their facility; only ADMIN/SUPER_ADMIN can update/delete.
+          - `notifications`: read/update/delete are recipient-scoped; insert is restricted to a trusted authenticated context and same-facility/self scope.
+
+          ## Explicit control-plane exemptions
+
+          - `users`: authentication must resolve a user before tenant context exists. Application auth/RBAC remains authoritative; a future hardening can use a dedicated auth DB role or SECURITY DEFINER lookup.
+          - `refresh_tokens`: token rotation/refresh happens before normal authenticated tenant context.
+          - `audit_logs`: login/security events can be emitted before tenant context and global security events legitimately have no facility. API read access remains RBAC/facility-scoped; the table stays append-only at application level.
+
+          Migration `0032_nullable_facility_rls` fails if any other nullable `facility_id` table exists without an explicit classification. This makes future schema changes fail closed at migration time.
+          MD
+
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/app/core/tenant.py backend/alembic/versions/0032_nullable_facility_rls.py backend/scripts/test_postgres_rls_nullable.py .github/workflows/postgres-rls.yml docs/security/POSTGRES_RLS_NULLABLE.md
+          git commit -m "security: enforce RLS for nullable facility scopes"
+          git push origin HEAD:agent/p0-rls-nullable-policies
