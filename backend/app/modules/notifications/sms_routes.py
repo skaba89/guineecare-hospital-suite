@@ -221,6 +221,8 @@ def test_provider(
     row = db.query(SmsProvider).filter(SmsProvider.id == provider_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Provider introuvable")
+    if current_user.role != "SUPER_ADMIN" and not current_user.facility_id:
+        raise HTTPException(status_code=403, detail="Utilisateur non rattaché à un établissement")
 
     body = payload.body or "Test GuinéeCare v1.4 — veuillez ignorer"
     msg = send_sms(
@@ -271,11 +273,14 @@ def list_rules(
 
     query = db.query(SmsRoutingRule)
     if current_user.role != "SUPER_ADMIN":
-        # ADMIN : règles globales + règles de sa facility
-        query = query.filter(
-            (SmsRoutingRule.facility_id.is_(None)) |
-            (SmsRoutingRule.facility_id == current_user.facility_id)
-        )
+        if not current_user.facility_id:
+            query = query.filter(SmsRoutingRule.id == "__NO_FACILITY__")
+        else:
+            # ADMIN : règles globales + règles de sa facility
+            query = query.filter(
+                (SmsRoutingRule.facility_id.is_(None)) |
+                (SmsRoutingRule.facility_id == current_user.facility_id)
+            )
     if facility_id:
         enforce_facility_access(current_user, facility_id)
         query = query.filter(SmsRoutingRule.facility_id == facility_id)
@@ -295,8 +300,16 @@ def create_rule(
     current_user: User = Depends(require_permission("notification.manage")),
 ):
     """Crée une règle de routage SMS."""
-    if payload.facility_id:
-        enforce_facility_access(current_user, payload.facility_id)
+    rule_facility_id = payload.facility_id
+    if current_user.role != "SUPER_ADMIN":
+        if not current_user.facility_id:
+            raise HTTPException(status_code=403, detail="Utilisateur non rattaché à un établissement")
+        if rule_facility_id:
+            enforce_facility_access(current_user, rule_facility_id)
+        else:
+            rule_facility_id = current_user.facility_id
+    elif rule_facility_id:
+        enforce_facility_access(current_user, rule_facility_id)
 
     # Dédoublonnage : une seule règle enabled par (facility_id, category)
     base_q = (
@@ -304,8 +317,8 @@ def create_rule(
         .filter(SmsRoutingRule.category == payload.category)
         .filter(SmsRoutingRule.enabled.is_(True))
     )
-    if payload.facility_id:
-        existing = base_q.filter(SmsRoutingRule.facility_id == payload.facility_id).first()
+    if rule_facility_id:
+        existing = base_q.filter(SmsRoutingRule.facility_id == rule_facility_id).first()
     else:
         existing = base_q.filter(SmsRoutingRule.facility_id.is_(None)).first()
     if existing:
@@ -315,7 +328,7 @@ def create_rule(
         )
 
     row = SmsRoutingRule(
-        facility_id=payload.facility_id,
+        facility_id=rule_facility_id,
         category=payload.category,
         channels=",".join(payload.channels) if payload.channels else "in_app",
         min_priority=payload.min_priority,
@@ -352,6 +365,8 @@ def update_rule(
     row = db.query(SmsRoutingRule).filter(SmsRoutingRule.id == rule_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Règle introuvable")
+    if row.facility_id is None and current_user.role != "SUPER_ADMIN":
+        raise HTTPException(status_code=403, detail="Seul un SUPER_ADMIN peut modifier une règle SMS globale")
     enforce_facility_access(current_user, row.facility_id)
 
     if payload.channels is not None:
@@ -392,6 +407,8 @@ def delete_rule(
     row = db.query(SmsRoutingRule).filter(SmsRoutingRule.id == rule_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Règle introuvable")
+    if row.facility_id is None and current_user.role != "SUPER_ADMIN":
+        raise HTTPException(status_code=403, detail="Seul un SUPER_ADMIN peut supprimer une règle SMS globale")
     enforce_facility_access(current_user, row.facility_id)
     cat_snapshot = row.category
     db.delete(row)
@@ -427,6 +444,8 @@ def admin_send_sms(
     facility_id = payload.facility_id or current_user.facility_id
     if payload.facility_id:
         enforce_facility_access(current_user, payload.facility_id)
+    if current_user.role != "SUPER_ADMIN" and not facility_id:
+        raise HTTPException(status_code=403, detail="Utilisateur non rattaché à un établissement")
 
     msg = send_sms(
         db=db,
@@ -460,10 +479,13 @@ def retry_message(
     current_user: User = Depends(require_permission("notification.send")),
 ):
     """Retente l'envoi d'un SMS échoué. Maximum 3 tentatives cumulées."""
+    existing = tenant_query(db, SmsMessage, current_user).filter(SmsMessage.id == message_id).first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="SMS introuvable")
+
     msg = retry_failed_sms(db, message_id)
     if not msg:
         raise HTTPException(status_code=404, detail="SMS introuvable")
-    enforce_facility_access(current_user, msg.facility_id)
 
     audit_log(
         db=db,
@@ -522,6 +544,8 @@ def get_stats(
     ne voient que leur facility.
     """
     if current_user.role != "SUPER_ADMIN":
+        if not current_user.facility_id:
+            raise HTTPException(status_code=403, detail="Utilisateur non rattaché à un établissement")
         facility_id = current_user.facility_id
     elif facility_id:
         enforce_facility_access(current_user, facility_id)
