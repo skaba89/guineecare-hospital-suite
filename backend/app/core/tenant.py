@@ -7,6 +7,8 @@ Row-Level Security (RLS) policies.
 
 RLS context keys:
 - app.current_facility_id: facility UUID for a facility-scoped user
+- app.current_user_id: authenticated user UUID
+- app.current_role: authoritative role loaded from the users table
 - app.is_super_admin: explicit cross-tenant flag ("true" / "false")
 
 The database policies are fail-closed: when these settings are absent or empty,
@@ -31,6 +33,8 @@ CROSS_TENANT_ROLES = {"SUPER_ADMIN"}
 # populated directly from request parameters.
 _RLS_FACILITY_INFO_KEY = "guineecare_rls_facility_id"
 _RLS_SUPER_ADMIN_INFO_KEY = "guineecare_rls_is_super_admin"
+_RLS_USER_INFO_KEY = "guineecare_rls_user_id"
+_RLS_ROLE_INFO_KEY = "guineecare_rls_role"
 
 
 def _is_postgresql(bind: Any) -> bool:
@@ -43,6 +47,8 @@ def _apply_postgres_rls_context(
     connection: Connection,
     facility_id: str | None,
     is_super_admin: bool,
+    user_id: str | None = None,
+    role: str | None = None,
 ) -> None:
     """Apply the RLS context to the current PostgreSQL transaction.
 
@@ -60,6 +66,14 @@ def _apply_postgres_rls_context(
     connection.execute(
         text("SELECT set_config('app.is_super_admin', :is_super_admin, true)"),
         {"is_super_admin": "true" if is_super_admin else "false"},
+    )
+    connection.execute(
+        text("SELECT set_config('app.current_user_id', :user_id, true)"),
+        {"user_id": str(user_id) if user_id else ""},
+    )
+    connection.execute(
+        text("SELECT set_config('app.current_role', :role, true)"),
+        {"role": str(role) if role else ""},
     )
 
 
@@ -81,6 +95,8 @@ def apply_tenant_context_after_begin(
         connection,
         session.info.get(_RLS_FACILITY_INFO_KEY),
         bool(session.info.get(_RLS_SUPER_ADMIN_INFO_KEY, False)),
+        session.info.get(_RLS_USER_INFO_KEY),
+        session.info.get(_RLS_ROLE_INFO_KEY),
     )
 
 
@@ -93,11 +109,15 @@ def bind_tenant_context(db: Session, current_user: User) -> None:
     applied immediately; subsequent transactions are handled by the
     ``after_begin`` listener.
     """
-    is_super_admin = current_user.role in CROSS_TENANT_ROLES
+    role = current_user.role
+    is_super_admin = role in CROSS_TENANT_ROLES
     facility_id = None if is_super_admin else current_user.facility_id
+    user_id = getattr(current_user, 'id', None)
 
     db.info[_RLS_FACILITY_INFO_KEY] = facility_id
     db.info[_RLS_SUPER_ADMIN_INFO_KEY] = is_super_admin
+    db.info[_RLS_USER_INFO_KEY] = user_id
+    db.info[_RLS_ROLE_INFO_KEY] = role
 
     bind = db.get_bind()
     if not _is_postgresql(bind):
@@ -107,13 +127,17 @@ def bind_tenant_context(db: Session, current_user: User) -> None:
     # active transaction exists. Apply immediately so the remainder of the
     # request is protected without waiting for the next transaction boundary.
     if db.in_transaction():
-        _apply_postgres_rls_context(db.connection(), facility_id, is_super_admin)
+        _apply_postgres_rls_context(
+            db.connection(), facility_id, is_super_admin, user_id, role
+        )
 
 
 def clear_tenant_context(db: Session) -> None:
     """Remove in-memory tenant state from a Session before it is reused."""
     db.info.pop(_RLS_FACILITY_INFO_KEY, None)
     db.info.pop(_RLS_SUPER_ADMIN_INFO_KEY, None)
+    db.info.pop(_RLS_USER_INFO_KEY, None)
+    db.info.pop(_RLS_ROLE_INFO_KEY, None)
 
 
 def tenant_query(
