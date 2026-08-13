@@ -138,12 +138,7 @@ def list_thresholds(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("quality.read")),
 ):
-    """Liste les seuils d'alerte qualité.
-
-    Les seuils globaux (`facility_id IS NULL`) constituent un catalogue partagé
-    en lecture. Les rôles établissement voient donc les seuils globaux + ceux de
-    leur propre établissement ; seuls les SUPER_ADMIN peuvent modifier le global.
-    """
+    """Liste les seuils d'alerte qualité."""
     query = db.query(QualityThreshold)
     if current_user.role != "SUPER_ADMIN":
         if not current_user.facility_id:
@@ -356,7 +351,7 @@ def run_check_thresholds(
     )
 
     return CheckThresholdsResponse(
-        evaluated=0,  # pas de comptage précis ici (serait coûteux)
+        evaluated=0,
         raised=len(raised),
         alerts=[QualityAlertRead.from_model(a) for a in raised],
     )
@@ -371,7 +366,6 @@ def ack_alert(
     current_user: User = Depends(require_permission("quality.manage")),
 ):
     """Marque une alerte comme prise en charge (ACKNOWLEDGED)."""
-    # Vérifier le tenant AVANT l'appel service : acknowledge_alert() committe.
     existing = tenant_query(db, QualityAlert, current_user).filter(QualityAlert.id == alert_id).first()
     if not existing:
         raise HTTPException(status_code=404, detail="Alerte introuvable")
@@ -402,7 +396,6 @@ def resolve_alert_route(
     current_user: User = Depends(require_permission("quality.manage")),
 ):
     """Résout une alerte avec une note de résolution."""
-    # Vérifier le tenant AVANT l'appel service : resolve_alert() committe.
     existing = tenant_query(db, QualityAlert, current_user).filter(QualityAlert.id == alert_id).first()
     if not existing:
         raise HTTPException(status_code=404, detail="Alerte introuvable")
@@ -432,7 +425,6 @@ def close_alert_route(
     current_user: User = Depends(require_permission("quality.manage")),
 ):
     """Clôture une alerte résolue."""
-    # Vérifier le tenant AVANT l'appel service : close_alert() committe.
     existing = tenant_query(db, QualityAlert, current_user).filter(QualityAlert.id == alert_id).first()
     if not existing:
         raise HTTPException(status_code=404, detail="Alerte introuvable")
