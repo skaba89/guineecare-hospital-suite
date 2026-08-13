@@ -138,8 +138,23 @@ def list_thresholds(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("quality.read")),
 ):
-    """Liste les seuils d'alerte qualité."""
-    query = tenant_query(db, QualityThreshold, current_user)
+    """Liste les seuils d'alerte qualité.
+
+    Les seuils globaux (`facility_id IS NULL`) constituent un catalogue partagé
+    en lecture. Les rôles établissement voient donc les seuils globaux + ceux de
+    leur propre établissement ; seuls les SUPER_ADMIN peuvent modifier le global.
+    """
+    query = db.query(QualityThreshold)
+    if current_user.role != "SUPER_ADMIN":
+        if not current_user.facility_id:
+            # Fail closed : un rôle établissement non rattaché ne voit même pas
+            # le catalogue global, car son contexte tenant est invalide.
+            query = query.filter(QualityThreshold.id == "__NO_FACILITY__")
+        else:
+            query = query.filter(
+                (QualityThreshold.facility_id.is_(None)) |
+                (QualityThreshold.facility_id == current_user.facility_id)
+            )
     if facility_id:
         enforce_facility_access(current_user, facility_id)
         query = query.filter(QualityThreshold.facility_id == facility_id)
@@ -208,6 +223,11 @@ def update_threshold(
     row = db.query(QualityThreshold).filter(QualityThreshold.id == threshold_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Seuil introuvable")
+    if row.facility_id is None and current_user.role != "SUPER_ADMIN":
+        raise HTTPException(
+            status_code=403,
+            detail="Seul un SUPER_ADMIN peut modifier un seuil qualité global",
+        )
     enforce_facility_access(current_user, row.facility_id)
 
     if payload.department_id is not None:
@@ -256,6 +276,11 @@ def delete_threshold(
     row = db.query(QualityThreshold).filter(QualityThreshold.id == threshold_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Seuil introuvable")
+    if row.facility_id is None and current_user.role != "SUPER_ADMIN":
+        raise HTTPException(
+            status_code=403,
+            detail="Seul un SUPER_ADMIN peut supprimer un seuil qualité global",
+        )
     enforce_facility_access(current_user, row.facility_id)
     db.delete(row)
     db.commit()
@@ -346,10 +371,14 @@ def ack_alert(
     current_user: User = Depends(require_permission("quality.manage")),
 ):
     """Marque une alerte comme prise en charge (ACKNOWLEDGED)."""
+    # Vérifier le tenant AVANT l'appel service : acknowledge_alert() committe.
+    existing = tenant_query(db, QualityAlert, current_user).filter(QualityAlert.id == alert_id).first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Alerte introuvable")
+
     alert = acknowledge_alert(db, alert_id, current_user.id, payload.assign_to)
     if not alert:
         raise HTTPException(status_code=404, detail="Alerte introuvable")
-    enforce_facility_access(current_user, alert.facility_id)
 
     audit_log(
         db=db,
@@ -373,10 +402,14 @@ def resolve_alert_route(
     current_user: User = Depends(require_permission("quality.manage")),
 ):
     """Résout une alerte avec une note de résolution."""
+    # Vérifier le tenant AVANT l'appel service : resolve_alert() committe.
+    existing = tenant_query(db, QualityAlert, current_user).filter(QualityAlert.id == alert_id).first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Alerte introuvable")
+
     alert = resolve_alert(db, alert_id, current_user.id, payload.resolution_note)
     if not alert:
         raise HTTPException(status_code=404, detail="Alerte introuvable")
-    enforce_facility_access(current_user, alert.facility_id)
 
     audit_log(
         db=db,
@@ -399,10 +432,14 @@ def close_alert_route(
     current_user: User = Depends(require_permission("quality.manage")),
 ):
     """Clôture une alerte résolue."""
+    # Vérifier le tenant AVANT l'appel service : close_alert() committe.
+    existing = tenant_query(db, QualityAlert, current_user).filter(QualityAlert.id == alert_id).first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Alerte introuvable")
+
     alert = close_alert(db, alert_id, current_user.id)
     if not alert:
         raise HTTPException(status_code=404, detail="Alerte introuvable")
-    enforce_facility_access(current_user, alert.facility_id)
 
     audit_log(
         db=db,
