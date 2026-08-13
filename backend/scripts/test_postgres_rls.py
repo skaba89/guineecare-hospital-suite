@@ -262,3 +262,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    from test_postgres_rls_nullable import main as nullable_main
+    nullable_main()

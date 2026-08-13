@@ -354,20 +354,15 @@ def get_sms_stats(
     pending = q.filter(SmsMessage.status == "PENDING").count()
     rejected = q.filter(SmsMessage.status == "REJECTED").count()
 
-    total_cost = (
+    total_cost_query = (
         db.query(func.coalesce(func.sum(SmsMessage.cost_gnf), 0))
         .filter(SmsMessage.created_at >= since)
-        .scalar() or 0
     )
     if facility_id:
-        total_cost = (
-            db.query(func.coalesce(func.sum(SmsMessage.cost_gnf), 0))
-            .filter(SmsMessage.created_at >= since)
-            .filter(SmsMessage.facility_id == facility_id)
-            .scalar() or 0
-        )
+        total_cost_query = total_cost_query.filter(SmsMessage.facility_id == facility_id)
+    total_cost = total_cost_query.scalar() or 0
 
-    by_provider = (
+    by_provider_query = (
         db.query(
             SmsMessage.provider_code,
             func.count(SmsMessage.id).label("total"),
@@ -379,11 +374,12 @@ def get_sms_stats(
             ).label("sent"),
         )
         .filter(SmsMessage.created_at >= since)
-        .group_by(SmsMessage.provider_code)
-        .all()
     )
+    if facility_id:
+        by_provider_query = by_provider_query.filter(SmsMessage.facility_id == facility_id)
+    by_provider = by_provider_query.group_by(SmsMessage.provider_code).all()
 
-    by_category = (
+    by_category_query = (
         db.query(
             SmsMessage.category,
             func.count(SmsMessage.id).label("total"),
@@ -395,9 +391,10 @@ def get_sms_stats(
             ).label("sent"),
         )
         .filter(SmsMessage.created_at >= since)
-        .group_by(SmsMessage.category)
-        .all()
     )
+    if facility_id:
+        by_category_query = by_category_query.filter(SmsMessage.facility_id == facility_id)
+    by_category = by_category_query.group_by(SmsMessage.category).all()
 
     success_rate = (sent / total * 100) if total > 0 else 0
 
