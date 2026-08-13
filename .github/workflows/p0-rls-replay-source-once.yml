@@ -1,0 +1,79 @@
+name: p0-rls-replay-source-once
+
+on:
+  push:
+    branches:
+      - agent/p0-rls-nullable-policies
+    paths:
+      - .github/workflows/p0-rls-replay-source-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  replay-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/p0-rls-nullable-policies
+
+      - name: Replay source-generation steps
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          workflow = Path('.github/workflows/p0-rls-nullable-build-once.yml').read_text().splitlines()
+          wanted = {
+              'Extend trusted RLS context',
+              'Create nullable RLS migration',
+              'Add phase-2 PostgreSQL tests',
+              'Document nullable policy classification',
+          }
+
+          scripts = []
+          i = 0
+          while i < len(workflow):
+              line = workflow[i]
+              if line.startswith('      - name: '):
+                  name = line.split(': ', 1)[1]
+                  if name in wanted:
+                      i += 1
+                      while i < len(workflow) and workflow[i].strip() != 'run: |':
+                          i += 1
+                      if i >= len(workflow):
+                          raise SystemExit(f'No run block for {name}')
+                      i += 1
+                      block = []
+                      while i < len(workflow):
+                          current = workflow[i]
+                          if current.startswith('      - name: ') or current.startswith('      - uses: '):
+                              break
+                          if current.startswith('          '):
+                              block.append(current[10:])
+                          else:
+                              block.append(current)
+                          i += 1
+                      scripts.append((name, '\n'.join(block)))
+                      continue
+              i += 1
+
+          if {name for name, _ in scripts} != wanted:
+              raise SystemExit(f'Missing generation steps: {wanted - {n for n, _ in scripts}}')
+
+          for name, script in scripts:
+              print(f'--- {name} ---')
+              subprocess.run(['bash', '-euo', 'pipefail', '-c', script], check=True)
+          PY
+
+      - name: Keep workflow update separate
+        run: git checkout -- .github/workflows/postgres-rls.yml
+
+      - name: Commit generated source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/app/core/tenant.py backend/alembic/versions/0032_nullable_facility_rls.py backend/scripts/test_postgres_rls_nullable.py docs/security/POSTGRES_RLS_NULLABLE.md
+          git commit -m "security: enforce RLS for nullable facility scopes"
+          git push origin HEAD:agent/p0-rls-nullable-policies
