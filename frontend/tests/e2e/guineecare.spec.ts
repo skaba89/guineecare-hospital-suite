@@ -41,8 +41,8 @@ async function login(page: Page, creds: { email: string; password: string }) {
   await emailInput.fill(creds.email);
   await page.locator('#login-password').fill(creds.password);
 
-  // Submit + wait for sidebar (proves login succeeded)
-  await page.getByRole('button', { name: /Se connecter/ }).click();
+  // Submit by semantic form structure, independent of locale/catalog wording.
+  await page.locator('form button[type="submit"]').click();
   await expect(page.locator('aside.sidebar')).toBeVisible({ timeout: 25_000 });
 
   // Wait for network idle so that subsequent navigation doesn't race with auth bootstrap
@@ -68,7 +68,7 @@ test.describe('Authentification', () => {
 
     await page.locator('#login-email').fill('admin@guineecare.com');
     await page.locator('#login-password').fill('wrong-password');
-    await page.getByRole('button', { name: /Se connecter/ }).click();
+    await page.locator('form button[type="submit"]').click();
     await expect(page.locator('body')).toContainText(/impossible|incorrect|invalid/i, { timeout: 10_000 });
   });
 

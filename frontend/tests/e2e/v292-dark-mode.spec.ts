@@ -29,7 +29,7 @@ async function login(page: Page, creds: { email: string; password: string }) {
   await emailInput.waitFor({ state: 'visible', timeout: 15_000 });
   await emailInput.fill(creds.email);
   await page.locator('#login-password').fill(creds.password);
-  await page.getByRole('button', { name: /Se connecter/ }).click();
+  await page.locator('form button[type="submit"]').click();
   await expect(page.locator('aside.sidebar')).toBeVisible({ timeout: 25_000 });
   await page.waitForLoadState('networkidle').catch(() => {});
 }
@@ -199,7 +199,7 @@ test.describe('ICD-11 API (v2.9.2)', () => {
     await page.reload();
     await page.locator('#login-email').fill(SUPER_ADMIN.email);
     await page.locator('#login-password').fill(SUPER_ADMIN.password);
-    await page.getByRole('button', { name: /Se connecter/ }).click();
+    await page.locator('form button[type="submit"]').click();
     await expect(page.locator('aside.sidebar')).toBeVisible({ timeout: 25_000 });
 
     const token = await page.evaluate(() => localStorage.getItem('guineecare_token'));
@@ -220,7 +220,7 @@ test.describe('ICD-11 API (v2.9.2)', () => {
     await page.reload();
     await page.locator('#login-email').fill(SUPER_ADMIN.email);
     await page.locator('#login-password').fill(SUPER_ADMIN.password);
-    await page.getByRole('button', { name: /Se connecter/ }).click();
+    await page.locator('form button[type="submit"]').click();
     await expect(page.locator('aside.sidebar')).toBeVisible({ timeout: 25_000 });
 
     const token = await page.evaluate(() => localStorage.getItem('guineecare_token'));
@@ -241,7 +241,7 @@ test.describe('ICD-11 API (v2.9.2)', () => {
     await page.reload();
     await page.locator('#login-email').fill(SUPER_ADMIN.email);
     await page.locator('#login-password').fill(SUPER_ADMIN.password);
-    await page.getByRole('button', { name: /Se connecter/ }).click();
+    await page.locator('form button[type="submit"]').click();
     await expect(page.locator('aside.sidebar')).toBeVisible({ timeout: 25_000 });
 
     const token = await page.evaluate(() => localStorage.getItem('guineecare_token'));
