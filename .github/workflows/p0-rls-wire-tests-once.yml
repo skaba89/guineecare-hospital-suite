@@ -1,0 +1,38 @@
+name: p0-rls-wire-tests-once
+
+on:
+  push:
+    branches:
+      - agent/p0-rls-nullable-policies
+    paths:
+      - .github/workflows/p0-rls-wire-tests-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  wire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/p0-rls-nullable-policies
+      - name: Wire phase-2 integration scenarios into existing RLS runner
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('backend/scripts/test_postgres_rls.py')
+          s = p.read_text()
+          old = "if __name__ == \"__main__\":\n    main()\n"
+          new = "if __name__ == \"__main__\":\n    main()\n    from test_postgres_rls_nullable import main as nullable_main\n    nullable_main()\n"
+          if old not in s:
+              raise SystemExit('Expected test runner entrypoint not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Commit source wiring
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/scripts/test_postgres_rls.py
+          git commit -m "test: run nullable RLS integration scenarios"
+          git push origin HEAD:agent/p0-rls-nullable-policies
