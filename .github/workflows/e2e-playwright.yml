@@ -80,6 +80,7 @@ jobs:
           DATABASE_URL: sqlite:///./dev_guineecare.db
           AUTH_SECRET: ci-secret-key-2025
           ENVIRONMENT: local
+          PYTHONPATH: .
         run: python scripts/prepare_e2e_users.py
 
       - name: Verify backend health and seed
