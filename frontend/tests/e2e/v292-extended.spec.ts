@@ -42,7 +42,7 @@ async function login(page: Page, creds: { email: string; password: string }) {
   await emailInput.waitFor({ state: 'visible', timeout: 15_000 });
   await emailInput.fill(creds.email);
   await page.locator('#login-password').fill(creds.password);
-  await page.getByRole('button', { name: /Se connecter/ }).click();
+  await page.locator('form button[type="submit"]').click();
   await expect(page.locator('aside.sidebar')).toBeVisible({ timeout: 25_000 });
   await page.waitForLoadState('networkidle').catch(() => {});
 }
@@ -166,10 +166,7 @@ test.describe('Pilotage national (v1.4.0)', () => {
   test('DOCTOR redirigé de /national', async ({ page }) => {
     await login(page, DOCTOR);
     await page.goto('/national', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2500);
-    const url = page.url();
-    const redirected = !url.includes('/national');
-    expect(redirected).toBeTruthy();
+    await expect(page).not.toHaveURL(/\/national(?:[/?#]|$)/, { timeout: 10_000 });
   });
 });
 
@@ -187,10 +184,7 @@ test.describe('Activity feed', () => {
   test('DOCTOR redirigé de /activity', async ({ page }) => {
     await login(page, DOCTOR);
     await page.goto('/activity', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2500);
-    const url = page.url();
-    const redirected = !url.includes('/activity');
-    expect(redirected).toBeTruthy();
+    await expect(page).not.toHaveURL(/\/activity(?:[/?#]|$)/, { timeout: 10_000 });
   });
 });
 
@@ -208,10 +202,7 @@ test.describe('SMS Admin (v1.4.0)', () => {
   test('DOCTOR redirigé de /sms-admin', async ({ page }) => {
     await login(page, DOCTOR);
     await page.goto('/sms-admin', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2500);
-    const url = page.url();
-    const redirected = !url.includes('/sms-admin');
-    expect(redirected).toBeTruthy();
+    await expect(page).not.toHaveURL(/\/sms-admin(?:[/?#]|$)/, { timeout: 10_000 });
   });
 });
 
@@ -219,11 +210,12 @@ test.describe('SMS Admin (v1.4.0)', () => {
 // 7. RECHERCHE GLOBALE (v1.2.0)
 // ----------------------------------------------------------------------------
 test.describe('Recherche globale (v1.2.0)', () => {
-  test('champ de recherche visible après login', async ({ page }) => {
+  test('palette de recherche accessible après login', async ({ page }) => {
     await login(page, SUPER_ADMIN);
-    // Le champ de recherche peut être dans la sidebar ou le topbar
-    const searchInput = page.locator('input[placeholder*="recherch" i], input[type="search"]').first();
-    await expect(searchInput).toBeVisible({ timeout: 10_000 });
+    await page.keyboard.press('Control+K');
+    const dialog = page.getByRole('dialog', { name: 'Recherche globale' });
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
+    await expect(dialog.getByPlaceholder(/Rechercher patient/i)).toBeVisible();
   });
 });
 
@@ -274,7 +266,7 @@ test.describe('Tâches Celery API (v2.9.2)', () => {
     await page.reload();
     await page.locator('#login-email').fill(SUPER_ADMIN.email);
     await page.locator('#login-password').fill(SUPER_ADMIN.password);
-    await page.getByRole('button', { name: /Se connecter/ }).click();
+    await page.locator('form button[type="submit"]').click();
     await expect(page.locator('aside.sidebar')).toBeVisible({ timeout: 25_000 });
 
     // Récupérer le token depuis localStorage
@@ -303,7 +295,7 @@ test.describe('Tâches Celery API (v2.9.2)', () => {
     await page.reload();
     await page.locator('#login-email').fill(SUPER_ADMIN.email);
     await page.locator('#login-password').fill(SUPER_ADMIN.password);
-    await page.getByRole('button', { name: /Se connecter/ }).click();
+    await page.locator('form button[type="submit"]').click();
     await expect(page.locator('aside.sidebar')).toBeVisible({ timeout: 25_000 });
 
     const token = await page.evaluate(() => localStorage.getItem('guineecare_token'));
@@ -330,7 +322,7 @@ test.describe('DHIS2 push API (v2.9.1)', () => {
     await page.reload();
     await page.locator('#login-email').fill(SUPER_ADMIN.email);
     await page.locator('#login-password').fill(SUPER_ADMIN.password);
-    await page.getByRole('button', { name: /Se connecter/ }).click();
+    await page.locator('form button[type="submit"]').click();
     await expect(page.locator('aside.sidebar')).toBeVisible({ timeout: 25_000 });
 
     const token = await page.evaluate(() => localStorage.getItem('guineecare_token'));
@@ -354,7 +346,7 @@ test.describe('Insurance API (v2.9.1)', () => {
     await page.reload();
     await page.locator('#login-email').fill(SUPER_ADMIN.email);
     await page.locator('#login-password').fill(SUPER_ADMIN.password);
-    await page.getByRole('button', { name: /Se connecter/ }).click();
+    await page.locator('form button[type="submit"]').click();
     await expect(page.locator('aside.sidebar')).toBeVisible({ timeout: 25_000 });
 
     const token = await page.evaluate(() => localStorage.getItem('guineecare_token'));
