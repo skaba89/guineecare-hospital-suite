@@ -10,7 +10,8 @@ export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  // P0 CI determinism: never hide an unstable scenario behind a retry.
+  retries: 0,
   workers: 1,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   timeout: 30_000,
@@ -19,7 +20,8 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:5173',
     locale: 'fr-FR',
-    trace: 'on-first-retry',
+    // With retries disabled, retain the first failing trace directly in CI.
+    trace: process.env.CI ? 'retain-on-failure' : 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
     actionTimeout: 15_000,
