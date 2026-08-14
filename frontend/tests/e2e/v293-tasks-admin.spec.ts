@@ -31,9 +31,25 @@ async function login(page: Page, creds: { email: string; password: string }) {
   await emailInput.waitFor({ state: 'visible', timeout: 15_000 });
   await emailInput.fill(creds.email);
   await page.locator('#login-password').fill(creds.password);
-  await page.getByRole('button', { name: /Se connecter/ }).click();
+  await page.locator('form button[type="submit"]').click();
   await expect(page.locator('aside.sidebar')).toBeVisible({ timeout: 25_000 });
   await page.waitForLoadState('networkidle').catch(() => {});
+}
+
+function taskCard(page: Page, label: string) {
+  return page.locator('.card').filter({ hasText: label }).first();
+}
+
+function statusCard(page: Page, label: string) {
+  return page.locator('.card').filter({ hasText: label }).first();
+}
+
+async function acceptConfirmation(page: Page, click: () => Promise<void>) {
+  const dialogPromise = page.waitForEvent('dialog');
+  await click();
+  const dialog = await dialogPromise;
+  expect(dialog.type()).toBe('confirm');
+  await dialog.accept();
 }
 
 // ----------------------------------------------------------------------------
@@ -50,24 +66,21 @@ test.describe('TasksAdminPage — Accès & RBAC', () => {
   test('DOCTOR redirigé de /tasks-admin', async ({ page }) => {
     await login(page, DOCTOR);
     await page.goto('/tasks-admin', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2500);
-    const url = page.url();
-    const redirected = !url.includes('/tasks-admin');
-    expect(redirected).toBeTruthy();
+    await expect(page).not.toHaveURL(/\/tasks-admin(?:[/?#]|$)/, { timeout: 10_000 });
   });
 
   test('sidebar n\'affiche pas "Tâches planifiées" pour DOCTOR', async ({ page }) => {
     await login(page, DOCTOR);
-    const sidebar = page.locator('aside.sidebar');
-    const tasksLink = sidebar.locator('a[href="/tasks-admin"]');
+    const tasksLink = page.locator('aside.sidebar a[href="/tasks-admin"]');
     await expect(tasksLink).toHaveCount(0);
   });
 
-  test('sidebar affiche "Tâches planifiées" pour SUPER_ADMIN', async ({ page }) => {
+  test('sidebar contient "Tâches planifiées" pour SUPER_ADMIN', async ({ page }) => {
     await login(page, SUPER_ADMIN);
-    const sidebar = page.locator('aside.sidebar');
-    const tasksLink = sidebar.locator('a[href="/tasks-admin"]');
-    await expect(tasksLink).toBeVisible({ timeout: 10_000 });
+    // Le groupe SYSTÈME peut être replié : l'existence du lien teste le RBAC,
+    // sa visibilité dépend uniquement de l'état visuel de l'accordéon.
+    const tasksLink = page.locator('aside.sidebar a[href="/tasks-admin"]');
+    await expect(tasksLink).toHaveCount(1);
   });
 });
 
@@ -78,27 +91,27 @@ test.describe('TasksAdminPage — Tableau de bord', () => {
   test.beforeEach(async ({ page }) => {
     await login(page, SUPER_ADMIN);
     await page.goto('/tasks-admin', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('h1')).toContainText(/tâches planifiées/i, { timeout: 15_000 });
   });
 
   test('3 StatusCards visibles (Worker, Broker, Tâches)', async ({ page }) => {
-    // Chercher les libellés attendus
-    await expect(page.locator('text=/Worker Celery/i')).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator('text=/Broker Redis/i')).toBeVisible();
-    await expect(page.locator('text=/Tâches disponibles/i')).toBeVisible();
+    await expect(statusCard(page, 'Worker Celery')).toBeVisible();
+    await expect(statusCard(page, 'Broker Redis')).toBeVisible();
+    await expect(statusCard(page, 'Tâches disponibles')).toBeVisible();
   });
 
   test('compteur "Tâches disponibles" affiche 5', async ({ page }) => {
-    const counter = page.locator('text=/Tâches disponibles/i').locator('..').locator('div').last();
-    const text = await counter.textContent();
-    expect(text).toMatch(/5/);
+    await expect(statusCard(page, 'Tâches disponibles')).toContainText(/\b5\b/);
   });
 
-  test('warning mode synchrone affiché quand Celery absent', async ({ page }) => {
-    // En dev sans Celery, le warning doit s'afficher
-    const warning = page.locator('text=/Mode synchrone actif/i');
-    // Le warning peut être présent ou non selon la config — juste vérifier qu'il n'y a pas d'erreur
-    const warningCount = await warning.count();
-    expect(warningCount).toBeGreaterThanOrEqual(0);
+  test('mode synchrone est signalé quand Celery est absent', async ({ page }) => {
+    const worker = statusCard(page, 'Worker Celery');
+    await expect(worker).toBeVisible();
+    const workerText = (await worker.textContent()) || '';
+
+    if (/Synchrone/i.test(workerText)) {
+      await expect(page.getByText(/Mode synchrone actif/i).first()).toBeVisible();
+    }
   });
 });
 
@@ -109,40 +122,44 @@ test.describe('TasksAdminPage — 5 cartes tâches', () => {
   test.beforeEach(async ({ page }) => {
     await login(page, SUPER_ADMIN);
     await page.goto('/tasks-admin', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('h1')).toContainText(/tâches planifiées/i, { timeout: 15_000 });
   });
 
   test('carte "Purge audit log" visible', async ({ page }) => {
-    await expect(page.locator('text=/Purge audit log/i').first()).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator('text=/RGPD Art\\. 25/i')).toBeVisible();
+    const card = taskCard(page, 'Purge audit log');
+    await expect(card).toBeVisible();
+    await expect(card).toContainText(/RGPD Art\. 25/i);
   });
 
   test('carte "Backup database" visible', async ({ page }) => {
-    await expect(page.locator('text=/Backup database/i').first()).toBeVisible();
-    await expect(page.locator('text=/rotation 30 jours/i')).toBeVisible();
+    const card = taskCard(page, 'Backup database');
+    await expect(card).toBeVisible();
+    await expect(card).toContainText(/rotation 30 jours/i);
   });
 
   test('carte "Retry SMS pending" visible', async ({ page }) => {
-    await expect(page.locator('text=/Retry SMS pending/i').first()).toBeVisible();
+    await expect(taskCard(page, 'Retry SMS pending')).toBeVisible();
   });
 
   test('carte "Push DHIS2 mensuel" visible', async ({ page }) => {
-    await expect(page.locator('text=/Push DHIS2 mensuel/i').first()).toBeVisible();
+    await expect(taskCard(page, 'Push DHIS2 mensuel')).toBeVisible();
   });
 
   test('carte "Digest qualité" visible', async ({ page }) => {
-    await expect(page.locator('text=/Digest qualité/i').first()).toBeVisible();
+    await expect(taskCard(page, 'Digest qualité')).toBeVisible();
   });
 
   test('chaque carte a un bouton "Exécuter maintenant"', async ({ page }) => {
-    const buttons = page.locator('button:has-text("Exécuter maintenant")');
+    const buttons = page.getByRole('button', { name: /Exécuter maintenant/i });
     await expect(buttons).toHaveCount(5, { timeout: 10_000 });
   });
 
   test('chaque carte affiche sa planification cron', async ({ page }) => {
-    await expect(page.locator('text=/Quotidien 03h00 UTC/i')).toBeVisible();
-    await expect(page.locator('text=/Quotidien 04h00 UTC/i')).toBeVisible();
-    await expect(page.locator('text=/Toutes les 5 minutes/i')).toBeVisible();
-    await expect(page.locator('text=/Le 5 du mois à 06h00 UTC/i')).toBeVisible();
+    await expect(taskCard(page, 'Purge audit log')).toContainText(/Quotidien 03h00 UTC/i);
+    await expect(taskCard(page, 'Backup database')).toContainText(/Quotidien 04h00 UTC/i);
+    await expect(taskCard(page, 'Retry SMS pending')).toContainText(/Toutes les 5 minutes/i);
+    await expect(taskCard(page, 'Push DHIS2 mensuel')).toContainText(/Le 5 du mois à 06h00 UTC/i);
+    await expect(taskCard(page, 'Digest qualité')).toContainText(/Quotidien 06h30 UTC/i);
   });
 });
 
@@ -153,61 +170,45 @@ test.describe('TasksAdminPage — Trigger manuel', () => {
   test.beforeEach(async ({ page }) => {
     await login(page, SUPER_ADMIN);
     await page.goto('/tasks-admin', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('h1')).toContainText(/tâches planifiées/i, { timeout: 15_000 });
   });
 
   test('backup_database peut être déclenché (sans danger)', async ({ page }) => {
-    // Le backup n'est pas destructif — confirmation simple
-    const backupCard = page.locator('text=/Backup database/i').first().locator('..');
-    const triggerBtn = backupCard.locator('button:has-text("Exécuter maintenant")');
+    const backupCard = taskCard(page, 'Backup database');
+    const triggerBtn = backupCard.getByRole('button', { name: /Exécuter maintenant/i });
 
-    // Écouter la dialog de confirmation
-    page.on('dialog', (dialog) => dialog.accept());
-
-    await triggerBtn.click();
-
-    // Attendre que le résultat apparaisse (carte verte avec "Exécuté")
-    await expect(page.locator('text=/Exécuté/i').first()).toBeVisible({ timeout: 30_000 });
+    await acceptConfirmation(page, () => triggerBtn.click());
+    await expect(backupCard).toContainText(/Exécuté/i, { timeout: 30_000 });
   });
 
-  test('prune_audit_logs demande confirmation (destructive)', async ({ page }) => {
-    const pruneCard = page.locator('text=/Purge audit log/i').first().locator('..');
-    const triggerBtn = pruneCard.locator('button:has-text("Exécuter maintenant")');
+  test('prune_audit_logs demande confirmation destructive', async ({ page }) => {
+    const pruneCard = taskCard(page, 'Purge audit log');
+    const triggerBtn = pruneCard.getByRole('button', { name: /Exécuter maintenant/i });
 
-    // Annuler la première dialog (ne pas confirmer)
-    let dialogMessage = '';
-    page.on('dialog', (dialog) => {
-      dialogMessage = dialog.message();
-      dialog.dismiss();
-    });
-
+    const dialogPromise = page.waitForEvent('dialog');
     await triggerBtn.click();
-    await page.waitForTimeout(500);
+    const dialog = await dialogPromise;
 
-    // Vérifier que la dialog contenait "destructrice" ou "Purge"
-    expect(dialogMessage.length).toBeGreaterThan(0);
-    expect(dialogMessage).toMatch(/destructrice|Purge|prune/i);
+    expect(dialog.type()).toBe('confirm');
+    expect(dialog.message()).toMatch(/destructrice|Purge|prune/i);
+    await dialog.dismiss();
   });
 
-  test('prompt pour retention_days sur prune_audit_logs', async ({ page }) => {
-    const pruneCard = page.locator('text=/Purge audit log/i').first().locator('..');
-    const triggerBtn = pruneCard.locator('button:has-text("Exécuter maintenant")');
+  test('prompt retention_days propose 365 sur prune_audit_logs', async ({ page }) => {
+    const pruneCard = taskCard(page, 'Purge audit log');
+    const triggerBtn = pruneCard.getByRole('button', { name: /Exécuter maintenant/i });
 
-    // Accepter confirmation, puis prompt avec valeur par défaut
-    let promptValue = '';
-    page.on('dialog', (dialog) => {
-      if (dialog.type() === 'prompt') {
-        promptValue = dialog.defaultValue() || '';
-        dialog.accept('365');
-      } else {
-        dialog.accept();
-      }
-    });
-
+    const confirmPromise = page.waitForEvent('dialog');
     await triggerBtn.click();
-    await page.waitForTimeout(500);
+    const confirm = await confirmPromise;
+    expect(confirm.type()).toBe('confirm');
+    await confirm.accept();
 
-    // Le prompt doit avoir 365 comme valeur par défaut
-    expect(promptValue).toMatch(/365/);
+    const prompt = await page.waitForEvent('dialog');
+    expect(prompt.type()).toBe('prompt');
+    expect(prompt.defaultValue()).toBe('365');
+    // Annuler le prompt évite d'exécuter une purge réelle pendant ce test UI.
+    await prompt.dismiss();
   });
 });
 
@@ -218,42 +219,37 @@ test.describe('TasksAdminPage — Historique', () => {
   test.beforeEach(async ({ page }) => {
     await login(page, SUPER_ADMIN);
     await page.goto('/tasks-admin', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('h1')).toContainText(/tâches planifiées/i, { timeout: 15_000 });
   });
 
   test('section historique visible', async ({ page }) => {
-    await expect(page.locator('h2:has-text("Historique récent")')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('heading', { name: /Historique récent/i })).toBeVisible();
   });
 
-  test('tableau historique avec colonnes Date/Tâche/Statut/Détails', async ({ page }) => {
-    // Attendre que l'historique soit chargé (table ou message "Aucune exécution")
-    await page.waitForTimeout(2000);
+  test('historique affiche un tableau ou son état vide', async ({ page }) => {
+    await expect(page.getByRole('heading', { name: /Historique récent/i })).toBeVisible();
 
-    const historyHeading = page.locator('h2:has-text("Historique récent")');
-    await expect(historyHeading).toBeVisible();
-
-    // Vérifier la présence du tableau ou du message vide
     const table = page.locator('table').first();
-    const emptyMessage = page.locator('text=/Aucune exécution de tâche enregistrée/i');
+    const emptyMessage = page.getByText(/Aucune exécution de tâche enregistrée/i);
+    await expect.poll(async () => (await table.count()) + (await emptyMessage.count()), {
+      timeout: 10_000,
+    }).toBeGreaterThan(0);
 
-    const tableCount = await table.count();
-    const emptyCount = await emptyMessage.count();
-    expect(tableCount + emptyCount).toBeGreaterThan(0);
+    if (await table.count()) {
+      await expect(table.locator('thead')).toContainText(/Date/);
+      await expect(table.locator('thead')).toContainText(/Tâche/);
+      await expect(table.locator('thead')).toContainText(/Statut/);
+      await expect(table.locator('thead')).toContainText(/Détails/);
+    }
   });
 
   test('historique rempli après exécution d\'une tâche', async ({ page }) => {
-    // Exécuter backup_database pour générer une entrée d'audit
-    page.on('dialog', (dialog) => dialog.accept());
+    const backupCard = taskCard(page, 'Backup database');
+    const triggerBtn = backupCard.getByRole('button', { name: /Exécuter maintenant/i });
 
-    const backupBtn = page.locator('button:has-text("Exécuter maintenant")').nth(1); // backup = 2ème carte
-    await backupBtn.click();
-
-    // Attendre que l'historique se rafraîchisse
-    await page.waitForTimeout(3000);
-
-    // L'historique doit maintenant contenir au moins une ligne
-    const tableRows = page.locator('table tbody tr');
-    const rowCount = await tableRows.count();
-    expect(rowCount).toBeGreaterThan(0);
+    await acceptConfirmation(page, () => triggerBtn.click());
+    await expect(backupCard).toContainText(/Exécuté/i, { timeout: 30_000 });
+    await expect(page.locator('table tbody tr').first()).toBeVisible({ timeout: 15_000 });
   });
 });
 
@@ -264,13 +260,22 @@ test.describe('TasksAdminPage — Rafraîchissement', () => {
   test('bouton "Rafraîchir" visible et fonctionnel', async ({ page }) => {
     await login(page, SUPER_ADMIN);
     await page.goto('/tasks-admin', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('h1')).toContainText(/tâches planifiées/i, { timeout: 15_000 });
 
-    const refreshBtn = page.locator('button:has-text("Rafraîchir")');
-    await expect(refreshBtn).toBeVisible({ timeout: 10_000 });
+    const refreshBtn = page.getByRole('button', { name: /Rafraîchir/i });
+    await expect(refreshBtn).toBeVisible();
 
-    // Cliquer ne doit pas planter la page
+    const tasksResponse = page.waitForResponse(
+      (response) =>
+        /\/api\/v1\/tasks(?:\?|$)/.test(response.url()) &&
+        response.request().method() === 'GET' &&
+        response.status() === 200,
+      { timeout: 15_000 },
+    );
     await refreshBtn.click();
-    await page.waitForTimeout(2000);
+    await tasksResponse;
+
     await expect(page.locator('h1')).toContainText(/tâches planifiées/i);
+    await expect(statusCard(page, 'Tâches disponibles')).toContainText(/\b5\b/);
   });
 });

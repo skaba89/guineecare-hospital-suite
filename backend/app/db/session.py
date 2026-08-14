@@ -18,11 +18,17 @@ engine_kwargs = {
 }
 
 if settings.database_url.startswith("sqlite"):
-    # SQLite : pas de pool (StaticPool = 1 connexion partagée)
+    # SQLite fichier : laisser SQLAlchemy utiliser son pool normal. Partager une
+    # seule connexion StaticPool entre les requêtes HTTP/WebSocket concurrentes
+    # peut provoquer des sqlite3.InterfaceError ("bad parameter or other API
+    # misuse"). StaticPool reste nécessaire uniquement pour une base en mémoire,
+    # afin que toutes les sessions voient la même base temporaire.
     engine_kwargs = {
         "connect_args": {"check_same_thread": False},
-        "poolclass": StaticPool,
+        "pool_pre_ping": True,
     }
+    if ":memory:" in settings.database_url:
+        engine_kwargs["poolclass"] = StaticPool
 
 engine = create_engine(settings.database_url, **engine_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
