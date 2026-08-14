@@ -116,52 +116,74 @@ def get_patient(
 
     Sécurité (v2.2.0) :
     - `enforce_facility_access` empêche la lecture cross-tenant (déjà en place).
-    - `audit_log` trace l'accès au dossier patient (PHI access log) — nouvelle
-      obligation conformité données médicales Guinée.
+    - `audit_log` trace l'accès au dossier patient (PHI access log).
+    - Les données sont sérialisées avant l'écriture d'audit : `audit_log`
+      commit la transaction et SQLAlchemy expire sinon l'objet ORM, ce qui
+      pouvait produire `data: {}` pour les rôles cliniques.
     """
     row = db.query(Patient).filter(Patient.id == patient_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Patient not found")
     enforce_facility_access(current_user, row.facility_id)
-    # P1 fix v2.2.0 : tracer l'accès au dossier patient (PHI access log)
-    audit_log(
-        db=db,
-        action="patient.read",
-        user=current_user,
-        resource_type="patient",
-        resource_id=str(row.id),
-        request=request,
-        status_code=200,
-        facility_id=row.facility_id,
-    )
-    # v2.8.3 — P2-3 : masquer les données médicales sensibles pour les rôles
-    # non-cliniques (PHARMACIST, LAB_TECH, CASHIER ne doivent pas voir blood_type,
-    # allergies, medical_history, current_medication, chronic_conditions).
-    # Seuls SUPER_ADMIN, ADMIN, DOCTOR, NURSE, MIDWIFE ont accès aux champs médicaux.
+
+    # Capturer les valeurs avant audit_log(), dont le commit expire les objets
+    # ORM de la Session. On retourne ensuite un dict déterministe plutôt qu'une
+    # instance SQLAlchemy potentiellement expirée.
+    patient_id_str = str(row.id)
+    patient_facility_id = row.facility_id
+    current_role = current_user.role
+    patient_data = {
+        "id": patient_id_str,
+        "facility_id": patient_facility_id,
+        "patient_number": row.patient_number,
+        "first_name": row.first_name,
+        "last_name": row.last_name,
+        "gender": row.gender,
+        "date_of_birth": row.date_of_birth.isoformat() if row.date_of_birth else None,
+        "phone": row.phone,
+        "address": row.address,
+        "status": row.status,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    }
+
+    # v2.8.3 — P2-3 : seuls les rôles cliniques autorisés reçoivent les
+    # identifiants/contacts étendus et les champs médicaux sensibles.
     CLINICAL_ROLES = {"SUPER_ADMIN", "ADMIN", "DOCTOR", "NURSE", "MIDWIFE"}
-    if current_user.role not in CLINICAL_ROLES:
-        # Masquer les champs médicaux sensibles
-        patient_data = {
-            "id": str(row.id),
-            "facility_id": row.facility_id,
-            "patient_number": row.patient_number,
-            "first_name": row.first_name,
-            "last_name": row.last_name,
-            "gender": row.gender,
-            "date_of_birth": row.date_of_birth.isoformat() if row.date_of_birth else None,
-            "phone": row.phone,
-            "address": row.address,
-            "status": row.status,
-            "created_at": row.created_at.isoformat() if row.created_at else None,
-            # Champs médicaux masqués (non inclus pour PHARMACIST/LAB_TECH/CASHIER)
+    if current_role in CLINICAL_ROLES:
+        patient_data.update({
+            "national_id": row.national_id,
+            "insurance_number": row.insurance_number,
+            "emergency_contact_name": row.emergency_contact_name,
+            "emergency_contact_phone": row.emergency_contact_phone,
+            "blood_type": row.blood_type,
+            "allergies": row.allergies,
+            "medical_history": row.medical_history,
+            "current_medication": row.current_medication,
+            "chronic_conditions": row.chronic_conditions,
+        })
+    else:
+        # Préserver strictement le comportement de confidentialité existant :
+        # pas de national_id/insurance/emergency contact pour ces rôles, et les
+        # cinq champs médicaux restent explicitement masqués.
+        patient_data.update({
             "blood_type": "[RESTREINT]",
             "allergies": "[RESTREINT]",
             "medical_history": "[RESTREINT]",
             "current_medication": "[RESTREINT]",
             "chronic_conditions": "[RESTREINT]",
-        }
-    else:
-        patient_data = row
+        })
+
+    # P1 fix v2.2.0 : tracer l'accès au dossier patient (PHI access log).
+    audit_log(
+        db=db,
+        action="patient.read",
+        user=current_user,
+        resource_type="patient",
+        resource_id=patient_id_str,
+        request=request,
+        status_code=200,
+        facility_id=patient_facility_id,
+    )
 
     return {"data": patient_data, "message": "patient detail"}
 
