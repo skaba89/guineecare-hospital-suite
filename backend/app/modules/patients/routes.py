@@ -116,10 +116,8 @@ def get_patient(
 
     Sécurité (v2.2.0) :
     - `enforce_facility_access` empêche la lecture cross-tenant (déjà en place).
-    - `audit_log` trace l'accès au dossier patient (PHI access log).
-    - Les données sont sérialisées avant l'écriture d'audit : `audit_log`
-      commit la transaction et SQLAlchemy expire sinon l'objet ORM, ce qui
-      pouvait produire `data: {}` pour les rôles cliniques.
+    - `audit_log` trace l'accès au dossier patient (PHI access log) — nouvelle
+      obligation conformité données médicales Guinée.
     """
     row = db.query(Patient).filter(Patient.id == patient_id).first()
     if not row:
