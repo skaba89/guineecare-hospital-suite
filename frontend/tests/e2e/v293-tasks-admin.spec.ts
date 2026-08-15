@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Dialog, type Page } from '@playwright/test';
 
 /**
  * Tests E2E — TasksAdminPage UI (v2.9.3)
@@ -18,6 +18,12 @@ import { test, expect, type Page } from '@playwright/test';
 
 const SUPER_ADMIN = { email: 'admin@guineecare.com', password: 'admin123' };
 const DOCTOR = { email: 'dr.diallo@chu-donka.gn', password: 'doctor123' };
+
+type DialogSnapshot = {
+  type: string;
+  message: string;
+  defaultValue: string;
+};
 
 async function login(page: Page, creds: { email: string; password: string }) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
@@ -44,12 +50,71 @@ function statusCard(page: Page, label: string) {
   return page.locator('.card').filter({ hasText: label }).first();
 }
 
-async function acceptConfirmation(page: Page, click: () => Promise<void>) {
-  const dialogPromise = page.waitForEvent('dialog');
-  await click();
-  const dialog = await dialogPromise;
-  expect(dialog.type()).toBe('confirm');
-  await dialog.accept();
+async function expandSystemSectionIfPresent(page: Page) {
+  const header = page
+    .locator('button.sidebar-section-header')
+    .filter({ hasText: /SYSTÈME|SYSTEM/i })
+    .first();
+
+  if ((await header.count()) === 0) return;
+  if ((await header.getAttribute('aria-expanded')) !== 'true') {
+    await header.click();
+    await expect(header).toHaveAttribute('aria-expanded', 'true');
+  }
+}
+
+function snapshotDialog(dialog: Dialog): DialogSnapshot {
+  return {
+    type: dialog.type(),
+    message: dialog.message(),
+    defaultValue: dialog.defaultValue(),
+  };
+}
+
+async function clickWithDialogs(
+  page: Page,
+  click: () => Promise<void>,
+  actions: Array<'accept' | 'dismiss'>,
+): Promise<DialogSnapshot[]> {
+  const snapshots: DialogSnapshot[] = [];
+  let index = 0;
+  let resolveDialogs!: (value: DialogSnapshot[]) => void;
+  let rejectDialogs!: (reason?: unknown) => void;
+
+  const dialogsHandled = new Promise<DialogSnapshot[]>((resolve, reject) => {
+    resolveDialogs = resolve;
+    rejectDialogs = reject;
+  });
+
+  const handler = async (dialog: Dialog) => {
+    try {
+      snapshots.push(snapshotDialog(dialog));
+      const action = actions[index];
+      index += 1;
+
+      if (action === 'dismiss') {
+        await dialog.dismiss();
+      } else {
+        await dialog.accept();
+      }
+
+      if (index === actions.length) {
+        page.off('dialog', handler);
+        resolveDialogs(snapshots);
+      }
+    } catch (error) {
+      page.off('dialog', handler);
+      rejectDialogs(error);
+    }
+  };
+
+  page.on('dialog', handler);
+  try {
+    await click();
+    return await dialogsHandled;
+  } finally {
+    page.off('dialog', handler);
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -71,16 +136,16 @@ test.describe('TasksAdminPage — Accès & RBAC', () => {
 
   test('sidebar n\'affiche pas "Tâches planifiées" pour DOCTOR', async ({ page }) => {
     await login(page, DOCTOR);
-    const tasksLink = page.locator('aside.sidebar a[href="/tasks-admin"]');
-    await expect(tasksLink).toHaveCount(0);
+    await expandSystemSectionIfPresent(page);
+    await expect(page.locator('aside.sidebar a[href="/tasks-admin"]')).toHaveCount(0);
   });
 
   test('sidebar contient "Tâches planifiées" pour SUPER_ADMIN', async ({ page }) => {
     await login(page, SUPER_ADMIN);
-    // Le groupe SYSTÈME peut être replié : l'existence du lien teste le RBAC,
-    // sa visibilité dépend uniquement de l'état visuel de l'accordéon.
+    await expandSystemSectionIfPresent(page);
     const tasksLink = page.locator('aside.sidebar a[href="/tasks-admin"]');
     await expect(tasksLink).toHaveCount(1);
+    await expect(tasksLink).toBeVisible();
   });
 });
 
@@ -101,7 +166,7 @@ test.describe('TasksAdminPage — Tableau de bord', () => {
   });
 
   test('compteur "Tâches disponibles" affiche 5', async ({ page }) => {
-    await expect(statusCard(page, 'Tâches disponibles')).toContainText(/\b5\b/);
+    await expect(statusCard(page, 'Tâches disponibles')).toContainText('5');
   });
 
   test('mode synchrone est signalé quand Celery est absent', async ({ page }) => {
@@ -177,7 +242,8 @@ test.describe('TasksAdminPage — Trigger manuel', () => {
     const backupCard = taskCard(page, 'Backup database');
     const triggerBtn = backupCard.getByRole('button', { name: /Exécuter maintenant/i });
 
-    await acceptConfirmation(page, () => triggerBtn.click());
+    const [confirmation] = await clickWithDialogs(page, () => triggerBtn.click(), ['accept']);
+    expect(confirmation.type).toBe('confirm');
     await expect(backupCard).toContainText(/Exécuté/i, { timeout: 30_000 });
   });
 
@@ -185,30 +251,20 @@ test.describe('TasksAdminPage — Trigger manuel', () => {
     const pruneCard = taskCard(page, 'Purge audit log');
     const triggerBtn = pruneCard.getByRole('button', { name: /Exécuter maintenant/i });
 
-    const dialogPromise = page.waitForEvent('dialog');
-    await triggerBtn.click();
-    const dialog = await dialogPromise;
-
-    expect(dialog.type()).toBe('confirm');
-    expect(dialog.message()).toMatch(/destructrice|Purge|prune/i);
-    await dialog.dismiss();
+    const [confirmation] = await clickWithDialogs(page, () => triggerBtn.click(), ['dismiss']);
+    expect(confirmation.type).toBe('confirm');
+    expect(confirmation.message).toMatch(/destructrice|Purge|prune/i);
   });
 
   test('prompt retention_days propose 365 sur prune_audit_logs', async ({ page }) => {
     const pruneCard = taskCard(page, 'Purge audit log');
     const triggerBtn = pruneCard.getByRole('button', { name: /Exécuter maintenant/i });
 
-    const confirmPromise = page.waitForEvent('dialog');
-    await triggerBtn.click();
-    const confirm = await confirmPromise;
-    expect(confirm.type()).toBe('confirm');
-    await confirm.accept();
-
-    const prompt = await page.waitForEvent('dialog');
-    expect(prompt.type()).toBe('prompt');
-    expect(prompt.defaultValue()).toBe('365');
-    // Annuler le prompt évite d'exécuter une purge réelle pendant ce test UI.
-    await prompt.dismiss();
+    const dialogs = await clickWithDialogs(page, () => triggerBtn.click(), ['accept', 'dismiss']);
+    expect(dialogs).toHaveLength(2);
+    expect(dialogs[0].type).toBe('confirm');
+    expect(dialogs[1].type).toBe('prompt');
+    expect(dialogs[1].defaultValue).toBe('365');
   });
 });
 
@@ -247,7 +303,8 @@ test.describe('TasksAdminPage — Historique', () => {
     const backupCard = taskCard(page, 'Backup database');
     const triggerBtn = backupCard.getByRole('button', { name: /Exécuter maintenant/i });
 
-    await acceptConfirmation(page, () => triggerBtn.click());
+    const [confirmation] = await clickWithDialogs(page, () => triggerBtn.click(), ['accept']);
+    expect(confirmation.type).toBe('confirm');
     await expect(backupCard).toContainText(/Exécuté/i, { timeout: 30_000 });
     await expect(page.locator('table tbody tr').first()).toBeVisible({ timeout: 15_000 });
   });
@@ -276,6 +333,6 @@ test.describe('TasksAdminPage — Rafraîchissement', () => {
     await tasksResponse;
 
     await expect(page.locator('h1')).toContainText(/tâches planifiées/i);
-    await expect(statusCard(page, 'Tâches disponibles')).toContainText(/\b5\b/);
+    await expect(statusCard(page, 'Tâches disponibles')).toContainText('5');
   });
 });
