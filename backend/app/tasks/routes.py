@@ -17,8 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.modules.auth.dependencies import get_current_user
-from app.modules.rbac.dependencies import require_permission
+from app.modules.rbac.dependencies import require_role
 from app.modules.users.models import User
 
 logger = logging.getLogger("guineecare.tasks.routes")
@@ -34,14 +33,61 @@ AVAILABLE_TASKS = {
     "send_quality_alerts_digest": "app.tasks.reporting_tasks.send_quality_alerts_digest",
 }
 
+# Une purge manuelle est une action destructive. On impose une fenêtre
+# explicite et conservatrice afin qu'une valeur absente/négative ne puisse
+# jamais devenir silencieusement une purge large.
+MIN_MANUAL_AUDIT_RETENTION_DAYS = 30
+MAX_MANUAL_AUDIT_RETENTION_DAYS = 3650
+
+
+def _task_kwargs(task_name: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Valide les arguments d'un déclenchement manuel avant exécution."""
+    kwargs: dict[str, Any] = {}
+
+    if task_name == "prune_audit_logs":
+        if "retention_days" not in payload:
+            raise HTTPException(
+                status_code=422,
+                detail="retention_days est obligatoire pour une purge manuelle des audit logs",
+            )
+
+        raw_retention = payload["retention_days"]
+        if isinstance(raw_retention, bool):
+            raise HTTPException(status_code=422, detail="retention_days doit être un entier")
+        try:
+            retention_days = int(raw_retention)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=422, detail="retention_days doit être un entier") from None
+
+        if not MIN_MANUAL_AUDIT_RETENTION_DAYS <= retention_days <= MAX_MANUAL_AUDIT_RETENTION_DAYS:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "retention_days doit être compris entre "
+                    f"{MIN_MANUAL_AUDIT_RETENTION_DAYS} et {MAX_MANUAL_AUDIT_RETENTION_DAYS} jours"
+                ),
+            )
+        kwargs["retention_days"] = retention_days
+
+    elif task_name == "retry_sms_pending" and "max_age_hours" in payload:
+        try:
+            kwargs["max_age_hours"] = int(payload["max_age_hours"])
+        except (ValueError, TypeError):
+            pass
+    elif task_name == "push_dhis2_monthly" and "period" in payload:
+        if isinstance(payload["period"], str) and payload["period"]:
+            kwargs["period"] = payload["period"]
+
+    return kwargs
+
 
 @router.get("")
 def list_tasks(
-    current_user: User = Depends(require_permission("audit.read")),
+    current_user: User = Depends(require_role("SUPER_ADMIN")),
 ) -> dict[str, Any]:
     """Liste les tâches planifiées disponibles et leur statut.
 
-    SUPER_ADMIN uniquement — nécessite la permission `audit.read`.
+    SUPER_ADMIN uniquement.
     """
     from app.tasks.celery_app import celery_app
 
@@ -64,7 +110,7 @@ def trigger_task(
     task_name: str,
     payload: dict | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("audit.read")),
+    current_user: User = Depends(require_role("SUPER_ADMIN")),
 ) -> dict[str, Any]:
     """Déclenche une tâche manuellement.
 
@@ -84,8 +130,10 @@ def trigger_task(
 
     task_path = AVAILABLE_TASKS[task_name]
     payload = payload or {}
+    kwargs = _task_kwargs(task_name, payload)
 
-    # Log de l'action (audit)
+    # Log de l'action (audit) uniquement après validation complète du payload.
+    # Une requête refusée ne doit jamais être enregistrée comme tâche déclenchée.
     try:
         from app.modules.audit.service import audit_log
         audit_log(
@@ -102,22 +150,6 @@ def trigger_task(
 
     # Exécution (synchrone si Celery absent, async sinon)
     from app.tasks.celery_app import submit_task, celery_app
-
-    # Filter payload kwargs to the function signature
-    kwargs: dict[str, Any] = {}
-    if task_name == "prune_audit_logs" and "retention_days" in payload:
-        try:
-            kwargs["retention_days"] = int(payload["retention_days"])
-        except (ValueError, TypeError):
-            pass  # ignore invalid type — utilise la valeur par défaut
-    elif task_name == "retry_sms_pending" and "max_age_hours" in payload:
-        try:
-            kwargs["max_age_hours"] = int(payload["max_age_hours"])
-        except (ValueError, TypeError):
-            pass
-    elif task_name == "push_dhis2_monthly" and "period" in payload:
-        if isinstance(payload["period"], str) and payload["period"]:
-            kwargs["period"] = payload["period"]
 
     try:
         result = submit_task(task_path, **kwargs)
