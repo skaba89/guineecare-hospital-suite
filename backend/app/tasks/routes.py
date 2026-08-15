@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.modules.rbac.dependencies import require_role
+from app.modules.rbac.dependencies import require_permission
 from app.modules.users.models import User
 
 logger = logging.getLogger("guineecare.tasks.routes")
@@ -38,6 +38,12 @@ AVAILABLE_TASKS = {
 # jamais devenir silencieusement une purge large.
 MIN_MANUAL_AUDIT_RETENTION_DAYS = 30
 MAX_MANUAL_AUDIT_RETENTION_DAYS = 3650
+
+
+def _ensure_super_admin(current_user: User) -> None:
+    """Verrou additionnel pour les tâches de maintenance système."""
+    if current_user.role != "SUPER_ADMIN":
+        raise HTTPException(status_code=403, detail="SUPER_ADMIN requis pour les tâches système")
 
 
 def _task_kwargs(task_name: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -83,12 +89,14 @@ def _task_kwargs(task_name: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 @router.get("")
 def list_tasks(
-    current_user: User = Depends(require_role("SUPER_ADMIN")),
+    current_user: User = Depends(require_permission("audit.read")),
 ) -> dict[str, Any]:
     """Liste les tâches planifiées disponibles et leur statut.
 
-    SUPER_ADMIN uniquement.
+    SUPER_ADMIN uniquement — nécessite la permission `audit.read`.
     """
+    _ensure_super_admin(current_user)
+
     from app.tasks.celery_app import celery_app
 
     return {
@@ -110,7 +118,7 @@ def trigger_task(
     task_name: str,
     payload: dict | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("SUPER_ADMIN")),
+    current_user: User = Depends(require_permission("audit.read")),
 ) -> dict[str, Any]:
     """Déclenche une tâche manuellement.
 
@@ -122,6 +130,8 @@ def trigger_task(
     Returns:
         {"task": name, "status": "submitted"|"sync_executed", "result": ...}
     """
+    _ensure_super_admin(current_user)
+
     if task_name not in AVAILABLE_TASKS:
         raise HTTPException(
             status_code=404,
