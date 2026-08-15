@@ -68,7 +68,6 @@ def seed(url):
     Session = sessionmaker(bind=engine)
     db = Session()
     try:
-        # Children first so this fixture is repeatable on every CI run.
         _delete_ids(db, SmsMessage, [SMS_GLOBAL, SMS_A, SMS_B])
         _delete_ids(db, SmsRoutingRule, [RULE_GLOBAL, RULE_A, RULE_B])
         _delete_ids(db, QualityAlert, [ALERT_GLOBAL, ALERT_A, ALERT_B])
@@ -96,7 +95,6 @@ def seed(url):
             User(id=UB, facility_id=B, email="rls2-b@test", password_hash="x", first_name="B", last_name="Doctor", role="DOCTOR", is_active=True),
         ])
         db.flush()
-
         db.add_all([
             QualityIndicator(id=IND_A, facility_id=A, code="RLS2-A-IND", name="RLS2 indicator A"),
             QualityIndicator(id=IND_B, facility_id=B, code="RLS2-B-IND", name="RLS2 indicator B"),
@@ -111,10 +109,6 @@ def seed(url):
             DataBreach(id=BA, facility_id=A, reported_by=AA, title="A breach", description="A", severity="HIGH"),
             DataBreach(id=BB, facility_id=B, reported_by=UB, title="B breach", description="B", severity="HIGH"),
             DataBreach(id=BN, facility_id=None, reported_by=None, title="National breach", description="N", severity="CRITICAL"),
-        ])
-
-        # Shared reference rows: global + facility-specific override.
-        db.add_all([
             InsuranceProvider(id=INS_GLOBAL, facility_id=None, name="National insurer", code="RLS2-INS-G", coverage_rate=80),
             InsuranceProvider(id=INS_A, facility_id=A, name="Insurer A", code="RLS2-INS-A", coverage_rate=70),
             InsuranceProvider(id=INS_B, facility_id=B, name="Insurer B", code="RLS2-INS-B", coverage_rate=60),
@@ -124,10 +118,6 @@ def seed(url):
             SmsRoutingRule(id=RULE_GLOBAL, facility_id=None, category="rls2_global", channels="in_app,sms", min_priority="high", enabled=True),
             SmsRoutingRule(id=RULE_A, facility_id=A, category="rls2_a", channels="sms", min_priority="normal", enabled=True),
             SmsRoutingRule(id=RULE_B, facility_id=B, category="rls2_b", channels="sms", min_priority="normal", enabled=True),
-        ])
-
-        # Operational NULL rows are national/system data, never tenant data.
-        db.add_all([
             QualityAlert(id=ALERT_GLOBAL, facility_id=None, title="National quality alert", status="OPEN", severity="CRITICAL"),
             QualityAlert(id=ALERT_A, facility_id=A, title="A quality alert", status="OPEN", severity="HIGH"),
             QualityAlert(id=ALERT_B, facility_id=B, title="B quality alert", status="OPEN", severity="HIGH"),
@@ -168,8 +158,6 @@ def main():
     seed(admin)
     db = SessionLocal()
     try:
-        # No trusted identity: every protected nullable table is fail-closed,
-        # including shared references (global rows require authentication).
         for model in [
             UserFeedback,
             Notification,
@@ -186,36 +174,31 @@ def main():
         assert ids(db, UserFeedback) == {FA}
         assert ids(db, Notification) == {NA}
         assert ids(db, DataBreach) == {BA}
-
-        # Shared references expose national defaults + the current facility's
-        # override, never another facility's override.
         assert ids(db, InsuranceProvider) == {INS_GLOBAL, INS_A}
         assert ids(db, QualityThreshold) == {TH_GLOBAL, TH_A}
         assert ids(db, SmsRoutingRule) == {RULE_GLOBAL, RULE_A}
-
-        # Operational NULL rows are national/system-only.
         assert ids(db, QualityAlert) == {ALERT_A}
         assert ids(db, SmsMessage) == {SMS_A}
 
-        # Global shared rows are readable but immutable to facility roles.
         assert_global_update_is_blocked(db, "insurance_providers", INS_GLOBAL, "name", "ILLEGAL")
         assert_global_update_is_blocked(db, "quality_thresholds", TH_GLOBAL, "threshold_value", "999")
         assert_global_update_is_blocked(db, "sms_routing_rules", RULE_GLOBAL, "description", "ILLEGAL")
 
-        # A tenant cannot create a new global reference row either.
-        db.execute(
-            text("""
-                INSERT INTO insurance_providers
-                    (id, facility_id, name, code, coverage_rate, status, created_at)
-                VALUES
-                    ('90000000-0000-0000-0000-000000000799', NULL,
-                     'Illegal global insurer', 'RLS2-ILLEGAL', 50, 'ACTIVE', NOW())
-            """)
-        )
-        assert_blocked(db.commit)
+        def insert_illegal_global_provider():
+            db.execute(
+                text("""
+                    INSERT INTO insurance_providers
+                        (id, facility_id, name, code, coverage_rate, status, created_at)
+                    VALUES
+                        ('90000000-0000-0000-0000-000000000799', NULL,
+                         'Illegal global insurer', 'RLS2-ILLEGAL', 50, 'ACTIVE', NOW())
+                """)
+            )
+            db.commit()
+
+        assert_blocked(insert_illegal_global_provider)
         db.rollback()
 
-        # Doctor cannot update feedback even when it is their own.
         feedback = db.query(UserFeedback).filter(UserFeedback.id == FA).one()
         feedback.status = "resolved"
         assert_blocked(db.commit)
@@ -249,7 +232,6 @@ def main():
         assert ids(db, QualityAlert) == {ALERT_GLOBAL, ALERT_A, ALERT_B}
         assert ids(db, SmsMessage) == {SMS_GLOBAL, SMS_A, SMS_B}
 
-        # RLS identity includes trusted database user/role values.
         row = db.execute(
             text(
                 "SELECT current_setting('app.current_role', true), "
