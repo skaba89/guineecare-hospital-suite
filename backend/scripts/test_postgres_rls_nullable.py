@@ -12,6 +12,7 @@ sys.path.insert(0, str(BACKEND_ROOT)) if str(BACKEND_ROOT) not in sys.path else 
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm.exc import StaleDataError
 
 from app.core.tenant import bind_tenant_context
 from app.db.session import SessionLocal
@@ -25,6 +26,21 @@ from app.modules.quality.dashboard_models import QualityAlert, QualityThreshold
 from app.modules.quality.models import QualityIndicator
 from app.modules.user_profile.models import UserFeedback
 from app.modules.users.models import User
+
+# Deliberately duplicated from the migration as an independent CI allowlist.
+# A future nullable facility_id table must be explicitly classified here and
+# receive dedicated behavioral tests instead of silently inheriting a policy.
+NULLABLE_POLICY_TABLES = {
+    "data_breaches",
+    "notifications",
+    "user_feedback",
+    "insurance_providers",
+    "quality_thresholds",
+    "sms_routing_rules",
+    "quality_alerts",
+    "sms_messages",
+}
+NULLABLE_CONTROL_PLANE_EXEMPTIONS = {"users", "refresh_tokens", "audit_logs"}
 
 A = "10000000-0000-0000-0000-000000000001"
 B = "20000000-0000-0000-0000-000000000001"
@@ -58,6 +74,53 @@ RULE_B = "20000000-0000-0000-0000-000000000801"
 SMS_GLOBAL = "90000000-0000-0000-0000-000000000901"
 SMS_A = "10000000-0000-0000-0000-000000000901"
 SMS_B = "20000000-0000-0000-0000-000000000901"
+
+
+def _assert_nullable_schema_is_classified(admin_url: str) -> None:
+    """Fail CI if final schema adds an unclassified nullable facility_id table."""
+    engine = create_engine(admin_url)
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text(
+                    """
+                    SELECT c.table_name, cls.relrowsecurity, cls.relforcerowsecurity
+                    FROM information_schema.columns c
+                    JOIN pg_class cls ON cls.relname = c.table_name
+                    JOIN pg_namespace ns ON ns.oid = cls.relnamespace
+                                         AND ns.nspname = c.table_schema
+                    WHERE c.table_schema = current_schema()
+                      AND c.column_name = 'facility_id'
+                      AND c.is_nullable = 'YES'
+                    ORDER BY c.table_name
+                    """
+                )
+            ).all()
+    finally:
+        engine.dispose()
+
+    actual = {name for name, _, _ in rows}
+    unknown = actual - NULLABLE_POLICY_TABLES - NULLABLE_CONTROL_PLANE_EXEMPTIONS
+    assert not unknown, (
+        "Nullable facility_id tables require explicit RLS classification and tests: "
+        f"{sorted(unknown)}"
+    )
+
+    missing = NULLABLE_POLICY_TABLES - actual
+    assert not missing, (
+        "Nullable RLS allowlist contains tables no longer nullable/present; "
+        f"review their classification: {sorted(missing)}"
+    )
+
+    unprotected = [
+        name
+        for name, enabled, forced in rows
+        if name in NULLABLE_POLICY_TABLES and (not enabled or not forced)
+    ]
+    assert not unprotected, (
+        "Classified nullable facility tables must have ENABLE + FORCE RLS: "
+        f"{unprotected}"
+    )
 
 
 def _delete_ids(db, model, values):
@@ -140,7 +203,7 @@ def assert_blocked(fn):
     blocked = False
     try:
         fn()
-    except DBAPIError:
+    except (DBAPIError, StaleDataError):
         blocked = True
     assert blocked
 
@@ -156,6 +219,7 @@ def assert_global_update_is_blocked(db, table: str, row_id: str, column: str, va
 
 def main():
     admin = os.environ["RLS_ADMIN_DATABASE_URL"]
+    _assert_nullable_schema_is_classified(admin)
     seed(admin)
     db = SessionLocal()
     try:
