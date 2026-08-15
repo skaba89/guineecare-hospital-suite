@@ -184,7 +184,21 @@ export function TasksAdminPage() {
       const payload: Record<string, unknown> = {};
       if (taskName === "prune_audit_logs") {
         const days = window.prompt("Rétention en jours (défaut: 365):", "365");
-        if (days && !isNaN(Number(days))) payload.retention_days = Number(days);
+        if (days === null) return;
+
+        const retentionDays = Number(days);
+        if (
+          !Number.isInteger(retentionDays) ||
+          retentionDays < 30 ||
+          retentionDays > 3650
+        ) {
+          showToast(
+            "Rétention invalide : saisir un entier entre 30 et 3650 jours.",
+            "error"
+          );
+          return;
+        }
+        payload.retention_days = retentionDays;
       } else if (taskName === "push_dhis2_monthly") {
         const period = window.prompt(
           "Période YYYYMM (vide = mois précédent):",
