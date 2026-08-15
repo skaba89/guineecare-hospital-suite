@@ -17,6 +17,7 @@ from app.core.tenant import bind_tenant_context
 from app.db.session import SessionLocal
 from app.modules.auth.models import DataBreach
 from app.modules.billing.insurance_models import InsuranceProvider
+from app.modules.departments.models import Department  # noqa: F401
 from app.modules.facilities.models import Facility
 from app.modules.notifications.models import Notification
 from app.modules.notifications.sms_models import SmsMessage, SmsRoutingRule
