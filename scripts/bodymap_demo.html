@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>GuinéeCare — Carte corporelle interactive (démo)</title>
+  <style>
+    /* Copie des variables CSS utiles */
+    :root {
+      --primary: #0f6b3e;
+      --primary-light: #e8f5ee;
+      --primary-hover: #0d5a34;
+      --primary-50: #f0fdf4;
+      --primary-100: #dcfce7;
+      --primary-200: #bbf7d0;
+      --accent: #2563eb;
+      --accent-light: #eff6ff;
+      --danger: #dc2626;
+      --danger-light: #fef2f2;
+      --warning: #f59e0b;
+      --success: #16a34a;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #1e293b;
+      --text-secondary: #475569;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --border-light: #f1f5f9;
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-xl: 12px;
+      --radius-full: 9999px;
+      --transition-fast: 0.15s ease;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 32px;
+    }
+
+    h1 { color: var(--primary); margin-top: 0; }
+    h2 { font-size: 18px; margin: 24px 0 12px; }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .demo-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ─── BodyMap CSS (copié du projet) ─── */
+    .body-map {
+      display: flex; flex-direction: column; gap: 16px;
+      padding: 16px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-sm);
+    }
+    .body-map-toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap;
+    }
+    .body-map-view-toggle {
+      display: inline-flex;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      padding: 3px; gap: 2px;
+    }
+    .body-map-view-toggle button {
+      padding: 6px 18px; border: none; background: transparent;
+      color: var(--text-secondary);
+      font: inherit; font-size: 13px; font-weight: 500;
+      border-radius: var(--radius-full); cursor: pointer;
+      transition: all var(--transition-fast); outline: none;
+    }
+    .body-map-view-toggle button:hover { color: var(--text); }
+    .body-map-view-toggle button.active {
+      background: var(--primary); color: #ffffff;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .body-map-counter {
+      font-size: 13px; color: var(--muted); font-weight: 500;
+    }
+    .body-map-canvas {
+      display: flex; align-items: center; justify-content: center;
+      background:
+        radial-gradient(circle at 50% 30%, var(--primary-50) 0%, transparent 60%),
+        var(--bg);
+      border-radius: var(--radius-lg);
+      padding: 12px;
+      border: 1px solid var(--border-light);
+    }
+    .body-map-region {
+      fill: var(--border-light); stroke: var(--border); stroke-width: 1;
+      cursor: pointer;
+      transition: fill var(--transition-fast), stroke var(--transition-fast), opacity var(--transition-fast);
+      outline: none;
+    }
+    .body-map-region:hover { fill: var(--primary-100); stroke: var(--primary); stroke-width: 1.5; }
+    .body-map-region.selected {
+      fill: var(--danger); stroke: var(--danger); stroke-width: 1.5; opacity: 0.85;
+    }
+    .body-map-selected-list {
+      display: flex; flex-direction: column; gap: 8px;
+      padding: 12px;
+      background: var(--primary-50);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--primary-100);
+    }
+    .body-map-selected-label {
+      font-size: 12px; font-weight: 600;
+      color: var(--primary-hover);
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .body-map-selected-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .body-map-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px;
+      background: var(--danger); color: #ffffff;
+      border-radius: var(--radius-full);
+      font-size: 12px; font-weight: 500;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+
+    /* ─── Preview card ─── */
+    .preview-card {
+      padding: 20px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-sm);
+    }
+    .preview-card h3 {
+      margin-top: 0; color: var(--primary); font-size: 16px;
+    }
+    .exam-list {
+      display: flex; flex-direction: column; gap: 10px;
+      max-height: 500px; overflow-y: auto;
+    }
+    .exam-item {
+      padding: 12px 14px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--primary);
+      border-radius: var(--radius-md);
+      font-size: 13px;
+    }
+    .exam-item .meta {
+      display: flex; justify-content: space-between;
+      color: var(--muted); font-size: 12px; margin-bottom: 6px;
+    }
+    .exam-item .badge {
+      padding: 2px 8px; border-radius: var(--radius-full);
+      background: var(--accent-light); color: var(--accent);
+      font-size: 11px; font-weight: 500;
+    }
+    .exam-item .regions { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+    .exam-item .mini-chip {
+      font-size: 11px; padding: 2px 8px;
+      background: var(--danger-light); color: var(--danger);
+      border-radius: var(--radius-full); font-weight: 500;
+    }
+    .exam-item .note {
+      color: var(--text); font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🩺 GuinéeCare — Carte corporelle interactive</h1>
+    <p class="muted" style="color: var(--muted); margin-top: -8px; margin-bottom: 24px;">
+      Démo du composant BodyMap intégré au dossier patient. Vue antérieure sélectionnant plusieurs régions douloureuses.
+    </p>
+
+    <div class="demo-grid">
+      <!-- Carte interactive -->
+      <div>
+        <h2>Carte corporelle — Vue de face</h2>
+        <div class="body-map">
+          <div class="body-map-toolbar">
+            <div class="body-map-view-toggle">
+              <button class="active">Face</button>
+              <button>Dos</button>
+            </div>
+            <div class="body-map-counter">3 régions sélectionnées</div>
+          </div>
+          <div class="body-map-canvas" style="min-height: 420px;">
+            <svg viewBox="0 0 240 540" width="210" height="480" style="display:block; margin:0 auto;">
+              <!-- Silhouette de fond -->
+              <path
+                d="M120 18 C138 18 152 32 152 52 C152 72 138 86 120 86 C102 86 88 72 88 52 C88 32 102 18 120 18 Z M108 86 L132 86 L132 108 L108 108 Z M88 108 L152 108 C160 116 168 130 168 150 L168 200 C168 210 162 218 152 218 L88 218 C78 218 72 210 72 200 L72 150 C72 130 80 116 88 108 Z M88 218 L152 218 L152 282 L88 282 Z M80 282 L160 282 C168 290 172 300 172 312 L168 322 L72 322 L68 312 C68 300 72 290 80 282 Z"
+                fill="var(--border-light)" stroke="var(--border)" stroke-width="1" opacity="0.4"
+              />
+              <!-- Tête (non sélectionnée) -->
+              <path d="M120 18 C138 18 152 32 152 52 C152 72 138 86 120 86 C102 86 88 72 88 52 C88 32 102 18 120 18 Z" class="body-map-region"><title>Tête / Crâne</title></path>
+              <!-- Cou (non sélectionné) -->
+              <path d="M108 86 L132 86 L132 108 L108 108 Z" class="body-map-region"><title>Cou</title></path>
+              <!-- Thorax (SÉLECTIONNÉ) -->
+              <path d="M88 108 L152 108 C160 116 168 130 168 150 L168 200 C168 210 162 218 152 218 L88 218 C78 218 72 210 72 200 L72 150 C72 130 80 116 88 108 Z" class="body-map-region selected"><title>Thorax (sélectionnée)</title></path>
+              <!-- Abdomen (SÉLECTIONNÉ) -->
+              <path d="M88 218 L152 218 L152 282 L88 282 Z" class="body-map-region selected"><title>Abdomen (sélectionnée)</title></path>
+              <!-- Bassin -->
+              <path d="M80 282 L160 282 C168 290 172 300 172 312 L168 322 L72 322 L68 312 C68 300 72 290 80 282 Z" class="body-map-region"><title>Bassin</title></path>
+              <!-- Bras G -->
+              <path d="M168 118 C176 120 182 128 184 140 L184 188 C184 196 178 200 172 198 L168 196 L168 150 Z" class="body-map-region"><title>Bras G (haut)</title></path>
+              <!-- Bras D -->
+              <path d="M72 118 C64 120 58 128 56 140 L56 188 C56 196 62 200 68 198 L72 196 L72 150 Z" class="body-map-region"><title>Bras D (haut)</title></path>
+              <!-- Avant-bras G -->
+              <path d="M170 200 L184 200 L188 268 L174 270 Z" class="body-map-region"><title>Avant-bras G</title></path>
+              <!-- Avant-bras D -->
+              <path d="M70 200 L56 200 L52 268 L66 270 Z" class="body-map-region"><title>Avant-bras D</title></path>
+              <!-- Main G -->
+              <path d="M172 270 L190 270 L194 296 L188 304 L176 304 L170 296 Z" class="body-map-region"><title>Main G</title></path>
+              <!-- Main D -->
+              <path d="M68 270 L50 270 L46 296 L52 304 L64 304 L70 296 Z" class="body-map-region"><title>Main D</title></path>
+              <!-- Cuisse G -->
+              <path d="M104 322 L148 322 L144 410 L108 410 Z" class="body-map-region"><title>Cuisse G</title></path>
+              <!-- Cuisse D -->
+              <path d="M92 322 L48 322 L52 410 L92 410 Z" class="body-map-region"><title>Cuisse D</title></path>
+              <!-- Mollet G (SÉLECTIONNÉ) -->
+              <path d="M108 410 L144 410 L140 490 L112 490 Z" class="body-map-region selected"><title>Mollet G (sélectionnée)</title></path>
+              <!-- Mollet D -->
+              <path d="M92 410 L52 410 L56 490 L92 490 Z" class="body-map-region"><title>Mollet D</title></path>
+              <!-- Pied G -->
+              <path d="M108 490 L144 490 L150 510 L100 510 Z" class="body-map-region"><title>Pied G</title></path>
+              <!-- Pied D -->
+              <path d="M92 490 L52 490 L48 510 L96 510 Z" class="body-map-region"><title>Pied D</title></path>
+            </svg>
+          </div>
+          <div class="body-map-selected-list">
+            <div class="body-map-selected-label">Régions sélectionnées :</div>
+            <div class="body-map-selected-chips">
+              <span class="body-map-chip">Thorax</span>
+              <span class="body-map-chip">Abdomen</span>
+              <span class="body-map-chip">Mollet G</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Aperçu historique -->
+      <div>
+        <h2>Historique des examens corporels</h2>
+        <div class="preview-card">
+          <h3>3 examens enregistrés</h3>
+          <div class="exam-list">
+            <div class="exam-item">
+              <div class="meta">
+                <span>03/09/2026 14:22</span>
+                <span class="badge">Douleur</span>
+              </div>
+              <div class="regions">
+                <span class="mini-chip">Thorax</span>
+                <span class="mini-chip">Abdomen</span>
+                <span class="mini-chip">Mollet G</span>
+              </div>
+              <div class="note">« Douleur aiguë, irradiation vers le flanc gauche »</div>
+            </div>
+            <div class="exam-item">
+              <div class="meta">
+                <span>02/09/2026 09:15</span>
+                <span class="badge">Lésion / Plaie</span>
+              </div>
+              <div class="regions">
+                <span class="mini-chip">Avant-bras D</span>
+                <span class="mini-chip">Main D</span>
+              </div>
+              <div class="note">« Plaie profonde, 5 cm, paume de la main droite »</div>
+            </div>
+            <div class="exam-item">
+              <div class="meta">
+                <span>28/08/2026 16:40</span>
+                <span class="badge">Site d'injection / ponction</span>
+              </div>
+              <div class="regions">
+                <span class="mini-chip">Bras G (haut)</span>
+              </div>
+              <div class="note">« Vaccin intramusculaire, deltoïde gauche »</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 32px; padding: 16px; background: var(--primary-50); border-radius: 8px; border: 1px solid var(--primary-100); font-size: 13px; color: var(--text-secondary);">
+      <strong>💡 Fonctionnalités :</strong> Cliquez sur les régions du corps pour les sélectionner/désélectionner.
+      Bascule Face/Dos, multi-sélection, sauvegarde automatique dans le dossier patient, accès clavier (Tab + Espace),
+      compatible mode sombre, 14 régions anatomiques par vue.
+    </div>
+  </div>
+</body>
+</html>

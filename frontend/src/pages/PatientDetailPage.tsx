@@ -5,14 +5,22 @@ import { LookupData, Row } from "../types";
 import { showToast } from "../components/Toast";
 import { buildOptions, firstValue } from "../utils/options";
 import { ICD11Search } from "../components/ICD11Search";
+import {
+  BodyMap,
+  BodyRegionId,
+  getRegionLabel,
+  parseRegions,
+  serializeRegions,
+} from "../components/BodyMap";
 
-type TabKey = "resume" | "observations" | "constantes" | "diagnostics" | "historique" | "examens";
+type TabKey = "resume" | "observations" | "constantes" | "diagnostics" | "historique" | "examens" | "bodymap";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "resume", label: "Résumé" },
   { key: "observations", label: "Observations" },
   { key: "constantes", label: "Constantes" },
   { key: "diagnostics", label: "Diagnostics" },
+  { key: "bodymap", label: "Carte corporelle" },
   { key: "historique", label: "Historique" },
   { key: "examens", label: "Examens" },
 ];
@@ -163,6 +171,7 @@ export function PatientDetailPage({ lookups }: { lookups: LookupData }) {
       {activeTab === "observations" && <ObservationsTab patientId={id!} lookups={lookups} />}
       {activeTab === "constantes" && <ConstantesTab patientId={id!} lookups={lookups} />}
       {activeTab === "diagnostics" && <DiagnosticsTab patientId={id!} lookups={lookups} />}
+      {activeTab === "bodymap" && <BodyMapTab patientId={id!} lookups={lookups} />}
       {activeTab === "historique" && <HistoriqueTab patientId={id!} />}
       {activeTab === "examens" && <ExamensTab patientId={id!} lookups={lookups} />}
     </section>
@@ -938,6 +947,247 @@ function ExamensTab({ patientId, lookups }: { patientId: string; lookups: Lookup
             </table>
           </div>
         )}
+      </div>
+    </>
+  );
+}
+
+/* ─── Carte corporelle Tab ────────────────────────────────────── */
+
+const EXAM_TYPE_OPTIONS_BODYMAP = [
+  { value: "DOULEUR", label: "Douleur" },
+  { value: "LESION", label: "Lésion / Plaie" },
+  { value: "EXAMEN", label: "Examen clinique" },
+  { value: "INJECTION", label: "Site d'injection / ponction" },
+  { value: "AUTRE", label: "Autre" },
+];
+
+interface BodyExamRecord {
+  id: string;
+  created_at: string;
+  exam_type: string;
+  regions: BodyRegionId[];
+  note: string;
+  author?: string;
+}
+
+/**
+ * BodyMapTab — Onglet « Carte corporelle » du dossier patient.
+ *
+ * Permet au clinicien de :
+ *  1. Cliquer sur les régions anatomiques du corps (vue face/dos)
+ *  2. Préciser le type d'examen (douleur, lésion, etc.)
+ *  3. Ajouter une note descriptive
+ *  4. Enregistrer — sauvegardé comme observation clinique (note_type=OBSERVATION)
+ *     avec un marqueur `[BODYMAP]` dans le contenu pour pouvoir le récupérer
+ *     et l'afficher dans l'historique ci-dessous.
+ *
+ * Format de stockage (champ content de l'observation) :
+ *   [BODYMAP|exam_type=DOULEUR|regions=head,chest,abdomen|note=Texte libre]
+ */
+function BodyMapTab({ patientId, lookups }: { patientId: string; lookups: LookupData }) {
+  const [selected, setSelected] = useState<BodyRegionId[]>([]);
+  const [examType, setExamType] = useState("DOULEUR");
+  const [note, setNote] = useState("");
+  const [history, setHistory] = useState<BodyExamRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [viewingRecord, setViewingRecord] = useState<BodyExamRecord | null>(null);
+
+  const options = buildOptions(lookups);
+
+  async function loadHistory() {
+    setLoading(true);
+    try {
+      const payload = await apiRequest<any>(`/clinical/patients/${patientId}/notes`);
+      const allNotes: Row[] = Array.isArray(payload.data) ? payload.data : [];
+      // Filtrer les observations qui contiennent le marqueur BODYMAP
+      const parsed: BodyExamRecord[] = allNotes
+        .map((n): BodyExamRecord | null => {
+          const content: string = (n.content as string) || "";
+          const match = content.match(/^\[BODYMAP\|exam_type=([^|]*)\|regions=([^|]*)\|note=(.*)\]$/s);
+          if (!match) return null;
+          return {
+            id: n.id as string,
+            created_at: n.created_at as string,
+            exam_type: match[1] || "AUTRE",
+            regions: parseRegions(match[2] || ""),
+            note: match[3] || "",
+            author: n.author_name as string | undefined,
+          };
+        })
+        .filter((r): r is BodyExamRecord => r !== null)
+        .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+      setHistory(parsed);
+    } catch {
+      showToast("Erreur lors du chargement de l'historique.", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadHistory();
+  }, [patientId]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (selected.length === 0) {
+      showToast("Veuillez sélectionner au moins une région sur la carte.", "warning");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const content = `[BODYMAP|exam_type=${examType}|regions=${serializeRegions(selected)}|note=${note.trim()}]`;
+      await apiRequest(`/clinical/patients/${patientId}/notes`, {
+        method: "POST",
+        body: JSON.stringify({
+          facility_id: firstValue(options.facilities),
+          note_type: "OBSERVATION",
+          content,
+        }),
+      });
+      // Reset
+      setSelected([]);
+      setNote("");
+      setExamType("DOULEUR");
+      showToast("Examen corporel enregistré.", "success");
+      loadHistory();
+    } catch {
+      showToast("Erreur lors de l'enregistrement.", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function resetForm() {
+    setSelected([]);
+    setNote("");
+    setExamType("DOULEUR");
+  }
+
+  const examTypeLabel = (t: string) =>
+    EXAM_TYPE_OPTIONS_BODYMAP.find((o) => o.value === t)?.label || t;
+
+  return (
+    <>
+      <div className="section-header">
+        <h2>Carte corporelle interactive</h2>
+        <span className="muted" style={{ fontSize: "13px" }}>
+          Cliquez sur les régions du corps pour les sélectionner
+        </span>
+      </div>
+
+      <div className="card">
+        <div className="body-map-exam-grid">
+          {/* ─── Colonne gauche : carte interactive + formulaire ─── */}
+          <form className="body-map-exam-form" onSubmit={handleSubmit}>
+            <BodyMap
+              selected={selected}
+              onChange={setSelected}
+              height={420}
+            />
+            <label>
+              Type d'examen
+              <select
+                value={examType}
+                onChange={(e) => setExamType(e.target.value)}
+              >
+                {EXAM_TYPE_OPTIONS_BODYMAP.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Note clinique (optionnel)
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                rows={3}
+                placeholder="Ex : douleur aiguë, palpation, aspect de la lésion, irradiation..."
+              />
+            </label>
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={submitting || selected.length === 0}
+              >
+                {submitting ? "Enregistrement..." : "Enregistrer l'examen"}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={resetForm}
+                disabled={submitting}
+              >
+                Réinitialiser
+              </button>
+            </div>
+          </form>
+
+          {/* ─── Colonne droite : historique des examens corporels ─── */}
+          <div>
+            <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 15 }}>
+              Historique des examens corporels ({history.length})
+            </h3>
+            {loading ? (
+              <div className="body-map-empty-state">Chargement...</div>
+            ) : history.length === 0 ? (
+              <div className="body-map-empty-state">
+                Aucun examen corporel enregistré pour ce patient.
+                <br />
+                Utilisez la carte ci-contre pour enregistrer le premier.
+              </div>
+            ) : (
+              <div className="body-map-exam-history">
+                {history.map((rec) => (
+                  <div
+                    key={rec.id}
+                    className="body-map-exam-history-item"
+                    onClick={() => setViewingRecord(viewingRecord?.id === rec.id ? null : rec)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <div className="meta">
+                      <span>
+                        {rec.created_at
+                          ? new Date(rec.created_at).toLocaleString("fr-FR", {
+                              day: "2-digit", month: "2-digit", year: "numeric",
+                              hour: "2-digit", minute: "2-digit",
+                            })
+                          : "—"}
+                      </span>
+                      <span className="badge badge-blue">{examTypeLabel(rec.exam_type)}</span>
+                    </div>
+                    <div className="regions">
+                      {rec.regions.map((r) => (
+                        <span key={r} className="mini-chip">{getRegionLabel(r)}</span>
+                      ))}
+                    </div>
+                    {rec.note && <div className="note">« {rec.note} »</div>}
+                    {rec.author && (
+                      <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted)" }}>
+                        Par : {rec.author}
+                      </div>
+                    )}
+                    {viewingRecord?.id === rec.id && (
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed var(--border)" }}>
+                        <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>
+                          Aperçu de la sélection :
+                        </div>
+                        <BodyMap
+                          selected={rec.regions}
+                          readOnly
+                          height={280}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </>
   );

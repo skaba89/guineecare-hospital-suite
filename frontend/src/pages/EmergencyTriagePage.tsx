@@ -3,6 +3,12 @@ import { apiRequest } from "../services/api";
 import { LookupData, Row } from "../types";
 import { showToast } from "../components/Toast";
 import {
+  BodyMap,
+  BodyRegionId,
+  serializeRegions,
+  getRegionLabel,
+} from "../components/BodyMap";
+import {
   Clock,
   AlertTriangle,
   User,
@@ -96,6 +102,8 @@ export function EmergencyTriagePage({
   const [heartRate, setHeartRate] = useState("");
   const [o2Saturation, setO2Saturation] = useState("");
   const [painLevel, setPainLevel] = useState(0);
+  const [painRegions, setPainRegions] = useState<BodyRegionId[]>([]);
+  const [showBodyMap, setShowBodyMap] = useState(false);
   const [glasgow, setGlasgow] = useState(15);
   const [allergies, setAllergies] = useState(false);
   const [criticalChecks, setCriticalChecks] = useState<Record<string, boolean>>({});
@@ -148,6 +156,8 @@ export function EmergencyTriagePage({
     setHeartRate("");
     setO2Saturation("");
     setPainLevel(0);
+    setPainRegions([]);
+    setShowBodyMap(false);
     setGlasgow(15);
     setAllergies(false);
     setCriticalChecks({});
@@ -162,6 +172,8 @@ export function EmergencyTriagePage({
     setHeartRate("");
     setO2Saturation("");
     setPainLevel(0);
+    setPainRegions([]);
+    setShowBodyMap(false);
     setGlasgow(15);
     setAllergies(false);
     setCriticalChecks({});
@@ -195,7 +207,7 @@ export function EmergencyTriagePage({
 
       // Step 2: Submit care/vitals if any vital sign entered
       const hasVitals =
-        temperature || bloodPressure || heartRate || o2Saturation || painLevel > 0 || glasgow < 15;
+        temperature || bloodPressure || heartRate || o2Saturation || painLevel > 0 || glasgow < 15 || painRegions.length > 0;
 
       if (hasVitals) {
         const vitalSigns = JSON.stringify({
@@ -204,6 +216,7 @@ export function EmergencyTriagePage({
           heart_rate: heartRate || null,
           o2_saturation: o2Saturation || null,
           pain_level: painLevel,
+          pain_regions: painRegions.length > 0 ? serializeRegions(painRegions) : undefined,
           glasgow: glasgow,
           allergies: allergies,
           critical_flags: Object.entries(criticalChecks)
@@ -211,11 +224,19 @@ export function EmergencyTriagePage({
             .map(([k]) => k),
         });
 
+        // Si des régions de douleur sont sélectionnées, on les ajoute aux notes
+        // avec le marqueur [BODYMAP] pour réutilisation dans le dossier patient
+        const painLocationNote = painRegions.length > 0
+          ? `[BODYMAP|exam_type=DOULEUR|regions=${serializeRegions(painRegions)}|note=Localisation douleur au tri — EVA ${painLevel}/10]`
+          : undefined;
+        const chiefComplaintNote = chiefComplaint !== selectedVisit?.chief_complaint ? chiefComplaint : undefined;
+        const treatmentNotes = [chiefComplaintNote, painLocationNote].filter(Boolean).join("\n") || undefined;
+
         await apiRequest(`/emergency/visits/${selectedVisitId}/care`, {
           method: "POST",
           body: JSON.stringify({
             vital_signs: vitalSigns,
-            treatment_notes: chiefComplaint !== selectedVisit?.chief_complaint ? chiefComplaint : undefined,
+            treatment_notes: treatmentNotes,
           }),
         });
       }
@@ -930,6 +951,70 @@ export function EmergencyTriagePage({
                   <AlertTriangle size={16} />
                   Patient allergique connu
                 </label>
+              </div>
+
+              {/* Localisation de la douleur (carte corporelle) */}
+              <div
+                style={{
+                  marginTop: "8px",
+                  padding: "12px",
+                  background: painRegions.length > 0 ? "var(--danger-light)" : "var(--bg)",
+                  border: `1px solid ${painRegions.length > 0 ? "var(--danger)" : "var(--border)"}`,
+                  borderRadius: "var(--radius-md)",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowBodyMap(!showBodyMap)}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: 0,
+                    border: "none",
+                    background: "transparent",
+                    cursor: "pointer",
+                    font: "inherit",
+                    color: "var(--text)",
+                    fontWeight: 600,
+                    fontSize: "13px",
+                  }}
+                >
+                  <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <AlertTriangle size={14} style={{ color: painRegions.length > 0 ? "var(--danger)" : "var(--muted)" }} />
+                    Localisation de la douleur
+                    {painRegions.length > 0 && (
+                      <span
+                        style={{
+                          background: "var(--danger)",
+                          color: "#ffffff",
+                          padding: "2px 8px",
+                          borderRadius: "var(--radius-full)",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                        }}
+                      >
+                        {painRegions.length}
+                      </span>
+                    )}
+                  </span>
+                  <span style={{ color: "var(--muted)" }}>{showBodyMap ? "▲" : "▼"}</span>
+                </button>
+                {showBodyMap && (
+                  <div style={{ marginTop: "12px" }}>
+                    <BodyMap
+                      selected={painRegions}
+                      onChange={setPainRegions}
+                      height={360}
+                    />
+                  </div>
+                )}
+                {painRegions.length > 0 && !showBodyMap && (
+                  <div style={{ marginTop: "8px", fontSize: "12px", color: "var(--text-secondary)" }}>
+                    {painRegions.map(getRegionLabel).join(", ")}
+                  </div>
+                )}
               </div>
 
               {/* Submit */}

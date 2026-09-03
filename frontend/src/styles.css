@@ -2535,3 +2535,312 @@ select {
 [data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
   background: var(--muted);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   v3.4.2 — CARTE CORPORELLE INTERACTIVE (BodyMap)
+   Composant SVG interactif du corps humain pour :
+   - Localisation de la douleur
+   - Marquage de lésions / plaies
+   - Zones d'examen clinique
+   Fonctionne en mode clair ET sombre (variables CSS automatiques).
+   ═══════════════════════════════════════════════════════════════ */
+
+.body-map {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+.body-map-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.body-map-view-toggle {
+  display: inline-flex;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  gap: 2px;
+}
+
+.body-map-view-toggle button {
+  padding: 6px 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  outline: none;
+}
+
+.body-map-view-toggle button:hover {
+  color: var(--text);
+}
+
+.body-map-view-toggle button.active {
+  background: var(--primary);
+  color: #ffffff;
+  box-shadow: var(--shadow-xs);
+}
+
+[data-theme="dark"] .body-map-view-toggle button.active {
+  color: #0f172a;
+}
+
+.body-map-counter {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.body-map-canvas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 50% 30%, var(--primary-50, transparent) 0%, transparent 60%),
+    var(--bg);
+  border-radius: var(--radius-lg);
+  padding: 12px;
+  border: 1px solid var(--border-light);
+}
+
+/* ─── Régions SVG ─── */
+
+.body-map-region {
+  fill: var(--border-light);
+  stroke: var(--border);
+  stroke-width: 1;
+  cursor: pointer;
+  transition: fill var(--transition-fast), stroke var(--transition-fast),
+              opacity var(--transition-fast);
+  outline: none;
+}
+
+.body-map-region.hovered {
+  fill: var(--primary-100);
+  stroke: var(--primary);
+  stroke-width: 1.5;
+}
+
+.body-map-region.selected {
+  fill: var(--danger);
+  stroke: var(--danger);
+  stroke-width: 1.5;
+  opacity: 0.85;
+}
+
+.body-map-region.selected.hovered {
+  fill: var(--danger);
+  opacity: 1;
+  filter: brightness(1.05);
+}
+
+.body-map-region.readonly {
+  cursor: default;
+}
+
+.body-map-region:focus-visible {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 4px var(--accent));
+}
+
+/* ─── Liste des régions sélectionnées ─── */
+
+.body-map-selected-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--primary-50);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--primary-100);
+}
+
+[data-theme="dark"] .body-map-selected-list {
+  background: var(--primary-light);
+  border-color: var(--primary-200);
+}
+
+.body-map-selected-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary-hover);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.body-map-selected-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.body-map-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--danger);
+  color: #ffffff;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  box-shadow: var(--shadow-xs);
+}
+
+[data-theme="dark"] .body-map-chip {
+  color: #0f172a;
+}
+
+.body-map-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: rgba(255, 255, 255, 0.25);
+  color: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  transition: background var(--transition-fast);
+}
+
+.body-map-chip-remove:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* ─── Layout fiche examen corporel ─── */
+
+.body-map-exam-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .body-map-exam-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.body-map-exam-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.body-map-exam-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.body-map-exam-form input[type="text"],
+.body-map-exam-form select,
+.body-map-exam-form textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: 14px;
+  background: var(--card);
+  color: var(--text);
+  transition: border-color var(--transition-fast);
+}
+
+.body-map-exam-form input[type="text"]:focus,
+.body-map-exam-form select:focus,
+.body-map-exam-form textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-50);
+}
+
+.body-map-exam-history {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.body-map-exam-history-item {
+  padding: 12px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+}
+
+.body-map-exam-history-item .meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.body-map-exam-history-item .meta .badge {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+.body-map-exam-history-item .regions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.body-map-exam-history-item .regions .mini-chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: var(--danger-light);
+  color: var(--danger);
+  border-radius: var(--radius-full);
+  font-weight: 500;
+}
+
+.body-map-exam-history-item .note {
+  color: var(--text);
+  font-style: italic;
+}
+
+.body-map-empty-state {
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+}
+
