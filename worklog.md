@@ -178,3 +178,43 @@ Stage Summary:
 - Roadmap V3.0 formalisée (10 lots, budget, planning, gouvernance)
 - 4 fiches rapides utilisateurs (1 page chacune, imprimables)
 - Le projet v2.9.4 est COMPLÈTEMENT PRÊT — il ne reste plus que les 3 décisions administratives
+
+---
+Task ID: V342-PUSH
+Agent: main
+Task: Push BodyMap sur GitHub + extension EmergencyTriagePage + patch téléchargeable
+
+Work Log:
+- Vérification état repo git local : 2 commits en avance sur origin/main (fix flatten structure + BodyMap initial)
+- Tentative rebase sur origin/main (91 commits derrière) → conflits massifs sur tests/backend (add/add)
+- Stratégie alternative : reset --hard origin/main + réapplication propre des fichiers BodyMap
+- Restauration fichiers depuis backup /tmp/bodymap-backup/ :
+  * frontend/src/components/BodyMap.tsx (nouveau, 14 KB)
+  * frontend/src/pages/PatientDetailPage.tsx (modifié, +250 lignes)
+  * frontend/src/styles.css (modifié, +309 lignes)
+  * scripts/bodymap_demo.html + scripts/screenshot_bodymap.mjs
+- Extension EmergencyTriagePage.tsx :
+  * Import BodyMap + BodyRegionId + serializeRegions + getRegionLabel
+  * Nouveaux états : painRegions[] + showBodyMap (toggle panneau)
+  * Panneau rétractable « Localisation de la douleur » dans le formulaire de tri
+  * Badge compteur rouge quand régions sélectionnées
+  * Submit : pain_regions inclus dans vital_signs + marqueur [BODYMAP] dans treatment_notes
+  * Réinitialisation : painRegions et showBodyMap ajoutés à clearSelection
+- Validation : tsc OK, vite build 728 ms
+- Commit : c7304d5a « v3.4.2: Carte corporelle interactive — BodyMap component + intégration »
+- Tentative push GitHub : ÉCHEC — token ghp_*** invalide/expiré
+- Remote supprimé (token embedded = risque sécurité)
+- Patch généré : /home/z/my-project/download/v3.4.2-bodymap.patch (55 KB)
+  * Format git format-patch — peut être appliqué via `git am v3.4.2-bodymap.patch`
+  * Contient les 6 fichiers (BodyMap.tsx + 3 modifs + 2 scripts)
+
+Stage Summary:
+- Code validé (tsc + vite OK) et commit localement
+- Push GitHub impossible — token expiré, un nouveau token est nécessaire
+- Patch téléchargeable prêt dans /home/z/my-project/download/v3.4.2-bodymap.patch
+- 3 intégrations BodyMap actives :
+  1. PatientDetailPage → onglet « Carte corporelle » (examen corporel complet)
+  2. EmergencyTriagePage → panneau « Localisation de la douleur » au tri
+  3. (réutilisable dans SurgeryPage, ImagingPage si souhaité)
+- Bug Render (structure du repo) déjà fixé sur origin/main (commit 0b2d6f60 squash-mergé)
+- Prochaine action utilisateur : appliquer le patch OU fournir nouveau token GitHub
